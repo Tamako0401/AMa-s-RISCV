@@ -1,1 +1,9 @@
 /.vscode
+*.s
+*.o
+*.log
+*.hex
+*.bin
+*.elf
+*.out
+*.DS_Store
