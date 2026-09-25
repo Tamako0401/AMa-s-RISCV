@@ -1,0 +1,16 @@
+# Run from any directory: nu --no-config-file scripts/test-reusable.nu
+def main [] {
+    let repo = ($env.FILE_PWD | path dirname)
+    cd $repo
+    mkdir build/reusable
+    ^iverilog -g2012 -Wall -t null -f rtl/reusable.f
+    if $env.LAST_EXIT_CODE != 0 { error make {msg: "RTL elaboration failed"} }
+    for name in [storage alu peripherals] {
+        let top = $"($name)_tb"
+        let output = $"build/reusable/($top).vvp"
+        ^iverilog -g2012 -s $top -o $output -f rtl/reusable.f $"tests/reusable/($top).sv"
+        if $env.LAST_EXIT_CODE != 0 { error make {msg: $"Compile failed: ($top)"} }
+        ^vvp $output
+        if $env.LAST_EXIT_CODE != 0 { error make {msg: $"Simulation failed: ($top)"} }
+    }
+}

@@ -7,3 +7,4 @@
 *.elf
 *.out
 *.DS_Store
+/build/
