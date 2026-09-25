@@ -1,0 +1,84 @@
+{
+  "repository": "https://github.com/JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G",
+  "commit": "00a3334d7c98f57a6d429a5e18910a7e2e88390b",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "source": "source/utils/gen_dff.v",
+      "destination": "rtl/utils/gen_dff.v",
+      "source_sha256": "0709777cabb60396e020dd15d6a3ba62b46a73a0882d94967134b1e05aa4bb20",
+      "imported_sha256": "ed79a412bba5e44409f3d6439a71efe8ce5f9cd3cc345142632e4c70b09af7a7",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace."
+      ]
+    },
+    {
+      "source": "source/utils/gen_buf.v",
+      "destination": "rtl/utils/gen_buf.v",
+      "source_sha256": "8fe8b39007810e9aadd058cb78b60d6042e3e569bc4b41a25218c2bd75e71512",
+      "imported_sha256": "b100ff35b29b67d6f708436add0c2e437bf1a8d3ed75921316b6dbc3650960ff",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace."
+      ]
+    },
+    {
+      "source": "source/utils/gen_ram.v",
+      "destination": "rtl/utils/gen_ram.v",
+      "source_sha256": "45cc421f6a61dafc4419b7bfb3234b6f48885f17e08c9e94df80227051c93f0d",
+      "imported_sha256": "99d182866060e4d9e6913eada9f365ceaf6b08a739702e45604651748b1a12b0",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace.",
+        "Remove dependency on upstream core/defines.v."
+      ]
+    },
+    {
+      "source": "source/utils/vld_rdy.v",
+      "destination": "rtl/utils/vld_rdy.v",
+      "source_sha256": "6e146f758bec47755a8c9676a0648d9b45f188163c70996aeabb11586d7d8d8f",
+      "imported_sha256": "f0a64bab6833869ee5eafae606b3d9f8d6f59733f3ba0328a236cb9459d8ddf1",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace."
+      ]
+    },
+    {
+      "source": "source/core/gpr_reg.v",
+      "destination": "rtl/core/gpr_reg.v",
+      "source_sha256": "205abbb6582e9c18940eb555120dd8ccbad6798b6c94ebba63efe96e3f9ad256",
+      "imported_sha256": "5e893d1e6c935dedd3f31178ae2dc24534e0026bd8f7e0991a43564afc8e11b6",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace.",
+        "Remove dependency on upstream core/defines.v."
+      ]
+    },
+    {
+      "source": "source/core/exu_alu_datapath.v",
+      "destination": "rtl/core/exu_alu_datapath.v",
+      "source_sha256": "d284d5da98162c5926362724c23ace36b971a58de5d6471d24698886e758500d",
+      "imported_sha256": "7ee8121e7370321992d3d2620fb197302b61023cb8e2e82eb7a8ca8f8239f5e0",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace.",
+        "Remove dependency on upstream core/defines.v."
+      ]
+    },
+    {
+      "source": "source/perips/gpio.v",
+      "destination": "rtl/perips/gpio.v",
+      "source_sha256": "6447e855474e42923971db72d3c6a51b5ba716ccc360a20ea8cac69ecdb03024",
+      "imported_sha256": "2a9921ad187e086f23f3567b93104c685779fa84e947ad4f25d94dd1eab9aa90",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace."
+      ]
+    },
+    {
+      "source": "source/perips/uart.v",
+      "destination": "rtl/perips/uart.v",
+      "source_sha256": "7b6b80b683243130b8afc6d776c8901af522e815f430043703c34e8bd1cf65d5",
+      "imported_sha256": "b824be9942ed52bd39a5ac2bdae70a2a9f53c8f778157e89ec4194c7fa7c72c6",
+      "changes": [
+        "Normalize line endings to LF and remove trailing whitespace.",
+        "Remove dependency on upstream core/defines.v.",
+        "Expose CPU_CLOCK_HZ as a parameter; preserve upstream default and divider behavior."
+      ]
+    }
+  ]
+}
