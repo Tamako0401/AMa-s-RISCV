@@ -22,8 +22,12 @@ _stack_top = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS
 {
+    .text.init : { *(.text.init) } > RAM    /* 把.text.init段放在最前面 */
+    .tohost : {
+        . = ALIGN(0x100);   /* tohost 段位置无影响. 这里让他固定在 0x80000100 */
+        *(.tohost) 
+    } > RAM
     .text : {
-        *(.text.init)        /* 把.text.init段放在最前面 */
         *(.text .text.*)     /* 其余所有的函数代码(编译器生成的指令) */
         *(.rodata .rodata.*) /* 只读数据也放在.text 段*/
         . = ALIGN(4);        /* 当前地址对齐到4字节边界: 锐克五指令固定4字节宽. 如果不对齐会读错位 */
