@@ -79,6 +79,141 @@
         "Remove dependency on upstream core/defines.v.",
         "Expose CPU_CLOCK_HZ as a parameter; preserve upstream default and divider behavior."
       ]
+    },
+    {
+      "source": "source/core/clint.v",
+      "destination": "rtl/core/clint.v",
+      "source_sha256": "811a7a29fc9841fd1b61e91c4659079709ca2c15df546c73da46bcd1c2e4059e",
+      "imported_sha256": "fce1f65d97a0d24a30fa0d320c94347659645cf414c4ec2cafca3e338f37d569",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/csr_reg.v",
+      "destination": "rtl/core/csr_reg.v",
+      "source_sha256": "af8190ec87703e74a7db3a4374280a785570d4f1ab49c0e14824f85493a1bf2e",
+      "imported_sha256": "25f9381f980aff559196c6b90c6909569902e2ae6a8ef7bdbe79228ffc10ee93",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/defines.v",
+      "destination": "rtl/core/defines.v",
+      "source_sha256": "2fef834e332c2b3d897b8669e9e8de4d97916609f14448730b4b27ebfabdd93e",
+      "imported_sha256": "0a211546c5e182a7a8e437de849dbe11b690d95b42c9c2a0583e5b64009476b7",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/divider.v",
+      "destination": "rtl/core/divider.v",
+      "source_sha256": "2d44e5cef6d3684a23c066bb716a0fa6b53ff004cce0d8d52c3dafa088c98123",
+      "imported_sha256": "ef556a4620fbf281c798835624530be548e1870c3236959f71ec1d0fa87180cf",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/exu.v",
+      "destination": "rtl/core/exu.v",
+      "source_sha256": "33e9717ea443e2ffff66b2cb8031fb9c65ee2f6eaafa075b64ea60bd41926e23",
+      "imported_sha256": "dcca3e283892d455ce056818a8d450536767e4d3c5de24c27e315486e2df73bc",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/exu_commit.v",
+      "destination": "rtl/core/exu_commit.v",
+      "source_sha256": "b4d4095362251497e2debb4c5dd753601176036a3d8bc3625ce9b2390e8c1716",
+      "imported_sha256": "162a891087cfd8e07ff4101a1576417b619d505aa9cc45d3db4a987c1e525bf4",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/exu_dispatch.v",
+      "destination": "rtl/core/exu_dispatch.v",
+      "source_sha256": "0cbfea8248945c71cd5bfd32684cf3e8ffb4dbd2dc818b6009dc6d76f96eefaa",
+      "imported_sha256": "46ce6287fd87b5eea906ea56fc2860b1e3ba1ed86d30c515433c00f81b0060d3",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/exu_mem.v",
+      "destination": "rtl/core/exu_mem.v",
+      "source_sha256": "531f007ad1d460ff364526ea6192d48c09790e902e9110f2f240e02405e3c77c",
+      "imported_sha256": "1a323373139c066ec97017a64964e78f8f552b04a02258d7c4f03e21697407d5",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/exu_muldiv.v",
+      "destination": "rtl/core/exu_muldiv.v",
+      "source_sha256": "bde75de8e1ffcdbb701c130045bea7e5139a4358f2c40fe55d2c84e4b289dd48",
+      "imported_sha256": "03c9ef6dfc9dea73aa80c33e3996c7089db68166ecd8e5d1be8cfb541b2574b7",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/idu.v",
+      "destination": "rtl/core/idu.v",
+      "source_sha256": "5d39e6ea1642ab2c54d340128353c54b1d7b9c3de53dbf85c9c5cb518308183e",
+      "imported_sha256": "fa23d6b857a6300abadb1664cc5c16242603177d92bf1a586616001151767a6e",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/idu_exu.v",
+      "destination": "rtl/core/idu_exu.v",
+      "source_sha256": "56aa9a12f2ecfa6d311197df62a958d5b50ce09233405dc279b03eb61f385e93",
+      "imported_sha256": "35e068c888a19ad6982cd58962909eb5b371379e5a46745757472e7ee44b91eb",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/ifu.v",
+      "destination": "rtl/core/ifu.v",
+      "source_sha256": "e3fea14dac633195085272c4bfbbd16458f4fb706ee5db2995b0d10516db9396",
+      "imported_sha256": "52df51bfbe29db8f3df09392fbf477cafdfb0e0176337e1e9a7d1d8e41cf43ae",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/ifu_idu.v",
+      "destination": "rtl/core/ifu_idu.v",
+      "source_sha256": "909f651ac81d0548d2dc4a6e6e2a1eeeda08cd8bcf9f6d9e73c4a6900bd13466",
+      "imported_sha256": "68c238054278301eeda46eb1577b876365850eb093170d8d2738bde0ed9641ed",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/pipe_ctrl.v",
+      "destination": "rtl/core/pipe_ctrl.v",
+      "source_sha256": "d302c22db0b0d9ee914e096b85ae1f74526150e4887a6a2331b46df6d9c93156",
+      "imported_sha256": "5d2df6aa1686a10c6c1cc99bfd5174fa9a8ba49fd015fb1e5a72547c79a4bbf7",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
+    },
+    {
+      "source": "source/core/tinyriscv_core.v",
+      "destination": "rtl/core/tinyriscv_core.v",
+      "source_sha256": "6b0964b9a3c3b84f6e1c91098a7bb191758e46162046d3806c4b523a0c430c32",
+      "imported_sha256": "7a2ba8651fbd53ada37f2576d30714ecb052ef584d5bd63d43c96bc841a06ef1",
+      "changes": [
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+      ]
     }
   ]
 }
