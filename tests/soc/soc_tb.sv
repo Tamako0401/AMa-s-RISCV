@@ -5,8 +5,9 @@
 // 与 tests/cpu 的分工: cpu_tb 用的是测试台自己的行为级存储模型(验证核),
 // 这里补的是"总线互连 + 存储器 RTL 接起来对不对"这一层。
 //
-// 程序镜像由 +rom= 给出, 测试台用 $readmemh 预载进 soc_top 内部的 ROM
-// (相当于实机的引导加载), 因此 rom.v 的 ROM_INIT_FILE 参数在这里用不到。
+// 程序镜像由 +rom= 给出, RAM 初值由可选的 +ram= 给出, 测试台用 $readmemh
+// 预载进 soc_top 内部的 rom/ram (相当于实机的引导加载或综合时的存储初值),
+// 因此 rom.v/ram.v 自己的 ROM_INIT_FILE/RAM_INIT_FILE 参数在这里用不到。
 //
 // 结束判定: 向 RAM 窗口第 0 个字 0x1000_0000 的整字写 = 程序结束, 写入值为返回值。
 module soc_tb;
@@ -16,7 +17,7 @@ module soc_tb;
     always #5 clk = ~clk;
     reg rst_n = 0;
 
-    string rom_path;
+    string rom_path, ram_path;
     integer unused;
     integer cycles = 0, stores = 0, expected_stores = -1;
     reg seen = 0;
@@ -53,6 +54,11 @@ module soc_tb;
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
         unused = $value$plusargs("stores=%d", expected_stores);
         $readmemh(rom_path, u_soc.u_rom.mem);
+        // RAM 初值是可选的: 用到已初始化 .data 的程序必须给 +ram=。
+        // 这里直接写进存储数组, 相当于实机由 ram.v 的 RAM_INIT_FILE 完成。
+        if ($value$plusargs("ram=%s", ram_path)) begin
+            $readmemh(ram_path, u_soc.u_ram.u_gen_ram.ram);
+        end
         repeat (5) @(negedge clk);
         rst_n = 1;
     end

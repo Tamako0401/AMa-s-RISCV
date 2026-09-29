@@ -17,7 +17,8 @@
 // 的行为一致(RIB 没有错误响应通道), 访问会一直等待。
 module soc_top #(
     parameter [31:0] RESET_PC = 32'h00000000,
-    parameter ROM_INIT_FILE = ""            // ROM 初值 hex 文件, 相对仿真工作目录
+    parameter ROM_INIT_FILE = "",           // ROM 初值 hex 文件, 相对仿真工作目录
+    parameter RAM_INIT_FILE = ""            // RAM 初值 hex 文件, 相对仿真工作目录
 )(
 
     input wire clk,
@@ -182,7 +183,8 @@ module soc_top #(
 
     // 数据存储器: 64 KiB, 深度与 tests/cpu/link.ld 的 RAM 区一致
     ram #(
-        .DP(16384)
+        .DP(16384),
+        .RAM_INIT_FILE(RAM_INIT_FILE)
     ) u_ram(
         .clk(clk),
         .rst_n(rst_n),

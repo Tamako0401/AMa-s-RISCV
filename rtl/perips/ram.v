@@ -6,6 +6,8 @@
 //   - DP now drives gen_ram's depth instead of being a dead parameter.
 //   - The write enable is gated by the request handshake, so a master that keeps
 //     we_i asserted while waiting for the response cannot write more than once.
+//   - Add an optional RAM_INIT_FILE parameter, forwarded to gen_ram's INIT_FILE,
+//     so the data memory can be preloaded with a program's .data image.
 // See docs/third-party.md and docs/cpu-baseline.md.
  /*
  Copyright 2020 Blue Liang, liangkangnan@163.com
@@ -34,9 +36,11 @@
 // - addr_i 是字节地址, 右移 2 位后取低位作为 gen_ram 的字地址, 超出 DP 的
 //   高位被截断(调用方需保证地址落在合法区间);
 // - 写使能只在请求真正握手(valid & ready)的那一拍有效, 避免重复写入;
-// - 使能、上电初值不定义; 内容不随复位清零。
+// - 初值由 $readmemh 从 RAM_INIT_FILE 载入(文件名为空则不初始化); 该方式在仿真中
+//   已验证, 能否被综合工具推断成存储初值尚未验证。内容不随复位清零。
 module ram #(
-    parameter DP = 8192                   // 深度, 单位 word(4字节)
+    parameter DP = 8192,                  // 深度, 单位 word(4字节)
+    parameter RAM_INIT_FILE = ""          // 初始化 hex 文件名, 相对仿真工作目录
 )(
 
     input wire clk,
@@ -66,7 +70,8 @@ module ram #(
         .DP(DP),
         .DW(32),
         .MW(4),
-        .AW(AW)
+        .AW(AW),
+        .INIT_FILE(RAM_INIT_FILE)
     ) u_gen_ram(
         .clk(clk),
         .addr_i(word_addr[AW-1:0]),

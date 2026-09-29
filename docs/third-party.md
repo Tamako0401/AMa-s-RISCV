@@ -21,7 +21,7 @@
 | `source/utils/gen_dff.v` | `rtl/utils/gen_dff.v` | 六种寄存器模块；无逻辑改动 |
 | `source/utils/gen_buf.v` | `rtl/utils/gen_buf.v` | `gen_ticks_sync`，依赖 `gen_dff.v`；无逻辑改动 |
 | `source/utils/vld_rdy.v` | `rtl/utils/vld_rdy.v` | valid/ready 控制，依赖 `gen_dff.v`；无逻辑改动 |
-| `source/utils/gen_ram.v` | `rtl/utils/gen_ram.v` | 通用 RTL RAM；删除未使用的 `defines.v` 引用 |
+| `source/utils/gen_ram.v` | `rtl/utils/gen_ram.v` | 通用 RTL RAM；删除未使用的 `defines.v` 引用；增加可选 `INIT_FILE` 初值参数 |
 | `source/core/gpr_reg.v` | `rtl/core/gpr_reg.v` | 32 个通用寄存器，依赖 `gen_dff.v`；删除未使用的 `defines.v` 引用 |
 | `source/core/exu_alu_datapath.v` | `rtl/core/exu_alu_datapath.v` | 运算/比较数据通路；删除未使用的 `defines.v` 引用 |
 | `source/perips/gpio.v` | `rtl/perips/gpio.v` | GPIO 寄存器和输入采样，依赖 `vld_rdy.v`；无逻辑改动 |
@@ -55,7 +55,7 @@ UART 时钟参数只影响复位时的默认分频值；必须传入真实外设
 
 - `exu_alu_datapath` 的 ALU/BJP/MEM/CSR 请求互斥；它不负责指令译码、分支冲刷或 JALR 地址对齐。CSR 输入需按原接口预处理，例如清位操作送入反相后的掩码。
 - `gpr_reg` 保持 x0 为零，支持同拍写地址的组合旁路；x1–x31 **不随复位清零**，未写过的值不可假设为零。`rst_n` 虽在接口中，但不清除寄存器内容。
-- `gen_ram` 使用**字地址**，采样读地址后输出对应内容，按字节写；未初始化的存储单元未知。调用方保证地址在范围内及参数合法。本次没有证明它在 PDS 中会映射成哪种存储资源，不能把它当成已验证的紫光 BRAM IP 替代品。
+- `gen_ram` 使用**字地址**，采样读地址后输出对应内容，按字节写；未初始化的存储单元未知。可选的 `INIT_FILE` 参数用 `$readmemh` 载入初值（文件名为空则不初始化）：该方式已在仿真中验证，并由 `rtl/perips/ram.v` 的 `RAM_INIT_FILE` 与 `tests/reusable/memory_tb.sv`、`tests/soc/` 覆盖；但能否被综合工具推断成存储初值尚未验证。调用方保证地址在范围内及参数合法。本次没有证明它在 PDS 中会映射成哪种存储资源，不能把它当成已验证的紫光 BRAM IP 替代品。
 - `gen_pipe_dff` 的 `hold_en` 实际使输出装载 `def_val`，不是保留旧值。设计新流水时不要误解其名称。
 - `gen_ticks_sync` 是寄存器延迟链。多位数据跨时钟域不能仅靠它保证一致性；本次没有导入完整 CDC 事务模块。
 

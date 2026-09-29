@@ -1,6 +1,7 @@
 `timescale 1ns/1ps
-// 组件级回归: 哈佛式的 rom(只读、$readmemh 初始化) 与 ram(可读写) 从设备。
-// 覆盖: 握手时序、字节/半字掩码、ROM 只读、背压保持、保持写请求不重复写入。
+// 组件级回归: 哈佛式的 rom(只读、$readmemh 初始化) 与 ram(可读写、$readmemh 初值)
+// 从设备。覆盖: 初值载入、握手时序、字节/半字掩码、ROM 只读、背压保持、
+// 保持写请求不重复写入。
 module memory_tb;
     reg clk = 0;
     always #5 clk = ~clk;
@@ -28,7 +29,7 @@ module memory_tb;
         .rsp_valid_o(rom_rspv), .rsp_ready_i(rom_rspr)
     );
 
-    ram #(.DP(16)) u_ram(
+    ram #(.DP(8), .RAM_INIT_FILE("tests/reusable/ram_init.mem")) u_ram(
         .clk(clk), .rst_n(rst_n),
         .addr_i(ram_addr), .data_i(ram_wdata), .sel_i(ram_sel), .we_i(ram_we),
         .data_o(ram_rdata),
@@ -87,6 +88,13 @@ module memory_tb;
         rom_access(1'b1, 32'h0, 32'hDEADBEEF, 4'b1111);
         rom_access(1'b0, 32'h0, 32'h0, 4'b1111);
         if (result !== 32'hA5A50000) $fatal(1, "ROM is not read-only: %h", result);
+
+        // ---- RAM: 读出 $readmemh 载入的初值(必须在任何写之前) ----
+        for (i = 0; i < 8; i = i + 1) begin
+            ram_access(1'b0, i*4, 32'h0, 4'b1111);
+            if (result !== (32'h5A5A0000 + i))
+                $fatal(1, "RAM init word %0d = %h", i, result);
+        end
 
         // ---- RAM: 整字读写 ----
         ram_access(1'b1, 32'h4, 32'h12345678, 4'b1111);
@@ -148,7 +156,7 @@ module memory_tb;
         ram_access(1'b0, 32'h10, 32'h0, 4'b1111);
         if (result !== 32'h00000001) $fatal(1, "RAM held write result = %h", result);
 
-        $display("PASS memory: ROM init/read-only, RAM word/byte/halfword, backpressure, single write");
+        $display("PASS memory: ROM/RAM init, ROM read-only, RAM word/byte/halfword, backpressure, single write");
         $finish;
     end
 
