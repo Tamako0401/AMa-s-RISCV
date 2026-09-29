@@ -44,7 +44,8 @@ module cpu_tb;
     reg [31:0] ipayload, dpayload;
     reg completing = 0;
     reg [31:0] status;
-    string rom_path, ram_path, wave_path;
+    string rom_path, ram_path, wave_path, commit_log_path;
+    integer commit_log_fd = 0;
     integer unused;
     assign ir = rst_n && !ibusy && !ivalid && (I_DELAY == 0 || rng[0]);
     assign dr = rst_n && !dbusy && !dvalid && (D_DELAY == 0 || rng[4]);
@@ -52,6 +53,8 @@ module cpu_tb;
     initial begin
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
         if (!$value$plusargs("ram=%s", ram_path)) $fatal(1, "Missing +ram=hex");
+        if ($value$plusargs("commitlog=%s", commit_log_path)) 
+            commit_log_fd = $fopen(commit_log_path, "w");
         unused = $value$plusargs("stores=%d", expected_stores);
         $readmemh(rom_path, rom);
         $readmemh(ram_path, ram);
@@ -140,6 +143,22 @@ module cpu_tb;
                 $display("PASS CPU %s I=%0d D=%0d seed=%0d cycles=%0d stores=%0d",
                          rom_path, I_DELAY, D_DELAY, SEED, cycles, stores);
                 $finish;
+            end
+        end
+    end
+    always @(posedge clk) if (rst_n) begin
+        if (commit_log_fd != 0) begin
+            if (dut.ie_inst_o != 32'h00000000 && dut.ie_inst_o != 32'h00000013 && dut.ctrl_stall_o[`STALL_EX] == 0) begin 
+                // 没有真指令的时候不打印, 在等数据的时候不打印
+                // 会跳过真的nop, 需要时后续加一个valid?
+                $fwrite(commit_log_fd, "core   0: 3 0x%h (0x%h)", dut.ie_dec_pc_o, dut.ie_inst_o);
+                if (dut.ex_reg_we_o == 1 && dut.ex_reg_waddr_o != 0)
+                    if (dut.ex_reg_waddr_o < 10)
+                        $fwrite(commit_log_fd, " x%0d  0x%08h", dut.ex_reg_waddr_o, dut.ex_reg_wdata_o);
+                    else
+                        $fwrite(commit_log_fd, " x%0d 0x%08h",  dut.ex_reg_waddr_o, dut.ex_reg_wdata_o);
+                    // 写非x0寄存器时
+                $fwrite(commit_log_fd, "\n");
             end
         end
     end
