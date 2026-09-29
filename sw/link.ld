@@ -22,12 +22,11 @@ _stack_top = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS
 {
-    .text.init : { *(.text.init) } > RAM    /* 把.text.init段放在最前面 */
     .tohost : {
-        . = ALIGN(0x100);   /* tohost 段位置无影响. 这里让他固定在 0x80000100 */
-        *(.tohost) 
+        *(.tohost)           /* 现在在0x10000000了 */
     } > RAM
     .text : {
+        *(.text.init)
         *(.text .text.*)     /* 其余所有的函数代码(编译器生成的指令) */
         *(.rodata .rodata.*) /* 只读数据也放在.text 段*/
         . = ALIGN(4);        /* 当前地址对齐到4字节边界: 锐克五指令固定4字节宽. 如果不对齐会读错位 */
@@ -36,6 +35,7 @@ SECTIONS
     .data : {                /* 已经初始化的全局变量 */
         . = ALIGN(4);
         *(.data .data.*)
+        *(.sdata .sdata.*)
         . = ALIGN(4);
     } > RAM
 
@@ -43,6 +43,7 @@ SECTIONS
         . = ALIGN(4);
         _bss_start = .;
         *(.bss .bss.*)
+        *(.sbss .sbss.*)
         *(COMMON)
         . = ALIGN(4);
         _bss_end = .;        /* 打两个符号, 这一段地址需要在启动汇编脚本在跳转到main之前清零. 否则不进行初始化的变量初值读出将为不可预测的值 */
