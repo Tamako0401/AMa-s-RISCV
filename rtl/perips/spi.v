@@ -16,16 +16,31 @@
 
 
 // spi master模块
+//
+// 适配 AMa-s-RISCV: 本模块原先来自另一个 tinyriscv 系项目, 接口与 rtl/perips/
+// 其它外设不一致, 本次只改接口与总线读写路径, SPI 收发逻辑本身未动:
+//   - 复位改名 rst -> rst_n。原代码到处判的是 `rst == 1'b0` 才复位, 即实际就是
+//     低有效, 只是名字有误导;
+//   - 增加 sel_i 字节使能: 写寄存器按 4 个字节分别使能, 与 gpio.v/uart.v 一致;
+//   - 增加 req_valid_i/req_ready_o/rsp_valid_o/rsp_ready_i 握手(用 utils/vld_rdy),
+//     写使能只在请求真正握手的那一拍有效, 主设备保持 we_i 时不会重复写入;
+//   - 读数据改为寄存输出: 原先是组合译码 addr_i, 而 RIB 在请求握手后的下一个
+//     周期就会把从设备地址撑掉, 组合译码会在响应周期取到错的寄存器。
 module spi(
 
     input wire clk,
-    input wire rst,
+    input wire rst_n,
 
     input wire[31:0] data_i,
     input wire[31:0] addr_i,
+    input wire[3:0] sel_i,
     input wire we_i,
+    output wire[31:0] data_o,
 
-    output reg[31:0] data_o,
+    input wire req_valid_i,
+    output wire req_ready_o,
+    output wire rsp_valid_o,
+    input wire rsp_ready_i,
 
     output reg spi_mosi,             // spi控制器输出、spi设备输入信号
     input wire spi_miso,             // spi控制器输入、spi设备输出信号
@@ -74,6 +89,11 @@ module spi(
     reg[3:0] bit_index;             // 数据bit索引
     wire[8:0] div_cnt;
 
+    // 总线握手: 写/读只在请求真正被接受的那一拍有效
+    wire wen = we_i & req_valid_i & req_ready_o;
+    wire ren = (~we_i) & req_valid_i & req_ready_o;
+    reg[31:0] data_r;               // 读数据寄存器(在请求那一拍采样地址)
+
 
     assign spi_ss = ~spi_ctrl[3];   // SPI设备片选信号
 
@@ -86,7 +106,7 @@ module spi(
     // 产生使能信号
     // 传输期间一直有效
     always @ (posedge clk) begin
-        if (rst == 1'b0) begin
+        if (rst_n == 1'b0) begin
             en <= 1'b0;
         end else begin
             if (spi_ctrl[0] == 1'b1) begin
@@ -101,7 +121,7 @@ module spi(
 
     // 对输入时钟进行计数
     always @ (posedge clk) begin
-        if (rst == 1'b0) begin
+        if (rst_n == 1'b0) begin
             clk_cnt <= 9'h0;
         end else if (en == 1'b1) begin
             if (clk_cnt == div_cnt) begin
@@ -117,7 +137,7 @@ module spi(
     // 对spi clk沿进行计数
     // 每当计数到分频值时产生一个上升沿脉冲
     always @ (posedge clk) begin
-        if (rst == 1'b0) begin
+        if (rst_n == 1'b0) begin
             spi_clk_edge_cnt <= 5'h0;
             spi_clk_edge_level <= 1'b0;
         end else if (en == 1'b1) begin
@@ -141,7 +161,7 @@ module spi(
 
     // bit序列
     always @ (posedge clk) begin
-        if (rst == 1'b0) begin
+        if (rst_n == 1'b0) begin
             spi_clk <= 1'b0;
             rdata <= 8'h0;
             spi_mosi <= 1'b0;
@@ -190,7 +210,7 @@ module spi(
 
     // 产生结束(完成)信号
     always @ (posedge clk) begin
-        if (rst == 1'b0) begin
+        if (rst_n == 1'b0) begin
             done <= 1'b0;
         end else begin
             if (en && spi_clk_edge_cnt == 5'd17) begin
@@ -203,23 +223,32 @@ module spi(
 
     // write reg
     always @ (posedge clk) begin
-        if (rst == 1'b0) begin
+        if (rst_n == 1'b0) begin
             spi_ctrl <= 32'h0;
             spi_data <= 32'h0;
             spi_status <= 32'h0;
             spi_dc_reg <= 32'h0000_0002;    // RST_N=1(释放), DC=0(命令)
         end else begin
             spi_status[0] <= en;
-            if (we_i == 1'b1) begin
+            if (wen == 1'b1) begin
                 case (addr_i[3:0])
                     SPI_CTRL: begin
-                        spi_ctrl <= data_i;
+                        if (sel_i[0]) spi_ctrl[7:0]   <= data_i[7:0];
+                        if (sel_i[1]) spi_ctrl[15:8]  <= data_i[15:8];
+                        if (sel_i[2]) spi_ctrl[23:16] <= data_i[23:16];
+                        if (sel_i[3]) spi_ctrl[31:24] <= data_i[31:24];
                     end
                     SPI_DATA: begin
-                        spi_data <= data_i;
+                        if (sel_i[0]) spi_data[7:0]   <= data_i[7:0];
+                        if (sel_i[1]) spi_data[15:8]  <= data_i[15:8];
+                        if (sel_i[2]) spi_data[23:16] <= data_i[23:16];
+                        if (sel_i[3]) spi_data[31:24] <= data_i[31:24];
                     end
                     SPI_DC: begin
-                        spi_dc_reg <= data_i;
+                        if (sel_i[0]) spi_dc_reg[7:0]   <= data_i[7:0];
+                        if (sel_i[1]) spi_dc_reg[15:8]  <= data_i[15:8];
+                        if (sel_i[2]) spi_dc_reg[23:16] <= data_i[23:16];
+                        if (sel_i[3]) spi_dc_reg[31:24] <= data_i[31:24];
                     end
                     default: begin
 
@@ -236,28 +265,37 @@ module spi(
     end
 
     // read reg
-    always @ (*) begin
-        if (rst == 1'b0) begin
-            data_o = 32'h0;
+    // 必须在请求那一拍采样地址: RIB 在请求握手后的下一个周期就把从设备地址撑掉了
+    always @ (posedge clk) begin
+        if (rst_n == 1'b0) begin
+            data_r <= 32'h0;
         end else begin
-            case (addr_i[3:0])
-                SPI_CTRL: begin
-                    data_o = spi_ctrl;
-                end
-                SPI_DATA: begin
-                    data_o = spi_data;
-                end
-                SPI_STATUS: begin
-                    data_o = spi_status;
-                end
-                SPI_DC: begin
-                    data_o = spi_dc_reg;
-                end
-                default: begin
-                    data_o = 32'h0;
-                end
-            endcase
+            if (ren) begin
+                case (addr_i[3:0])
+                    SPI_CTRL:   data_r <= spi_ctrl;
+                    SPI_DATA:   data_r <= spi_data;
+                    SPI_STATUS: data_r <= spi_status;
+                    SPI_DC:     data_r <= spi_dc_reg;
+                    default:    data_r <= 32'h0;
+                endcase
+            end else begin
+                data_r <= 32'h0;
+            end
         end
     end
+
+    assign data_o = data_r;
+
+    // req/rsp 握手时序: 请求被接受后的下一拍拉高 rsp_valid_o, 与 data_r 对齐
+    vld_rdy #(
+        .CUT_READY(0)
+    ) u_vld_rdy(
+        .clk(clk),
+        .rst_n(rst_n),
+        .vld_i(req_valid_i),
+        .rdy_o(req_ready_o),
+        .rdy_i(rsp_ready_i),
+        .vld_o(rsp_valid_o)
+    );
 
 endmodule
