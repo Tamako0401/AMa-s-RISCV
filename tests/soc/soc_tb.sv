@@ -36,7 +36,8 @@ module soc_tb;
 
     soc_top u_soc(
         .clk(clk),
-        .rst_n(rst_n)
+        .rst_n(rst_n),
+        .spi_miso(1'b0)          // 本测试不驱动 SPI 设备
     );
 
     // rib 的互斥性: 任一时刻最多一个从设备被选中, 最多一个主设备收到响应

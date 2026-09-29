@@ -22,4 +22,5 @@ rtl/core/tinyriscv_core.v
 rtl/core/rib.v
 rtl/perips/rom.v
 rtl/perips/ram.v
+rtl/perips/spi.v
 rtl/soc_top/soc_top.v

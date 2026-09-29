@@ -60,7 +60,8 @@ def main():
     BUILD.mkdir(parents=True, exist_ok=True)
 
     programs = [('soc_smoke', build_program('soc_smoke', 'tests/soc/soc_smoke.S'), 19),
-                ('soc_data', build_program('soc_data', 'tests/soc/soc_data.S'), 1)]
+                ('soc_data', build_program('soc_data', 'tests/soc/soc_data.S'), 1),
+                ('soc_spi', build_program('soc_spi', 'tests/soc/soc_spi.S'), 5)]
 
     vvp = BUILD / 'soc_tb.vvp'
     run('iverilog', '-g2012', '-s', 'soc_tb', '-o', vvp,

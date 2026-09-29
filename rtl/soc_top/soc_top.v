@@ -1,17 +1,15 @@
 // SoC 顶层: 处理器核 + RIB 总线 + 存储器
 //
 // 地址映射(由 rib 的 addr[31:28] 译码决定, 与 tests/cpu/link.ld、sw/link.ld 一致):
-//   s0 = ROM 0x0000_0000, 64 KiB, 只读  -- 指令和常量; 也是复位向量
-//   s1 = RAM 0x1000_0000, 64 KiB, 读写  -- 数据
-//   s2 / s3 / s4 = 保留(未接入)
+//   s0 = ROM   0x0000_0000, 64 KiB, 只读 -- 指令和常量; 也是复位向量
+//   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
+//   s2 = SPI   0x2000_0000                -- 寄存器偏移见 perips/spi.v
+//   s3 / s4 = 保留(未接入)
 //
-// 为什么 s2~s4 还空着:
+// 为什么 s3/s4 还空着:
 //   - perips/uart.v、perips/gpio.v 的 valid/ready 接口本可直接挂上去, 但引脚
 //     (UART tx/rx、GPIO 输入输出) 和时钟参数要按具体板卡定;
-//   - perips/spi.v 还是旧式接口(没有 req_valid/req_ready/rsp_valid/rsp_ready),
-//     必须先写一层总线包装才能挂到 RIB 上;
 //   - 本仓库没有 timer。
-// 因此本版本只做 "核 + 总线 + 存储器" 的闭环, 外设留到下一步。
 //
 // 保留槽位的访问行为: req_ready 恒为 0, 即不握手。这与 "地址未命中任何从设备"
 // 的行为一致(RIB 没有错误响应通道), 访问会一直等待。
@@ -22,7 +20,15 @@ module soc_top #(
 )(
 
     input wire clk,
-    input wire rst_n
+    input wire rst_n,
+
+    // SPI / LCD 引脚(直连 perips/spi.v)
+    output wire spi_mosi,                   // 控制器输出、设备输入
+    input wire spi_miso,                    // 控制器输入、设备输出
+    output wire spi_ss,                     // 片选, 低有效
+    output wire spi_clk,
+    output wire lcd_dc,                     // LCD 命令/数据选择: 0=命令, 1=数据
+    output wire lcd_rst_n                   // LCD 复位, 低有效
 
     );
 
@@ -45,10 +51,15 @@ module soc_top #(
     wire[3:0] s1_sel;
     wire s1_we, s1_req_valid, s1_req_ready, s1_rsp_valid, s1_rsp_ready;
 
-    // rib 从设备 2~4: 保留, 未接入任何设备
-    wire[31:0] s2_addr, s2_wdata, s3_addr, s3_wdata, s4_addr, s4_wdata;
-    wire[3:0] s2_sel, s3_sel, s4_sel;
-    wire s2_we, s3_we, s4_we, s2_req_valid, s3_req_valid, s4_req_valid;
+    // rib 从设备 2: SPI (0x2000_0000)
+    wire[31:0] s2_addr, s2_wdata, s2_rdata;
+    wire[3:0] s2_sel;
+    wire s2_we, s2_req_valid, s2_req_ready, s2_rsp_valid, s2_rsp_ready;
+
+    // rib 从设备 3~4: 保留, 未接入任何设备
+    wire[31:0] s3_addr, s3_wdata, s4_addr, s4_wdata;
+    wire[3:0] s3_sel, s4_sel;
+    wire s3_we, s4_we, s3_req_valid, s4_req_valid;
 
 
     tinyriscv_core #(
@@ -129,17 +140,18 @@ module soc_top #(
         .s1_rsp_ready_o(s1_rsp_ready),
         .s1_data_i(s1_rdata),
 
-        // 从设备 2~4 = 保留: 不握手, 将来在这里挂 timer / uart / gpio
+        // 从设备 2 = SPI (0x2000_0000)
         .s2_addr_o(s2_addr),
         .s2_data_o(s2_wdata),
         .s2_sel_o(s2_sel),
         .s2_we_o(s2_we),
         .s2_req_valid_o(s2_req_valid),
-        .s2_req_ready_i(1'b0),
-        .s2_rsp_valid_i(1'b0),
-        .s2_rsp_ready_o(),
-        .s2_data_i(32'h0),
+        .s2_req_ready_i(s2_req_ready),
+        .s2_rsp_valid_i(s2_rsp_valid),
+        .s2_rsp_ready_o(s2_rsp_ready),
+        .s2_data_i(s2_rdata),
 
+        // 从设备 3~4 = 保留: 不握手, 将来在这里挂 timer / uart / gpio
         .s3_addr_o(s3_addr),
         .s3_data_o(s3_wdata),
         .s3_sel_o(s3_sel),
@@ -197,6 +209,28 @@ module soc_top #(
         .req_ready_o(s1_req_ready),
         .rsp_valid_o(s1_rsp_valid),
         .rsp_ready_i(s1_rsp_ready)
+    );
+
+
+    // SPI master (0x2000_0000)
+    spi u_spi(
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(s2_addr),
+        .data_i(s2_wdata),
+        .sel_i(s2_sel),
+        .we_i(s2_we),
+        .data_o(s2_rdata),
+        .req_valid_i(s2_req_valid),
+        .req_ready_o(s2_req_ready),
+        .rsp_valid_o(s2_rsp_valid),
+        .rsp_ready_i(s2_rsp_ready),
+        .spi_mosi(spi_mosi),
+        .spi_miso(spi_miso),
+        .spi_ss(spi_ss),
+        .spi_clk(spi_clk),
+        .lcd_dc(lcd_dc),
+        .lcd_rst_n(lcd_rst_n)
     );
 
 endmodule
