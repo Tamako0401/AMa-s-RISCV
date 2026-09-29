@@ -1,0 +1,15 @@
+diff --git a/riscv/platform.h b/riscv/platform.h
+index 4d14c1ce..c1d69d31 100644
+--- a/riscv/platform.h
++++ b/riscv/platform.h
+@@ -28,7 +28,9 @@
+ #define NS16550_INTERRUPT_ID 1
+ #define EXT_IO_BASE        0x40000000
+ #define DRAM_BASE          0x80000000
+-#define DEBUG_START        0x0
++// AMa-s-RISCV: 原为 0x0, 与哈佛 ROM(0x0000_0000) 重叠, 挪到空闲的 0xF 档.
++// debug_rom 按绝对地址 0x800 进入, 调试模块(-H/OpenOCD)不再可用; -d 不受影响.
++#define DEBUG_START        0xF0000000
+ #define DEBUG_SIZE         0x1000
+ 
+ #endif

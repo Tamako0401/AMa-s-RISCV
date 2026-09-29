@@ -8,6 +8,9 @@ compile-ubuntu flags="":
 run-spike:
     cd {{justfile_directory()}}/sw && spike -d --isa=rv32i test.elf
 
+difftest firmware="smoke":
+    {{justfile_directory()}}/scripts/difftest.bash {{firmware}}
+
 
 
 
