@@ -6,3 +6,5 @@ rtl/core/gpr_reg.v
 rtl/core/exu_alu_datapath.v
 rtl/perips/gpio.v
 rtl/perips/uart.v
+rtl/perips/rom.v
+rtl/perips/ram.v
