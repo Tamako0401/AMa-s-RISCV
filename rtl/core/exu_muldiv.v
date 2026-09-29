@@ -43,11 +43,11 @@ module exu_muldiv(
     );
 
     // 除法操作
+    wire div_ready;
     wire op_div = muldiv_op_div_i | muldiv_op_divu_i | muldiv_op_rem_i | muldiv_op_remu_i;
     wire div_start = op_div & (!div_ready);
     wire[3:0] div_op = {muldiv_op_div_i, muldiv_op_divu_i, muldiv_op_rem_i, muldiv_op_remu_i};
     wire[31:0] div_result;
-    wire div_ready;
 
     divider u_divider(
         .clk(clk),
