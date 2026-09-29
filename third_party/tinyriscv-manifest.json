@@ -25,10 +25,11 @@
       "source": "source/utils/gen_ram.v",
       "destination": "rtl/utils/gen_ram.v",
       "source_sha256": "45cc421f6a61dafc4419b7bfb3234b6f48885f17e08c9e94df80227051c93f0d",
-      "imported_sha256": "99d182866060e4d9e6913eada9f365ceaf6b08a739702e45604651748b1a12b0",
+      "imported_sha256": "4bead3e70429a01ddf668e83c689be6a572d8dadaeb9fafc4a4666e3043304c4",
       "changes": [
         "Normalize line endings to LF and remove trailing whitespace.",
-        "Remove dependency on upstream core/defines.v."
+        "Remove dependency on upstream core/defines.v.",
+        "Add an optional INIT_FILE parameter (guarded $readmemh) so callers such as rtl/perips/ram.v can preload storage contents."
       ]
     },
     {

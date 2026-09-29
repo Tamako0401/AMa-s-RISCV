@@ -20,7 +20,8 @@
 `include "defines.v"
 
 // 取指模块
-module ifu #(parameter [31:0] RESET_PC = 32'h80000000)(
+// RESET_PC 默认 = 哈佛式指令存储器(ROM)基址 0x0000_0000, 见 docs/cpu-baseline.md。
+module ifu #(parameter [31:0] RESET_PC = 32'h00000000)(
 
     input wire clk,
     input wire rst_n,

@@ -20,8 +20,9 @@
 `include "defines.v"
 
 // tinyriscv处理器核顶层模块
+// RESET_PC 默认 = 哈佛式指令存储器(ROM)基址 0x0000_0000, 见 docs/cpu-baseline.md。
 module tinyriscv_core #(
-    parameter [31:0] RESET_PC = 32'h80000000
+    parameter [31:0] RESET_PC = 32'h00000000
 )(
 
     input wire clk,

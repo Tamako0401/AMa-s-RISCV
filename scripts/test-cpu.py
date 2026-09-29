@@ -12,6 +12,13 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'build/cpu'
 
+# 哈佛式存储器布局, 必须与 tests/cpu/link.ld 和 rtl/core/rib.v 保持一致:
+#   ROM 0x0000_0000, 64 KiB, 只放指令(.text/.rodata)
+#   RAM 0x1000_0000, 64 KiB, 放数据; 窗口第 0 个字保留为"运行结束"信箱
+ROM_BYTES = 65536
+RAM_BYTES = 65536
+RESULT_RESERVE = 4
+
 
 def run(*args):
     subprocess.run([shutil.which(str(args[0])) or str(args[0]),
@@ -80,17 +87,32 @@ def build(name, sources, march='rv32i'):
             '-O2', '-ffreestanding', '-fno-builtin', '-fno-stack-protector',
             '-msmall-data-limit=0', '-mno-relax', '-c', src, '-o', obj)
         objects.append(obj)
-    elf, binary, hexf = [BUILD / (name+ext) for ext in ['.elf','.bin','.hex']]
+    elf = BUILD / f'{name}.elf'
     run('ld.lld', '-m', 'elf32lriscv', '--no-relax', '-T', 'tests/cpu/link.ld', *objects, '-o', elf)
-    run('llvm-objcopy', '-O', 'binary', elf, binary)
-    data = binary.read_bytes()
-    if len(data) > 65536:
-        raise ValueError(f'{name}: image exceeds RAM')
-    # Poison uninitialized RAM: startup must actually clear the BSS.
-    data += b'\xa5' * (65536-len(data))
-    hexf.write_text(''.join(f'{int.from_bytes(data[i:i+4],"little"):08x}\n'
-                           for i in range(0,65536,4)), encoding='ascii')
-    return hexf
+    # 哈佛式: 指令镜像进 ROM, 数据初值进 RAM
+    rom_bin = BUILD / f'{name}-rom.bin'
+    ram_bin = BUILD / f'{name}-ram.bin'
+    run('llvm-objcopy', '-O', 'binary', '--only-section=.text', elf, rom_bin)
+    run('llvm-objcopy', '-O', 'binary', '--only-section=.data', elf, ram_bin)
+    rom = rom_bin.read_bytes()
+    if len(rom) > ROM_BYTES:
+        raise ValueError(f'{name}: .text exceeds ROM ({len(rom)} > {ROM_BYTES})')
+    # 未初始化的 ROM 填 0xa5(非法指令), 越界取指会立刻暴露
+    rom += b'\xa5' * (ROM_BYTES - len(rom))
+    data = ram_bin.read_bytes()
+    if len(data) > RAM_BYTES - RESULT_RESERVE:
+        raise ValueError(f'{name}: .data exceeds RAM ({len(data)})')
+    # RAM 窗口第 0 个字留给结束信箱(与 link.ld 的 ORIGIN 对齐), 其后是数据;
+    # 未初始化的部分填 0xa5: startup 必须真的把 BSS 清零。
+    data = b'\x00' * RESULT_RESERVE + data
+    data += b'\xa5' * (RAM_BYTES - len(data))
+    hexfs = []
+    for region, image in (('rom', rom), ('ram', data)):
+        path = BUILD / f'{name}-{region}.hex'
+        path.write_text(''.join(f'{int.from_bytes(image[i:i+4],"little"):08x}\n'
+                                for i in range(0, RAM_BYTES, 4)), encoding='ascii')
+        hexfs.append(path)
+    return (hexfs[0], hexfs[1])
 
 
 def main():
@@ -106,7 +128,7 @@ def main():
     if not args.quick:
         programs += [('alu',build('alu',[generate_alu()]),0),
                      ('boot',build('boot',['tests/cpu/start.S','tests/cpu/boot.c']),-1),
-                     ('memory',build('memory',['tests/cpu/memory.S'],'rv32i_zifencei'),9),
+                     ('memory',build('memory',['tests/cpu/memory.S'],'rv32i_zifencei'),8),
                      ('extensions',build('extensions',['tests/cpu/extensions.S'],'rv32im_zicsr'),0)]
     configs = [(0,0,1)] if args.quick else [(0,0,1),(4,7,12345),(11,13,987654321)]
     for iwait,dwait,seed in configs:
@@ -114,9 +136,10 @@ def main():
         run('iverilog','-g2012','-s','cpu_tb',f'-Pcpu_tb.I_DELAY={iwait}',
             f'-Pcpu_tb.D_DELAY={dwait}',f'-Pcpu_tb.SEED={seed}',
             '-o',output,'-f','rtl/cpu.f','tests/cpu/cpu_tb.sv')
-        for name,hexf,stores in programs:
+        for name,images,stores in programs:
             extra = [f'+vcd={BUILD.as_posix()}/{name}-{iwait}-{dwait}.vcd'] if args.vcd else []
-            run('vvp',output,f'+image={hexf.as_posix()}',f'+stores={stores}',*extra)
+            run('vvp',output,f'+rom={images[0].as_posix()}',f'+ram={images[1].as_posix()}',
+                f'+stores={stores}',*extra)
     print(f'PASS: {len(programs)*len(configs)} CPU program/configuration runs', flush=True)
 
 
