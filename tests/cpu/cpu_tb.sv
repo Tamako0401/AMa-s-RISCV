@@ -1,10 +1,21 @@
 `timescale 1ns/1ps
 // Board-independent CPU harness. Memory is a simulation model, not FPGA IP.
+//
+// 哈佛式存储器模型, 与 tests/cpu/link.ld 和 rtl/core/rib.v 的译码一致:
+//   ROM 0x0000_0000, 64 KiB -- 指令(.text/.rodata)。数据总线只能"读"它。
+//   RAM 0x1000_0000, 64 KiB -- 数据。窗口第 0 个字是"运行结束"信箱:
+//           程序 sw a0, 0(0x1000_0000) 表示结束, 该值作为返回值被检查。
+// 两个镜像分别由 +rom= 和 +ram= 给出(各 16384 个字, hex 文本)。
 module cpu_tb;
     parameter I_DELAY = 0;
     parameter D_DELAY = 0;
     parameter SEED = 1;
-    parameter [31:0] BASE = 32'h80000000;
+    parameter [31:0] ROM_BASE = 32'h00000000;
+    parameter [31:0] RAM_BASE = 32'h10000000;
+    parameter [31:0] RESULT_ADDR = 32'h10000000;
+    localparam [31:0] MEM_BYTES = 65536;
+    localparam [31:0] MEM_WORDS = MEM_BYTES / 4;
+
     reg clk = 0;
     always #5 clk = ~clk;
     reg rst_n = 0;
@@ -13,7 +24,7 @@ module cpu_tb;
     wire iwe, dwe, iv, ir, iq, dv, dr, dq;
     reg [31:0] idata, ddata;
     reg ivalid = 0, dvalid = 0;
-    tinyriscv_core #(.RESET_PC(BASE)) dut (
+    tinyriscv_core #(.RESET_PC(ROM_BASE)) dut (
         .clk(clk), .rst_n(rst_n), .jtag_halt_i(1'b0), .int_i(8'b0),
         .ibus_addr_o(ia), .ibus_data_o(iw), .ibus_data_i(idata),
         .ibus_sel_o(isel), .ibus_we_o(iwe),
@@ -24,7 +35,8 @@ module cpu_tb;
         .dbus_req_valid_o(dv), .dbus_req_ready_i(dr),
         .dbus_rsp_valid_i(dvalid), .dbus_rsp_ready_o(dq)
     );
-    reg [31:0] mem [0:16383];
+    reg [31:0] rom [0:MEM_WORDS-1];
+    reg [31:0] ram [0:MEM_WORDS-1];
     reg [31:0] rng = SEED;
     reg ibusy = 0, dbusy = 0;
     integer icount, dcount, cycles = 0, stores = 0;
@@ -32,15 +44,17 @@ module cpu_tb;
     reg [31:0] ipayload, dpayload;
     reg completing = 0;
     reg [31:0] status;
-    string image_path, wave_path;
+    string rom_path, ram_path, wave_path;
     integer unused;
     assign ir = rst_n && !ibusy && !ivalid && (I_DELAY == 0 || rng[0]);
     assign dr = rst_n && !dbusy && !dvalid && (D_DELAY == 0 || rng[4]);
 
     initial begin
-        if (!$value$plusargs("image=%s", image_path)) $fatal(1, "Missing +image=hex");
+        if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
+        if (!$value$plusargs("ram=%s", ram_path)) $fatal(1, "Missing +ram=hex");
         unused = $value$plusargs("stores=%d", expected_stores);
-        $readmemh(image_path, mem);
+        $readmemh(rom_path, rom);
+        $readmemh(ram_path, ram);
         if ($value$plusargs("vcd=%s", wave_path)) begin
             $dumpfile(wave_path);
             $dumpvars(0, cpu_tb);
@@ -67,12 +81,13 @@ module cpu_tb;
         cycles <= cycles + 1;
         rng <= {rng[30:0], rng[31] ^ rng[21] ^ rng[1] ^ rng[0]};
         if (cycles > 1000000) $fatal(1, "Timeout pc=%h", ia);
+        // ---- 取指: 只访问 ROM ----
         if (iv && ir) begin
-            if (ia < BASE || ia >= BASE + 65536 || ia[1:0] != 0 || iwe)
+            if (ia < ROM_BASE || ia >= ROM_BASE + MEM_BYTES || ia[1:0] != 0 || iwe)
                 $fatal(1, "Invalid fetch %h", ia);
             ibusy <= 1;
             icount <= I_DELAY == 0 ? 0 : rng[9:6] % (I_DELAY + 1);
-            ipayload <= mem[(ia - BASE) >> 2];
+            ipayload <= rom[(ia - ROM_BASE) >> 2];
         end
         if (ibusy) begin
             if (icount == 0) begin
@@ -85,22 +100,27 @@ module cpu_tb;
             ivalid <= 0;
             idata <= 32'hxxxxxxxx; // catch consumers using a stale response
         end
+        // ---- 访存: 结果信箱 / RAM / (只读)ROM ----
         if (dv && dr) begin
             dbusy <= 1;
             dcount <= D_DELAY == 0 ? 0 : rng[15:12] % (D_DELAY + 1);
-            if (da == 32'h10000000 && dwe && dsel == 4'b1111) begin
+            if (da == RESULT_ADDR && dwe && dsel == 4'b1111) begin
                 completing <= 1;
                 status <= dw;
                 dpayload <= 0;
-            end else begin
-                if (da < BASE || da >= BASE + 65536)
-                    $fatal(1, "Invalid data access %h", da);
-                dpayload <= mem[(da - BASE) >> 2];
+            end else if (da >= RAM_BASE && da < RAM_BASE + MEM_BYTES) begin
+                dpayload <= ram[(da - RAM_BASE) >> 2];
                 if (dwe) begin
                     stores <= stores + 1;
                     for (integer lane=0; lane<4; lane=lane+1)
-                        if (dsel[lane]) mem[(da - BASE) >> 2][8*lane +: 8] <= dw[8*lane +: 8];
+                        if (dsel[lane]) ram[(da - RAM_BASE) >> 2][8*lane +: 8] <= dw[8*lane +: 8];
                 end
+            end else if (da >= ROM_BASE && da < ROM_BASE + MEM_BYTES) begin
+                // 哈佛: 数据总线可以读 ROM 里的常量(.rodata), 但写被忽略,
+                // 与 perips/rom.v 把 we 丢掉的行为一致。
+                dpayload <= rom[(da - ROM_BASE) >> 2];
+            end else begin
+                $fatal(1, "Invalid data access %h", da);
             end
         end
         if (dbusy) begin
@@ -118,7 +138,7 @@ module cpu_tb;
                 if (expected_stores >= 0 && stores != expected_stores)
                     $fatal(1, "Store count %0d expected %0d", stores, expected_stores);
                 $display("PASS CPU %s I=%0d D=%0d seed=%0d cycles=%0d stores=%0d",
-                         image_path, I_DELAY, D_DELAY, SEED, cycles, stores);
+                         rom_path, I_DELAY, D_DELAY, SEED, cycles, stores);
                 $finish;
             end
         end

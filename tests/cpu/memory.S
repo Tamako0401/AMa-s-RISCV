@@ -1,4 +1,4 @@
-/* All byte lanes, halfwords, signed negative offsets and instruction coherency. */
+/* All byte lanes, halfwords, signed negative offsets and ROM write protection. */
 .section .text.init
 .globl _start
 .macro check reg, value
@@ -52,10 +52,10 @@ _start:
     li s11, 4
     la t0, patched
     li t1, 0x00900513 /* addi a0, zero, 9 */
-    sw t1, 0(t0)
+    sw t1, 0(t0)      /* 哈佛: patched 位于 ROM 窗口, 这条写必须被忽略 */
     fence.i
     jal ra, patched
-    check a0, 9
+    check a0, 5       /* 仍执行原来的 li a0, 5, 证明 ROM 未被改写 */
     li a0, 1
     j finish
 patched:
