@@ -20,9 +20,9 @@ RAM_BYTES = 65536
 RESULT_RESERVE = 4
 
 
-def run(*args):
+def run(*args, cwd=ROOT):
     subprocess.run([shutil.which(str(args[0])) or str(args[0]),
-                    *[str(a) for a in args[1:]]], cwd=ROOT, check=True)
+                    *[str(a) for a in args[1:]]], cwd=cwd, check=True)
 
 
 def generate_alu():
@@ -119,8 +119,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--quick', action='store_true', help='Only fixed-latency smoke test')
     parser.add_argument('--vcd', action='store_true', help='Write a waveform per run')
+    parser.add_argument('--modelsim', action='store_true', help='Use ModelSim instead of Icarus')
     args = parser.parse_args()
-    for tool in ['clang','ld.lld','llvm-objcopy','iverilog','vvp']:
+    simulator_tools = ['vlib','vmap','vlog','vsim'] if args.modelsim else ['iverilog','vvp']
+    for tool in ['clang','ld.lld','llvm-objcopy', *simulator_tools]:
         if not shutil.which(tool):
             parser.error(f'Missing required tool: {tool}')
     BUILD.mkdir(parents=True, exist_ok=True)
@@ -131,15 +133,35 @@ def main():
                      ('memory',build('memory',['tests/cpu/memory.S'],'rv32i_zifencei'),8),
                      ('extensions',build('extensions',['tests/cpu/extensions.S'],'rv32im_zicsr'),0)]
     configs = [(0,0,1)] if args.quick else [(0,0,1),(4,7,12345),(11,13,987654321)]
+    if args.modelsim:
+        modeldir = BUILD / 'modelsim'
+        modeldir.mkdir(exist_ok=True)
+        if not (modeldir/'modelsim.ini').exists():
+            run('vmap','-c',cwd=modeldir)
+        if not (modeldir/'work').exists():
+            run('vlib','work',cwd=modeldir)
+        sources = [ROOT/p for p in (ROOT/'rtl/cpu.f').read_text().splitlines()
+                   if p and not p.startswith('+')]
+        run('vlog','-sv',f'+incdir+{(ROOT/"rtl/core").as_posix()}',
+            '-work','work',*sources,ROOT/'tests/cpu/cpu_tb.sv',cwd=modeldir)
     for iwait,dwait,seed in configs:
         output = BUILD / f'cpu-{iwait}-{dwait}.vvp'
-        run('iverilog','-g2012','-s','cpu_tb',f'-Pcpu_tb.I_DELAY={iwait}',
-            f'-Pcpu_tb.D_DELAY={dwait}',f'-Pcpu_tb.SEED={seed}',
-            '-o',output,'-f','rtl/cpu.f','tests/cpu/cpu_tb.sv')
+        if not args.modelsim:
+            run('iverilog','-g2012','-s','cpu_tb',f'-Pcpu_tb.I_DELAY={iwait}',
+                f'-Pcpu_tb.D_DELAY={dwait}',f'-Pcpu_tb.SEED={seed}',
+                '-o',output,'-f','rtl/cpu.f','tests/cpu/cpu_tb.sv')
         for name,images,stores in programs:
             extra = [f'+vcd={BUILD.as_posix()}/{name}-{iwait}-{dwait}.vcd'] if args.vcd else []
-            run('vvp',output,f'+rom={images[0].as_posix()}',f'+ram={images[1].as_posix()}',
-                f'+stores={stores}',*extra)
+            image_args = [f'+rom={images[0].as_posix()}', f'+ram={images[1].as_posix()}']
+            if args.modelsim:
+                run('vsim','-c','-onfinish','stop','-voptargs=+acc','work.cpu_tb',
+                    f'-gI_DELAY={iwait}',f'-gD_DELAY={dwait}',f'-gSEED={seed}',
+                    *image_args,f'+stores={stores}',*extra,
+                    '-wlf',f'{name}-{iwait}-{dwait}.wlf',
+                    '-l',f'{name}-{iwait}-{dwait}.log',
+                    '-do',f'do {{{(ROOT/"tests/cpu/run.do").as_posix()}}}',cwd=modeldir)
+            else:
+                run('vvp',output,*image_args,f'+stores={stores}',*extra)
     print(f'PASS: {len(programs)*len(configs)} CPU program/configuration runs', flush=True)
 
 

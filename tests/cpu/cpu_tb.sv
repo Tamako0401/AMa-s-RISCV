@@ -1,4 +1,5 @@
 `timescale 1ns/1ps
+`include "defines.v"
 // Board-independent CPU harness. Memory is a simulation model, not FPGA IP.
 //
 // 哈佛式存储器模型, 与 tests/cpu/link.ld 和 rtl/core/rib.v 的译码一致:
@@ -41,6 +42,7 @@ module cpu_tb;
     reg ibusy = 0, dbusy = 0;
     integer icount, dcount, cycles = 0, stores = 0;
     integer expected_stores = -1;
+    integer test_pass = 0; // read by the ModelSim batch runner after $finish
     reg [31:0] ipayload, dpayload;
     reg completing = 0;
     reg [31:0] status;
@@ -71,6 +73,9 @@ module cpu_tb;
     reg [31:0] held_ia;
     reg [68:0] held_d;
     always @(posedge clk) if (rst_n) begin
+        if ((^{iv,dv,iq,dq}) === 1'bx) $fatal(1, "Unknown CPU bus control I=%b/%b D=%b/%b", iv,iq,dv,dq);
+        if (dut.ex_reg_we_o && dut.ex_reg_waddr_o != 0 &&
+            ((^dut.ex_reg_wdata_o) === 1'bx)) $fatal(1, "Unknown register writeback");
         if (i_wait && (!iv || ia !== held_ia)) $fatal(1, "Unstable stalled fetch");
         if (d_wait && (!dv || {da,dw,dsel,dwe} !== held_d))
             $fatal(1, "Unstable stalled data request");
@@ -86,6 +91,7 @@ module cpu_tb;
         if (cycles > 1000000) $fatal(1, "Timeout pc=%h", ia);
         // ---- 取指: 只访问 ROM ----
         if (iv && ir) begin
+            if ((^{ia,isel,iwe}) === 1'bx) $fatal(1, "Unknown fetch request");
             if (ia < ROM_BASE || ia >= ROM_BASE + MEM_BYTES || ia[1:0] != 0 || iwe)
                 $fatal(1, "Invalid fetch %h", ia);
             ibusy <= 1;
@@ -105,6 +111,8 @@ module cpu_tb;
         end
         // ---- 访存: 结果信箱 / RAM / (只读)ROM ----
         if (dv && dr) begin
+            if (((^{da,dsel,dwe}) === 1'bx) || (dwe && ((^dw) === 1'bx)))
+                $fatal(1, "Unknown data request");
             dbusy <= 1;
             dcount <= D_DELAY == 0 ? 0 : rng[15:12] % (D_DELAY + 1);
             if (da == RESULT_ADDR && dwe && dsel == 4'b1111) begin
@@ -142,6 +150,7 @@ module cpu_tb;
                     $fatal(1, "Store count %0d expected %0d", stores, expected_stores);
                 $display("PASS CPU %s I=%0d D=%0d seed=%0d cycles=%0d stores=%0d",
                          rom_path, I_DELAY, D_DELAY, SEED, cycles, stores);
+                test_pass = 1;
                 $finish;
             end
         end
