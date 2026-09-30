@@ -4,8 +4,16 @@
 
 - 本批次 RTL 来源、接入条件和验证范围：[docs/third-party.md](docs/third-party.md)
 - 组件文件清单：[rtl/reusable.f](rtl/reusable.f)
+- 完整 CPU 仿真基线与接口：[docs/cpu-baseline.md](docs/cpu-baseline.md)
+- MES50HP/PGL50H 实体板最小系统：[boards/mes50hp/README.md](boards/mes50hp/README.md)
 - 现有学习平台约定：[docs/platform.md](docs/platform.md)
 
-当前已移入可独立编译的 ALU、寄存器堆、通用寄存器/RAM/握手组件及 GPIO/UART，并接入完整 RV32I CPU 仿真基线。尚未适配远程 FPGA 板卡；已有软件与学习实验保持原状。
+当前已接入完整 RV32I CPU 功能基线、RIB + ROM/RAM + SPI 的通用 SoC，以及独立的 MES50HP 最小板级系统。CPU 回归与通用 SoC 使用 ROM/RAM 分离布局；MES50HP 最小系统使用统一 RAM，地址和镜像按各自文档配套。尚未适配远程 FPGA 板卡。
+
+MES50HP/PGL50H 最小系统现已完成仿真及 PDS 50 MHz 时序/位流构建，实机结果待核对。构建命令：`python scripts/build-board.py --simulate --pds`，下载与串口验收见板级文档。
 
 用 Nushell 运行组件自检：`nu --no-config-file scripts/test-reusable.nu`。需要 Icarus Verilog 的 `iverilog` 和 `vvp`。测试输出写入 `build/reusable/`。
+
+完整 CPU 回归：`nu --no-config-file scripts/test-cpu.nu`；添加 `--modelsim` 可使用 ModelSim。需要 Python 和 LLVM RISC-V 编译工具，具体依赖见 CPU 基线文档。当前为保守取指的功能基线，尚未进行性能评估、正式 ISA 认证或 PGL50H 上板。
+
+通用 SoC 回归：`python scripts/test-soc.py`，覆盖 RIB、ROM/RAM 与 SPI 寄存器通路；SPI 线上实际收发时序仍需专门测试。

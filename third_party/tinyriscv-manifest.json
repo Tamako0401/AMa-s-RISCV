@@ -121,9 +121,10 @@
       "source": "source/core/exu.v",
       "destination": "rtl/core/exu.v",
       "source_sha256": "33e9717ea443e2ffff66b2cb8031fb9c65ee2f6eaafa075b64ea60bd41926e23",
-      "imported_sha256": "dcca3e283892d455ce056818a8d450536767e4d3c5de24c27e315486e2df73bc",
+      "imported_sha256": "3a08d1478456f7930370e7d8c725288cf35a62b320a935c5f1ea15f94be7a7c2",
       "changes": [
-        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance.",
+        "Clear bit zero of JALR target."
       ]
     },
     {
@@ -148,18 +149,20 @@
       "source": "source/core/exu_mem.v",
       "destination": "rtl/core/exu_mem.v",
       "source_sha256": "531f007ad1d460ff364526ea6192d48c09790e902e9110f2f240e02405e3c77c",
-      "imported_sha256": "1a323373139c066ec97017a64964e78f8f552b04a02258d7c4f03e21697407d5",
+      "imported_sha256": "6f557000b2f39862ad6d857423d356a793263dfb9d60fc83df7fc31b1e9c2365",
       "changes": [
-        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance.",
+        "Issue each memory request once, assert write intent during request, latch read response through completion; suppress misaligned bus requests."
       ]
     },
     {
       "source": "source/core/exu_muldiv.v",
       "destination": "rtl/core/exu_muldiv.v",
       "source_sha256": "bde75de8e1ffcdbb701c130045bea7e5139a4358f2c40fe55d2c84e4b289dd48",
-      "imported_sha256": "03c9ef6dfc9dea73aa80c33e3996c7089db68166ecd8e5d1be8cfb541b2574b7",
+      "imported_sha256": "a44e00de1cfdb944e236def9b1ff533dbf1109451efae61b902fc6ebf67e8201",
       "changes": [
-        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance.",
+        "Declare div_ready before first use for ModelSim SystemVerilog compatibility."
       ]
     },
     {
@@ -184,18 +187,21 @@
       "source": "source/core/ifu.v",
       "destination": "rtl/core/ifu.v",
       "source_sha256": "e3fea14dac633195085272c4bfbbd16458f4fb706ee5db2995b0d10516db9396",
-      "imported_sha256": "52df51bfbe29db8f3df09392fbf477cafdfb0e0176337e1e9a7d1d8e41cf43ae",
+      "imported_sha256": "000325ef5766c8c38ecb55cb884e1efd1216399987ddc2fc7fdaa5d794bf146f",
       "changes": [
-        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance.",
+        "Replace fixed-latency fetch with a single-outstanding transaction and response buffer; drain redirected fetches; drive inst_valid_o; parameterize RESET_PC.",
+        "Default RESET_PC to the Harvard ROM base 0x00000000; board integrations override it explicitly."
       ]
     },
     {
       "source": "source/core/ifu_idu.v",
       "destination": "rtl/core/ifu_idu.v",
       "source_sha256": "909f651ac81d0548d2dc4a6e6e2a1eeeda08cd8bcf9f6d9e73c4a6900bd13466",
-      "imported_sha256": "68c238054278301eeda46eb1577b876365850eb093170d8d2738bde0ed9641ed",
+      "imported_sha256": "012e1b2742db4e1111a5dfb27d119b28d8dd10ad428d9e5dc1b6797439ec4675",
       "changes": [
-        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance.",
+        "Insert NOP when inst_valid_i is false."
       ]
     },
     {
@@ -211,9 +217,11 @@
       "source": "source/core/tinyriscv_core.v",
       "destination": "rtl/core/tinyriscv_core.v",
       "source_sha256": "6b0964b9a3c3b84f6e1c91098a7bb191758e46162046d3806c4b523a0c430c32",
-      "imported_sha256": "7a2ba8651fbd53ada37f2576d30714ecb052ef584d5bd63d43c96bc841a06ef1",
+      "imported_sha256": "d3358ad853c0cfed1b01235f89dd992af7e2246b9ff05027c93a74ea8bf39cd0",
       "changes": [
-        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance."
+        "Normalize source encoding to UTF-8, LF, strip trailing whitespace; add provenance.",
+        "Parameterize RESET_PC and pass it to IFU; current default is Harvard ROM base 0x00000000.",
+        "Use executing PC + 4 for link and fence successor, independent of decode-stage bubbles."
       ]
     }
   ]
