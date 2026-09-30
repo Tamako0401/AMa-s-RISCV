@@ -1,5 +1,6 @@
 /.vscode
 *.s
+!/sw/board/*.S
 *.o
 *.log
 *.hex
