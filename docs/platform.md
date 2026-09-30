@@ -26,7 +26,8 @@ Stack:
 
 MMIO:
     RIB SoC SPI: 0x20000000
-    UART/GPIO slots are not connected in rtl/soc_top/soc_top.v
+    RIB SoC GPIO: 0x40000000 (CS/DC/RST_N; CTRL/DATA/BSRR)
+    UART slot is not connected in rtl/soc_top/soc_top.v
     CPU/SoC tests reserve RAM word 0x10000000 for completion
 
 Interrupt:

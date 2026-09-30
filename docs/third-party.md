@@ -24,7 +24,7 @@
 | `source/utils/gen_ram.v` | `rtl/utils/gen_ram.v` | 通用 RTL RAM；删除未使用的 `defines.v` 引用；增加可选 `INIT_FILE` 初值参数 |
 | `source/core/gpr_reg.v` | `rtl/core/gpr_reg.v` | 32 个通用寄存器，依赖 `gen_dff.v`；删除未使用的 `defines.v` 引用 |
 | `source/core/exu_alu_datapath.v` | `rtl/core/exu_alu_datapath.v` | 运算/比较数据通路；删除未使用的 `defines.v` 引用 |
-| `source/perips/gpio.v` | `rtl/perips/gpio.v` | GPIO 寄存器和输入采样，依赖 `vld_rdy.v`；无逻辑改动 |
+| `source/perips/gpio.v` | `rtl/perips/gpio.v` | 保留 CTRL/DATA 与输入采样；增加 BSRR、请求握手门控及响应背压保持 |
 | `source/perips/uart.v` | `rtl/perips/uart.v` | UART 寄存器、TX/RX，依赖 `vld_rdy.v`；移除 `defines.v`，将时钟宏改为 `CPU_CLOCK_HZ` 模块参数，默认仍为 50000000 |
 
 不导入旧 `defines.v`，避免把复位地址、流水级数、旧 CPU 频率等全局配置带入当前平台。
@@ -33,14 +33,17 @@
 
 ### GPIO 与 UART
 
-这两个外设保留了上游接口和行为，**本批次仅支持响应端始终就绪的使用方式**：`rsp_ready_i = 1`，一次请求在时钟沿被接受后撤销，不能为“等待响应”而将同一次写请求反复保持多个时钟。读响应在请求后的寄存器输出上取得，按 `rsp_valid_o` 消费。
+UART 保留了上游接口和行为，**当前仅支持响应端始终就绪的使用方式**：`rsp_ready_i = 1`，一次请求在时钟沿被接受后撤销，不能为“等待响应”而将同一次写请求反复保持多个时钟。读响应在请求后的寄存器输出上取得，按 `rsp_valid_o` 消费。
 
-原因是上游 `data_r` 没有独立的背压保持逻辑，且写使能只由 `we_i & req_valid_i` 决定，不包含 `req_ready_o`。若未来 CPU/总线可能暂停响应消费，必须增加事务适配/缓冲并做回归；不能把它们直接当成任意 ready/valid 总线从设备。`vld_rdy` 本身只保存 valid，不保存 payload。
+原因是 UART 的 `data_r` 没有独立的背压保持逻辑，且写使能只由 `we_i & req_valid_i` 决定，不包含 `req_ready_o`。CPU/总线可能暂停响应消费时，必须增加事务适配/缓冲并做回归。`vld_rdy` 本身只保存 valid，不保存 payload。
+
+GPIO 在 2026-09-30 已改为仅在请求握手时执行读写，独立保持响应 valid/data，支持响应背压；原模式编码和 CTRL/DATA 地址保持不变，新增支持字节使能的 BSRR。SPI 同日重写为 CR1/CR2/SR/DR 子集、独立收发缓冲及请求/响应握手，屏幕控制脚移到 GPIO；有效位、迁移和验证范围见 [spi.md](spi.md)。原 SPI 文件的版权/许可证头保留，不将它冒记为上表固定参考提交的来源文件。
 
 | 外设 | 字节偏移 | 含义 |
 | --- | --- | --- |
 | GPIO | `0x00` | 控制：每两位控制一个引脚，1 输出、2 输入、0 高阻语义 |
 | GPIO | `0x04` | 数据：当前模块仅有两个输入引脚，数据写入支持低两个字节 |
+| GPIO | `0x08` | BSRR：低 16 位写 1 置位，高 16 位写 1 清零，同位冲突时置位优先；读零 |
 | UART | `0x00` | 控制：bit0 TX 使能、bit1 RX 使能 |
 | UART | `0x04` | 状态：bit0 TX busy、bit1 RX 完成；向 bit1 写 0 清除完成标记 |
 | UART | `0x08` | 分频寄存器，低 16 位有效 |
