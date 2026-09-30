@@ -13,4 +13,8 @@ def main [] {
         ^vvp $output
         if $env.LAST_EXIT_CODE != 0 { error make {msg: $"Simulation failed: ($top)"} }
     }
+    ^iverilog -g2012 -s spi_tb -o build/reusable/spi_tb.vvp rtl/perips/spi.v tests/reusable/spi_tb.sv
+    if $env.LAST_EXIT_CODE != 0 { error make {msg: "Compile failed: spi_tb"} }
+    ^vvp build/reusable/spi_tb.vvp
+    if $env.LAST_EXIT_CODE != 0 { error make {msg: "Simulation failed: spi_tb"} }
 }

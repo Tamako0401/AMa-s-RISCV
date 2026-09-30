@@ -1,301 +1,179 @@
- /*                                                                      
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
-                                                                         
- Licensed under the Apache License, Version 2.0 (the "License");         
- you may not use this file except in compliance with the License.        
- You may obtain a copy of the License at                                 
-                                                                         
-     http://www.apache.org/licenses/LICENSE-2.0                          
-                                                                         
- Unless required by applicable law or agreed to in writing, software    
- distributed under the License is distributed on an "AS IS" BASIS,       
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and     
- limitations under the License.                                          
+ See the License for the specific language governing permissions and
+ limitations under the License.
  */
 
-
-// spi master模块
-//
-// 适配 AMa-s-RISCV: 本模块原先来自另一个 tinyriscv 系项目, 接口与 rtl/perips/
-// 其它外设不一致, 本次只改接口与总线读写路径, SPI 收发逻辑本身未动:
-//   - 复位改名 rst -> rst_n。原代码到处判的是 `rst == 1'b0` 才复位, 即实际就是
-//     低有效, 只是名字有误导;
-//   - 增加 sel_i 字节使能: 写寄存器按 4 个字节分别使能, 与 gpio.v/uart.v 一致;
-//   - 增加 req_valid_i/req_ready_o/rsp_valid_o/rsp_ready_i 握手(用 utils/vld_rdy),
-//     写使能只在请求真正握手的那一拍有效, 主设备保持 we_i 时不会重复写入;
-//   - 读数据改为寄存输出: 原先是组合译码 addr_i, 而 RIB 在请求握手后的下一个
-//     周期就会把从设备地址撑掉, 组合译码会在响应周期取到错的寄存器。
+// AMa-s-RISCV, 2026-09-30: replace the inherited transfer engine/registers.
+// STM32F1/F4-style subset: master, 8-bit, MSB first, all four SPI modes.
+// CR1 0x00: CPHA[0], CPOL[1], MSTR[2]=1, BR[5:3], SPE[6].
+// CR2 0x04: reserved, reads zero. SR 0x08: RXNE[0], TXE[1], OVR[6], BSY[7].
+// DR  0x0c: low-byte writes enqueue TX; low-byte reads consume RX.
+// BR selects clk / (2 ** (BR+1)); CR1 writes wait until the enabled TX queue
+// has drained. Chip select, display DC and display reset belong to GPIO.
 module spi(
-
     input wire clk,
     input wire rst_n,
-
-    input wire[31:0] data_i,
-    input wire[31:0] addr_i,
-    input wire[3:0] sel_i,
+    input wire [31:0] data_i,
+    input wire [31:0] addr_i,
+    input wire [3:0] sel_i,
     input wire we_i,
-    output wire[31:0] data_o,
-
+    output wire [31:0] data_o,
     input wire req_valid_i,
     output wire req_ready_o,
     output wire rsp_valid_o,
     input wire rsp_ready_i,
+    output reg spi_mosi,
+    input wire spi_miso,
+    output reg spi_clk
+);
+    localparam CR1 = 2'd0, CR2 = 2'd1, SR = 2'd2, DR = 2'd3;
+    reg [6:0] cr1;
+    reg [7:0] tx_buffer, tx_shift, rx_shift, rx_buffer;
+    reg tx_full, rx_full, busy, overrun, overrun_dr_read;
+    reg cpha;
+    reg [7:0] half_period, ticks_left;
+    reg [3:0] edge_index;
+    reg response_valid;
+    reg [31:0] response_data;
 
-    output reg spi_mosi,             // spi控制器输出、spi设备输入信号
-    input wire spi_miso,             // spi控制器输入、spi设备输出信号
-    output wire spi_ss,              // spi设备片选
-    output reg spi_clk,              // spi设备时钟，最大频率为输入clk的一半
+    wire write_dr = we_i && addr_i[3:2] == DR && sel_i[0];
+    wire write_cr1 = we_i && addr_i[3:2] == CR1 && sel_i[0];
+    wire start_byte = !busy && tx_full && cr1[6];
+    wire active = busy || (tx_full && cr1[6]);
+    wire tick = busy && ticks_left == 0;
+    wire finish_byte = tick && edge_index == 4'd15;
+    wire [7:0] completed_rx = cpha ? {rx_shift[6:0], spi_miso} : rx_shift;
+    wire [31:0] status = {24'b0, active, overrun, 4'b0, !tx_full, rx_full};
 
-    output wire lcd_dc,              // LCD命令/数据选择: 0=命令, 1=数据
-    output wire lcd_rst_n            // LCD复位, 低有效
+    // Full TX buffer stalls the request; responses retain their payload.
+    assign req_ready_o = rst_n && (!response_valid || rsp_ready_i) &&
+                         (!write_dr || !tx_full || start_byte) &&
+                         (!write_cr1 || !active);
+    assign rsp_valid_o = response_valid;
+    assign data_o = response_data;
+    wire fire = req_valid_i && req_ready_o;
+    wire push_tx = fire && write_dr;
+    wire pop_rx = fire && !we_i && addr_i[3:2] == DR && sel_i[0];
+    wire read_sr = fire && !we_i && addr_i[3:2] == SR;
 
-    );
-
-
-    localparam SPI_CTRL   = 4'h0;    // spi_ctrl寄存器地址偏移
-    localparam SPI_DATA   = 4'h4;    // spi_data寄存器地址偏移
-    localparam SPI_STATUS = 4'h8;    // spi_status寄存器地址偏移
-    localparam SPI_DC     = 4'hc;    // spi_dc寄存器地址偏移: [0]=DC, [1]=RST_N
-
-    // spi控制寄存器
-    // addr: 0x00
-    // [0]: 1: enable, 0: disable
-    // [1]: CPOL
-    // [2]: CPHA
-    // [3]: select slave, 1: select, 0: deselect
-    // [15:8]: clk div
-    reg[31:0] spi_ctrl;
-    // spi数据寄存器
-    // addr: 0x04
-    // [7:0] cmd or inout data
-    reg[31:0] spi_data;
-    // spi状态寄存器
-    // addr: 0x08
-    // [0]: 1: busy, 0: idle
-    reg[31:0] spi_status;
-    // spi_dc寄存器
-    // addr: 0x0c
-    // [0]: DC, 0: command, 1: data
-    // [1]: RST_N, 0: reset, 1: release
-    reg[31:0] spi_dc_reg;
-
-    reg[8:0] clk_cnt;               // 分频计数
-    reg en;                         // 使能，开始传输信号，传输期间一直有效
-    reg[4:0] spi_clk_edge_cnt;      // spi clk时钟沿的个数
-    reg spi_clk_edge_level;         // spi clk沿电平
-    reg[7:0] rdata;                 // 从spi设备读回来的数据
-    reg done;                       // 传输完成信号
-    reg[3:0] bit_index;             // 数据bit索引
-    wire[8:0] div_cnt;
-
-    // 总线握手: 写/读只在请求真正被接受的那一拍有效
-    wire wen = we_i & req_valid_i & req_ready_o;
-    wire ren = (~we_i) & req_valid_i & req_ready_o;
-    reg[31:0] data_r;               // 读数据寄存器(在请求那一拍采样地址)
-
-
-    assign spi_ss = ~spi_ctrl[3];   // SPI设备片选信号
-
-    assign div_cnt = spi_ctrl[15:8];// 0: 2分频，1：4分频，2：8分频，3：16分频，4：32分频，以此类推
-
-    assign lcd_dc    = spi_dc_reg[0];   // LCD命令/数据选择
-    assign lcd_rst_n = spi_dc_reg[1];   // LCD复位, 低有效
-
-
-    // 产生使能信号
-    // 传输期间一直有效
-    always @ (posedge clk) begin
-        if (rst_n == 1'b0) begin
-            en <= 1'b0;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            cr1 <= 7'h04; // MSTR fixed high; SPE is a persistent enable.
+            response_valid <= 0;
+            response_data <= 0;
         end else begin
-            if (spi_ctrl[0] == 1'b1) begin
-                en <= 1'b1;
-            end else if (done == 1'b1) begin
-                en <= 1'b0;
-            end else begin
-                en <= en;
-            end
-        end
-    end
-
-    // 对输入时钟进行计数
-    always @ (posedge clk) begin
-        if (rst_n == 1'b0) begin
-            clk_cnt <= 9'h0;
-        end else if (en == 1'b1) begin
-            if (clk_cnt == div_cnt) begin
-                clk_cnt <= 9'h0;
-            end else begin
-                clk_cnt <= clk_cnt + 1'b1;
-            end
-        end else begin
-            clk_cnt <= 9'h0;
-        end
-    end
-
-    // 对spi clk沿进行计数
-    // 每当计数到分频值时产生一个上升沿脉冲
-    always @ (posedge clk) begin
-        if (rst_n == 1'b0) begin
-            spi_clk_edge_cnt <= 5'h0;
-            spi_clk_edge_level <= 1'b0;
-        end else if (en == 1'b1) begin
-            // 计数达到分频值
-            if (clk_cnt == div_cnt) begin
-                if (spi_clk_edge_cnt == 5'd17) begin
-                    spi_clk_edge_cnt <= 5'h0;
-                    spi_clk_edge_level <= 1'b0;
-                end else begin
-                    spi_clk_edge_cnt <= spi_clk_edge_cnt + 1'b1;
-                    spi_clk_edge_level <= 1'b1;
-                end
-            end else begin
-                spi_clk_edge_level <= 1'b0;
-            end
-        end else begin
-            spi_clk_edge_cnt <= 5'h0;
-            spi_clk_edge_level <= 1'b0;
-        end
-    end
-
-    // bit序列
-    always @ (posedge clk) begin
-        if (rst_n == 1'b0) begin
-            spi_clk <= 1'b0;
-            rdata <= 8'h0;
-            spi_mosi <= 1'b0;
-            bit_index <= 4'h0;
-        end else begin
-            if (en) begin
-                if (spi_clk_edge_level == 1'b1) begin
-                    case (spi_clk_edge_cnt)
-                        // 第奇数个时钟沿
-                        1, 3, 5, 7, 9, 11, 13, 15: begin
-                            spi_clk <= ~spi_clk;
-                            if (spi_ctrl[2] == 1'b1) begin
-                                spi_mosi <= spi_data[bit_index];   // 送出1bit数据
-                                bit_index <= bit_index - 1'b1;
-                            end else begin
-                                rdata <= {rdata[6:0], spi_miso};   // 读1bit数据
-                            end
-                        end
-                        // 第偶数个时钟沿
-                        2, 4, 6, 8, 10, 12, 14, 16: begin
-                            spi_clk <= ~spi_clk;
-                            if (spi_ctrl[2] == 1'b1) begin
-                                rdata <= {rdata[6:0], spi_miso};   // 读1bit数据
-                            end else begin
-                                spi_mosi <= spi_data[bit_index];   // 送出1bit数据
-                                bit_index <= bit_index - 1'b1;
-                            end
-                        end
-                        17: begin
-                            spi_clk <= spi_ctrl[1];
-                        end
+            if (response_valid && rsp_ready_i) response_valid <= 0;
+            if (fire) begin
+                response_valid <= 1;
+                response_data <= 0;
+                if (!we_i) begin
+                    case (addr_i[3:2])
+                        CR1: response_data <= {25'b0, cr1};
+                        CR2: response_data <= 0;
+                        SR:  response_data <= status;
+                        DR:  response_data <= {24'b0, rx_buffer};
                     endcase
                 end
-            end else begin
-                // 初始状态
-                spi_clk <= spi_ctrl[1];
-                if (spi_ctrl[2] == 1'b0) begin
-                    spi_mosi <= spi_data[7];           // 送出最高位数据
-                    bit_index <= 4'h6;
+                if (write_cr1) cr1 <= data_i[6:0] | 7'h04;
+            end
+        end
+    end
+
+    // Separate buffer and shifter: accepting the next byte cannot corrupt TX.
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            tx_full <= 0;
+            tx_buffer <= 0;
+        end else begin
+            if (start_byte) tx_full <= 0;
+            if (push_tx) begin
+                tx_buffer <= data_i[7:0];
+                tx_full <= 1;
+            end
+        end
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            spi_clk <= 0;
+            spi_mosi <= 0;
+            busy <= 0;
+            cpha <= 0;
+            tx_shift <= 0;
+            rx_shift <= 0;
+            edge_index <= 0;
+            half_period <= 1;
+            ticks_left <= 0;
+        end else begin
+            if (!busy) spi_clk <= cr1[1];
+            if (start_byte) begin
+                busy <= 1;
+                cpha <= cr1[0];
+                spi_clk <= cr1[1];
+                half_period <= 8'd1 << cr1[5:3];
+                ticks_left <= (8'd1 << cr1[5:3]) - 1'b1;
+                edge_index <= 0;
+                rx_shift <= 0;
+                if (!cr1[0]) begin
+                    spi_mosi <= tx_buffer[7]; // CPHA=0 preload before first edge.
+                    tx_shift <= {tx_buffer[6:0], 1'b0};
+                end else tx_shift <= tx_buffer;
+            end else if (busy) begin
+                if (tick) begin
+                    spi_clk <= ~spi_clk;
+                    ticks_left <= half_period - 1'b1;
+                    edge_index <= edge_index + 1'b1;
+                    // Even indices are leading edges; odd indices are trailing.
+                    if (edge_index[0] == cpha)
+                        rx_shift <= {rx_shift[6:0], spi_miso};
+                    else begin
+                        spi_mosi <= tx_shift[7];
+                        tx_shift <= {tx_shift[6:0], 1'b0};
+                    end
+                    // Complete on the eighth trailing edge, including CPHA=0.
+                    if (finish_byte) busy <= 0;
+                end else ticks_left <= ticks_left - 1'b1;
+            end
+        end
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            rx_full <= 0;
+            rx_buffer <= 0;
+            overrun <= 0;
+            overrun_dr_read <= 0;
+        end else begin
+            if (pop_rx) begin
+                rx_full <= 0;
+                overrun_dr_read <= overrun;
+            end
+            // OVR clears on DR read followed by SR read. SR returns pre-clear
+            // status; a new overrun on this clock wins over clearing.
+            if (read_sr && overrun_dr_read) begin
+                overrun <= 0;
+                overrun_dr_read <= 0;
+            end
+            if (finish_byte) begin
+                if (!rx_full || pop_rx) begin
+                    rx_buffer <= completed_rx;
+                    rx_full <= 1;
                 end else begin
-                    bit_index <= 4'h7;
+                    overrun <= 1;
+                    overrun_dr_read <= 0;
                 end
             end
         end
     end
-
-    // 产生结束(完成)信号
-    always @ (posedge clk) begin
-        if (rst_n == 1'b0) begin
-            done <= 1'b0;
-        end else begin
-            if (en && spi_clk_edge_cnt == 5'd17) begin
-                done <= 1'b1;
-            end else begin
-                done <= 1'b0;
-            end
-        end
-    end
-
-    // write reg
-    always @ (posedge clk) begin
-        if (rst_n == 1'b0) begin
-            spi_ctrl <= 32'h0;
-            spi_data <= 32'h0;
-            spi_status <= 32'h0;
-            spi_dc_reg <= 32'h0000_0002;    // RST_N=1(释放), DC=0(命令)
-        end else begin
-            spi_status[0] <= en;
-            if (wen == 1'b1) begin
-                case (addr_i[3:0])
-                    SPI_CTRL: begin
-                        if (sel_i[0]) spi_ctrl[7:0]   <= data_i[7:0];
-                        if (sel_i[1]) spi_ctrl[15:8]  <= data_i[15:8];
-                        if (sel_i[2]) spi_ctrl[23:16] <= data_i[23:16];
-                        if (sel_i[3]) spi_ctrl[31:24] <= data_i[31:24];
-                    end
-                    SPI_DATA: begin
-                        if (sel_i[0]) spi_data[7:0]   <= data_i[7:0];
-                        if (sel_i[1]) spi_data[15:8]  <= data_i[15:8];
-                        if (sel_i[2]) spi_data[23:16] <= data_i[23:16];
-                        if (sel_i[3]) spi_data[31:24] <= data_i[31:24];
-                    end
-                    SPI_DC: begin
-                        if (sel_i[0]) spi_dc_reg[7:0]   <= data_i[7:0];
-                        if (sel_i[1]) spi_dc_reg[15:8]  <= data_i[15:8];
-                        if (sel_i[2]) spi_dc_reg[23:16] <= data_i[23:16];
-                        if (sel_i[3]) spi_dc_reg[31:24] <= data_i[31:24];
-                    end
-                    default: begin
-
-                    end
-                endcase
-            end else begin
-                spi_ctrl[0] <= 1'b0;
-                // 发送完成后更新数据寄存器
-                if (done == 1'b1) begin
-                    spi_data <= {24'h0, rdata};
-                end
-            end
-        end
-    end
-
-    // read reg
-    // 必须在请求那一拍采样地址: RIB 在请求握手后的下一个周期就把从设备地址撑掉了
-    always @ (posedge clk) begin
-        if (rst_n == 1'b0) begin
-            data_r <= 32'h0;
-        end else begin
-            if (ren) begin
-                case (addr_i[3:0])
-                    SPI_CTRL:   data_r <= spi_ctrl;
-                    SPI_DATA:   data_r <= spi_data;
-                    SPI_STATUS: data_r <= spi_status;
-                    SPI_DC:     data_r <= spi_dc_reg;
-                    default:    data_r <= 32'h0;
-                endcase
-            end else begin
-                data_r <= 32'h0;
-            end
-        end
-    end
-
-    assign data_o = data_r;
-
-    // req/rsp 握手时序: 请求被接受后的下一拍拉高 rsp_valid_o, 与 data_r 对齐
-    vld_rdy #(
-        .CUT_READY(0)
-    ) u_vld_rdy(
-        .clk(clk),
-        .rst_n(rst_n),
-        .vld_i(req_valid_i),
-        .rdy_o(req_ready_o),
-        .rdy_i(rsp_ready_i),
-        .vld_o(rsp_valid_o)
-    );
-
 endmodule

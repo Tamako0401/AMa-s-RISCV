@@ -4,12 +4,9 @@
 //   s0 = ROM   0x0000_0000, 64 KiB, 只读 -- 指令和常量; 也是复位向量
 //   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
 //   s2 = SPI   0x2000_0000                -- 寄存器偏移见 perips/spi.v
-//   s3 / s4 = 保留(未接入)
-//
-// 为什么 s3/s4 还空着:
-//   - perips/uart.v、perips/gpio.v 的 valid/ready 接口本可直接挂上去, 但引脚
-//     (UART tx/rx、GPIO 输入输出) 和时钟参数要按具体板卡定;
-//   - 本仓库没有 timer。
+//   s3 = 保留(未接入)
+//   s4 = GPIO  0x4000_0000                -- CTRL / DATA / BSRR
+// GPIO outputs 0/1/2 drive CS / DC / RST_N; unconfigured pins use safe levels.
 //
 // 保留槽位的访问行为: req_ready 恒为 0, 即不握手。这与 "地址未命中任何从设备"
 // 的行为一致(RIB 没有错误响应通道), 访问会一直等待。
@@ -22,7 +19,7 @@ module soc_top #(
     input wire clk,
     input wire rst_n,
 
-    // SPI / LCD 引脚(直连 perips/spi.v)
+    // SPI data/clock; LCD control pins are driven by GPIO below.
     output wire spi_mosi,                   // 控制器输出、设备输入
     input wire spi_miso,                    // 控制器输入、设备输出
     output wire spi_ss,                     // 片选, 低有效
@@ -56,10 +53,12 @@ module soc_top #(
     wire[3:0] s2_sel;
     wire s2_we, s2_req_valid, s2_req_ready, s2_rsp_valid, s2_rsp_ready;
 
-    // rib 从设备 3~4: 保留, 未接入任何设备
+    // rib 从设备 3: 保留; 从设备 4: GPIO
     wire[31:0] s3_addr, s3_wdata, s4_addr, s4_wdata;
     wire[3:0] s3_sel, s4_sel;
     wire s3_we, s4_we, s3_req_valid, s4_req_valid;
+    wire [31:0] s4_rdata, gpio_ctrl, gpio_data;
+    wire s4_req_ready, s4_rsp_valid, s4_rsp_ready;
 
 
     tinyriscv_core #(
@@ -151,7 +150,7 @@ module soc_top #(
         .s2_rsp_ready_o(s2_rsp_ready),
         .s2_data_i(s2_rdata),
 
-        // 从设备 3~4 = 保留: 不握手, 将来在这里挂 timer / uart / gpio
+        // 从设备 3 = 保留: 不握手
         .s3_addr_o(s3_addr),
         .s3_data_o(s3_wdata),
         .s3_sel_o(s3_sel),
@@ -167,10 +166,10 @@ module soc_top #(
         .s4_sel_o(s4_sel),
         .s4_we_o(s4_we),
         .s4_req_valid_o(s4_req_valid),
-        .s4_req_ready_i(1'b0),
-        .s4_rsp_valid_i(1'b0),
-        .s4_rsp_ready_o(),
-        .s4_data_i(32'h0)
+        .s4_req_ready_i(s4_req_ready),
+        .s4_rsp_valid_i(s4_rsp_valid),
+        .s4_rsp_ready_o(s4_rsp_ready),
+        .s4_data_i(s4_rdata)
     );
 
 
@@ -227,10 +226,20 @@ module soc_top #(
         .rsp_ready_i(s2_rsp_ready),
         .spi_mosi(spi_mosi),
         .spi_miso(spi_miso),
-        .spi_ss(spi_ss),
-        .spi_clk(spi_clk),
-        .lcd_dc(lcd_dc),
-        .lcd_rst_n(lcd_rst_n)
+        .spi_clk(spi_clk)
     );
+
+    gpio u_gpio(
+        .clk(clk), .rst_n(rst_n), .addr_i(s4_addr), .data_i(s4_wdata),
+        .sel_i(s4_sel), .we_i(s4_we), .data_o(s4_rdata),
+        .req_valid_i(s4_req_valid), .req_ready_o(s4_req_ready),
+        .rsp_valid_o(s4_rsp_valid), .rsp_ready_i(s4_rsp_ready),
+        .io_pin_i(2'b00), .reg_ctrl(gpio_ctrl), .reg_data(gpio_data)
+    );
+    // Initialize DATA/BSRR before enabling output directions. GPIO retains its
+    // existing mode encoding: 0 high-Z, 1 output, 2 input (not STM32 MODER).
+    assign spi_ss = gpio_ctrl[1:0] == 2'b01 ? gpio_data[0] : 1'b1;
+    assign lcd_dc = gpio_ctrl[3:2] == 2'b01 ? gpio_data[1] : 1'b0;
+    assign lcd_rst_n = gpio_ctrl[5:4] == 2'b01 ? gpio_data[2] : 1'b1;
 
 endmodule
