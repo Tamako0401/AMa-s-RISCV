@@ -1,5 +1,5 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
-// Changes: Normalize line endings to LF and remove trailing whitespace.
+// Changes: Normalize source; add masked BSRR and hold responses under backpressure.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
  /*
  Copyright 2020 Blue Liang, liangkangnan@163.com
@@ -42,6 +42,7 @@ module gpio(
     // GPIO寄存器(偏移)地址
     localparam GPIO_CTRL = 4'h0;
     localparam GPIO_DATA = 4'h4;
+    localparam GPIO_BSRR = 4'h8; // [15:0] set, [31:16] reset; set wins on overlap.
 
     // GPIO控制寄存器
     // 每2位控制1个IO的输入、输出模式，最多支持16个IO
@@ -54,10 +55,16 @@ module gpio(
     assign reg_ctrl = gpio_ctrl;
     assign reg_data = gpio_data;
 
-    wire wen = we_i & req_valid_i;
-    wire ren = (~we_i) & req_valid_i;
-    wire write_reg_ctrl_en = wen & (addr_i[3:0] == GPIO_CTRL);
-    wire write_reg_data_en = wen & (addr_i[3:0] == GPIO_DATA);
+    reg response_valid;
+    assign req_ready_o = rst_n && (!response_valid || rsp_ready_i);
+    assign rsp_valid_o = response_valid;
+    wire wen = we_i & req_valid_i & req_ready_o;
+    wire ren = (~we_i) & req_valid_i & req_ready_o;
+    wire write_reg_ctrl_en = wen & (addr_i[3:2] == GPIO_CTRL[3:2]);
+    wire write_reg_data_en = wen & (addr_i[3:2] == GPIO_DATA[3:2]);
+    wire write_reg_bsrr_en = wen & (addr_i[3:2] == GPIO_BSRR[3:2]);
+    wire [31:0] write_mask = {{8{sel_i[3]}}, {8{sel_i[2]}}, {8{sel_i[1]}}, {8{sel_i[0]}}};
+    wire [31:0] bsrr = data_i & write_mask;
 
     // 写gpio_ctrl
     always @ (posedge clk or negedge rst_n) begin
@@ -93,6 +100,8 @@ module gpio(
                 if (sel_i[1]) begin
                     gpio_data[15:8] <= data_i[15:8];
                 end
+            end else if (write_reg_bsrr_en) begin
+                gpio_data[15:0] <= (gpio_data[15:0] & ~bsrr[31:16]) | bsrr[15:0];
             end else begin
                 if (gpio_ctrl[1:0] == 2'b10) begin
                     gpio_data[0] <= io_pin_i[0];
@@ -110,30 +119,23 @@ module gpio(
     always @ (posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             data_r <= 32'h0;
+            response_valid <= 0;
         end else begin
+            if (response_valid && rsp_ready_i) response_valid <= 0;
+            if (req_valid_i && req_ready_o) begin
+                response_valid <= 1;
+                data_r <= 0;
+            end
             if (ren) begin
-                case (addr_i[3:0])
-                    GPIO_CTRL: data_r <= gpio_ctrl;
-                    GPIO_DATA: data_r <= gpio_data;
+                case (addr_i[3:2])
+                    GPIO_CTRL[3:2]: data_r <= gpio_ctrl;
+                    GPIO_DATA[3:2]: data_r <= gpio_data;
                     default:   data_r <= 32'h0;
                 endcase
-            end else begin
-                data_r <= 32'h0;
             end
         end
     end
 
     assign data_o = data_r;
-
-    vld_rdy #(
-        .CUT_READY(0)
-    ) u_vld_rdy(
-        .clk(clk),
-        .rst_n(rst_n),
-        .vld_i(req_valid_i),
-        .rdy_o(req_ready_o),
-        .rdy_i(rsp_ready_i),
-        .vld_o(rsp_valid_o)
-    );
 
 endmodule

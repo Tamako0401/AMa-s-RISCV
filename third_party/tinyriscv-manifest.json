@@ -65,9 +65,10 @@
       "source": "source/perips/gpio.v",
       "destination": "rtl/perips/gpio.v",
       "source_sha256": "6447e855474e42923971db72d3c6a51b5ba716ccc360a20ea8cac69ecdb03024",
-      "imported_sha256": "2a9921ad187e086f23f3567b93104c685779fa84e947ad4f25d94dd1eab9aa90",
+      "imported_sha256": "8da5feb732325c9d57c2a8db0e82052bd9d36ec06dd9a7a01541d9796d0be5c3",
       "changes": [
-        "Normalize line endings to LF and remove trailing whitespace."
+        "Normalize line endings to LF and remove trailing whitespace.",
+        "Add byte-masked BSRR with set priority, word-register decoding, accepted-request write gating and held response payload for backpressure."
       ]
     },
     {

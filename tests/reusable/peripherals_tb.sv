@@ -10,8 +10,9 @@ module peripherals_tb;
     wire gr, gresp, ur, uresp, tx;
     reg [1:0] inputs = 0;
     reg rx = 1;
-    // Contract: consume every response immediately; at most one request per transaction.
-    gpio g(clk, rst_n, addr, data, sel, we, gd, gv, gr, gresp, 1'b1, inputs, ctrl, pins);
+    reg gpio_rsp_ready = 1;
+    // UART responses are consumed immediately; GPIO also tests backpressure.
+    gpio g(clk, rst_n, addr, data, sel, we, gd, gv, gr, gresp, gpio_rsp_ready, inputs, ctrl, pins);
     uart #(.CPU_CLOCK_HZ(1843200)) u(clk, rst_n, addr, data, sel, we, ud,
                                    uv, ur, uresp, 1'b1, tx, rx);
     task access(input bit is_uart, input bit write_en, input [31:0] offset,
@@ -30,6 +31,7 @@ module peripherals_tb;
     endtask
     reg [31:0] result;
     integer i;
+    integer test_pass = 0;
     reg [7:0] received;
     task send_rx(input [7:0] value);
         @(negedge clk); rx = 0;
@@ -50,6 +52,39 @@ module peripherals_tb;
         access(0, 0, 4, 0, 15, result);
         if (result !== 32'h0000ab03 || ctrl !== 5 || pins !== result)
             $fatal(1, "GPIO write/mask/read failure");
+        access(0, 1, 8, 32'h00010004, 15, result); // clear pin 0, set pin 2
+        if (pins !== 32'h0000ab06) $fatal(1, "BSRR set/reset");
+        access(0, 1, 8, 32'h00040004, 15, result); // set wins on overlap
+        if (pins !== 32'h0000ab06) $fatal(1, "BSRR overlap priority");
+        access(0, 1, 10, 32'h00060000, 12, result); // upper halfword reset
+        if (pins !== 32'h0000ab00) $fatal(1, "BSRR halfword reset");
+        access(0, 1, 9, 32'h00001200, 2, result);
+        if (pins !== 32'h0000bb00) $fatal(1, "BSRR byte set");
+        access(0, 1, 11, 32'h12000000, 8, result);
+        if (pins !== 32'h0000a900) $fatal(1, "BSRR byte reset");
+        access(0, 1, 8, 1, 1, result);
+        access(0, 0, 8, 0, 15, result);
+        if (result !== 0) $fatal(1, "BSRR read must be zero");
+
+        // Hold a DATA read response and present a blocked BSRR write. The write
+        // must execute exactly once when the old response is finally consumed.
+        @(negedge clk);
+        gpio_rsp_ready = 0; gv = 1; uv = 0; we = 0; addr = 4; sel = 15;
+        @(posedge clk); #1;
+        if (!gresp || gd !== 32'h0000a901) $fatal(1, "GPIO read response");
+        @(negedge clk); we = 1; addr = 8; data = 32'h00010002;
+        repeat (5) begin
+            @(posedge clk); #1;
+            if (gr || !gresp || gd !== 32'h0000a901 || pins !== 32'h0000a901)
+                $fatal(1, "GPIO response/backpressure lost data or executed blocked write");
+        end
+        @(negedge clk); gpio_rsp_ready = 1;
+        @(posedge clk); #1;
+        if (!gresp || gd !== 0 || pins !== 32'h0000a902)
+            $fatal(1, "GPIO response replacement / accepted write");
+        @(negedge clk); gv = 0; we = 0;
+        @(posedge clk); #1;
+        if (gresp) $fatal(1, "GPIO duplicate response");
         access(0, 1, 0, 10, 1, result); // both pins inputs
         inputs = 2'b01;
         repeat (3) @(posedge clk);
@@ -86,7 +121,8 @@ module peripherals_tb;
         access(1, 1, 4, 0, 1, result);
         access(1, 0, 4, 0, 15, result);
         if (result[1] !== 0) $fatal(1, "UART RX status clear failure");
-        $display("PASS peripherals: GPIO byte masks/input, UART TX and independent RX");
+        $display("PASS peripherals: GPIO masks/input/BSRR/backpressure, UART TX and independent RX");
+        test_pass = 1;
         $finish;
     end
     initial begin #100000; $fatal(1, "timeout"); end

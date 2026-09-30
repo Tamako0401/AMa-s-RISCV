@@ -35,7 +35,7 @@ module minimal_soc #(
     wire [31:0] address = dfire ? da : ia;
     wire ram_hit = address[31:16] == 16'h8000;
     wire uart_hit = da >= 32'h30000000 && da <= 32'h30000013;
-    wire gpio_hit = da >= 32'h40000000 && da <= 32'h40000007;
+    wire gpio_hit = da >= 32'h40000000 && da <= 32'h4000000b;
     wire ram_en = (dfire || ifire) && ram_hit;
     wire [13:0] word_address = address[15:2];
     reg [31:0] ram [0:16383];
