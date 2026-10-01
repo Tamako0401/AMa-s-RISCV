@@ -1,5 +1,5 @@
 /* RIB integration: persistent CR1, write-to-send DR, GPIO BSRR control.
- * SPI 0x20000000: CR1/CR2/SR/DR at 0/4/8/C.
+ * SPI 0x40002000: CR1/CR2/SR/DR at 0/4/8/C.
  * GPIO 0x40000000: CTRL/DATA/BSRR at 0/4/8; pins 0=CS, 1=DC, 2=RST_N.
  * The testbench checks the external control pins and exactly 32 SCK edges.
  * Independent four-mode/full-duplex timing tests are in reusable/spi_tb.sv.
@@ -7,7 +7,7 @@
 .section .text.init
 .globl _start
 _start:
-    li s0, 0x20000000
+    li s0, 0x40002000
     li s2, 0x40000000
     lw t1, 0(s0)
     li t2, 4

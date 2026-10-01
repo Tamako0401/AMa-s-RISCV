@@ -1,5 +1,5 @@
-/* RIB integration: UART at slave 3 and LEDs on GPIO 8..15.
- * UART 0x30000000: CTRL/STATUS/BAUD/TXDATA/RXDATA at 0/4/8/C/10.
+/* Peripheral bus integration: UART at port 1 and LEDs on GPIO 8..15.
+ * UART 0x40001000: CTRL/STATUS/BAUD/TXDATA/RXDATA at 0/4/8/C/10.
  * GPIO 0x40000000: CTRL/DATA at 0/4.
  * The testbench decodes 'A' and 'Z' from the uart_tx pin, then drives 0x3C on
  * uart_rx, and checks led == 0xA5 at the end. Stores: 7.
@@ -7,7 +7,7 @@
 .section .text.init
 .globl _start
 _start:
-    li s0, 0x30000000
+    li s0, 0x40001000
     li s2, 0x40000000
 
     /* 1) 读通路: 写 BAUD=16(每位 17 拍, 仿真快), 读回必须一致 */

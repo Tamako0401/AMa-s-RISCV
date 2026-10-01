@@ -25,10 +25,12 @@ Stack:
     initial sp = 0x10010000
 
 MMIO:
-    RIB SoC SPI: 0x20000000
-    RIB SoC UART: 0x30000000 (CTRL/STATUS/BAUD/TXDATA/RXDATA at 0/4/8/C/10)
-    RIB SoC GPIO: 0x40000000 (pins 0..2 = CS/DC/RST_N, pins 8..15 = led[0..7]; CTRL/DATA/BSRR)
-    All five RIB slave slots (s0..s4) are now in use
+    RIB slots s2 (0x20000000) and s3 (0x30000000) are free
+    RIB slot s4 (0x40000000) = peripheral bus, 4 KiB per port by addr[15:12]:
+        0x40000000 GPIO (pins 0..2 = CS/DC/RST_N, pins 8..15 = led[0..7]; CTRL/DATA/BSRR)
+        0x40001000 UART (CTRL/STATUS/BAUD/TXDATA/RXDATA at 0/4/8/C/10)
+        0x40002000 SPI  (CR1/CR2/SR/DR at 0/4/8/C)
+        0x40003000-0x4000ffff unused: reads return 0, writes are dropped
     CPU/SoC tests reserve RAM word 0x10000000 for completion
 
 Interrupt:

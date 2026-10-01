@@ -20,6 +20,7 @@ rtl/core/ifu_idu.v
 rtl/core/pipe_ctrl.v
 rtl/core/tinyriscv_core.v
 rtl/core/rib.v
+rtl/core/periph_bus.v
 rtl/perips/rom.v
 rtl/perips/ram.v
 rtl/perips/spi.v
