@@ -5,7 +5,7 @@ def main [] {
     mkdir build/reusable
     ^iverilog -g2012 -Wall -t null -f rtl/reusable.f
     if $env.LAST_EXIT_CODE != 0 { error make {msg: "RTL elaboration failed"} }
-    for name in [storage alu peripherals memory] {
+    for name in [storage alu peripherals memory periph_bus] {
         let top = $"($name)_tb"
         let output = $"build/reusable/($top).vvp"
         ^iverilog -g2012 -s $top -o $output -f rtl/reusable.f $"tests/reusable/($top).sv"

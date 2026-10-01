@@ -9,3 +9,4 @@ rtl/perips/uart.v
 rtl/perips/spi.v
 rtl/perips/rom.v
 rtl/perips/ram.v
+rtl/core/periph_bus.v

@@ -10,11 +10,11 @@ module peripherals_tb;
     wire gr, gresp, ur, uresp, tx;
     reg [1:0] inputs = 0;
     reg rx = 1;
-    reg gpio_rsp_ready = 1;
-    // UART responses are consumed immediately; GPIO also tests backpressure.
+    reg gpio_rsp_ready = 1, uart_rsp_ready = 1;
+    // Both peripherals are tested with immediate consumption and with backpressure.
     gpio g(clk, rst_n, addr, data, sel, we, gd, gv, gr, gresp, gpio_rsp_ready, inputs, ctrl, pins);
     uart #(.CPU_CLOCK_HZ(1843200)) u(clk, rst_n, addr, data, sel, we, ud,
-                                   uv, ur, uresp, 1'b1, tx, rx);
+                                   uv, ur, uresp, uart_rsp_ready, tx, rx);
     task access(input bit is_uart, input bit write_en, input [31:0] offset,
                 input [31:0] value, input [3:0] lanes, output [31:0] result);
         @(negedge clk);
@@ -93,6 +93,26 @@ module peripherals_tb;
 
         access(1, 0, 8, 0, 15, result);
         if (result !== 16) $fatal(1, "UART clock parameter failure");
+
+        // Same as GPIO: hold a BAUD read response and present a blocked BAUD write.
+        @(negedge clk);
+        uart_rsp_ready = 0; uv = 1; gv = 0; we = 0; addr = 8; sel = 15;
+        @(posedge clk); #1;
+        if (!uresp || ud !== 16) $fatal(1, "UART read response");
+        @(negedge clk); we = 1; data = 20;
+        repeat (5) begin
+            @(posedge clk); #1;
+            if (ur || !uresp || ud !== 16 || u.uart_baud !== 16)
+                $fatal(1, "UART response/backpressure lost data or executed blocked write");
+        end
+        @(negedge clk); uart_rsp_ready = 1;
+        @(posedge clk); #1;
+        if (!uresp || ud !== 0 || u.uart_baud !== 20)
+            $fatal(1, "UART response replacement / accepted write");
+        @(negedge clk); uv = 0; we = 0;
+        @(posedge clk); #1;
+        if (uresp) $fatal(1, "UART duplicate response");
+        access(1, 1, 8, 16, 15, result);   // restore the divider for the frame tests
         access(1, 1, 0, 3, 1, result);
         // Independent TX pin decoder, not internal-state inspection or TX/RX loopback.
         fork
@@ -121,7 +141,7 @@ module peripherals_tb;
         access(1, 1, 4, 0, 1, result);
         access(1, 0, 4, 0, 15, result);
         if (result[1] !== 0) $fatal(1, "UART RX status clear failure");
-        $display("PASS peripherals: GPIO masks/input/BSRR/backpressure, UART TX and independent RX");
+        $display("PASS peripherals: GPIO masks/input/BSRR/backpressure, UART backpressure, TX and independent RX");
         test_pass = 1;
         $finish;
     end
