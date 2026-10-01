@@ -4,6 +4,7 @@ rtl/utils/gen_ram.v
 rtl/utils/vld_rdy.v
 rtl/core/gpr_reg.v
 rtl/core/exu_alu_datapath.v
+rtl/core/axi_bridge.v
 rtl/perips/gpio.v
 rtl/perips/uart.v
 rtl/perips/spi.v

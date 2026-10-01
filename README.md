@@ -7,6 +7,7 @@
 - 完整 CPU 仿真基线与接口：[docs/cpu-baseline.md](docs/cpu-baseline.md)
 - MES50HP/PGL50H 实体板最小系统：[boards/mes50hp/README.md](boards/mes50hp/README.md)
 - SPI CR1/SR/DR 与屏幕 GPIO：[docs/spi.md](docs/spi.md)
+- RIB ↔ AXI 协议桥（接 DDR3 等 AXI 控制器用）：[docs/axi-bridge.md](docs/axi-bridge.md)
 - 现有学习平台约定：[docs/platform.md](docs/platform.md)
 
 当前已接入完整 RV32I CPU 功能基线、RIB + ROM/RAM + SPI 的通用 SoC，以及独立的 MES50HP 最小板级系统。CPU 回归与通用 SoC 使用 ROM/RAM 分离布局；MES50HP 最小系统使用统一 RAM，地址和镜像按各自文档配套。尚未适配远程 FPGA 板卡。
