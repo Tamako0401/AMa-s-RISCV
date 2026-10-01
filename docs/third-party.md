@@ -25,7 +25,7 @@
 | `source/core/gpr_reg.v` | `rtl/core/gpr_reg.v` | 32 个通用寄存器，依赖 `gen_dff.v`；删除未使用的 `defines.v` 引用 |
 | `source/core/exu_alu_datapath.v` | `rtl/core/exu_alu_datapath.v` | 运算/比较数据通路；删除未使用的 `defines.v` 引用 |
 | `source/perips/gpio.v` | `rtl/perips/gpio.v` | 保留 CTRL/DATA 与输入采样；增加 BSRR、请求握手门控及响应背压保持 |
-| `source/perips/uart.v` | `rtl/perips/uart.v` | UART 寄存器、TX/RX，依赖 `vld_rdy.v`；移除 `defines.v`，将时钟宏改为 `CPU_CLOCK_HZ` 模块参数，默认仍为 50000000 |
+| `source/perips/uart.v` | `rtl/perips/uart.v` | UART 寄存器、TX/RX；移除 `defines.v`，将时钟宏改为 `CPU_CLOCK_HZ` 模块参数，默认仍为 50000000；请求握手门控及响应背压保持（不再使用 `vld_rdy.v`） |
 
 不导入旧 `defines.v`，避免把复位地址、流水级数、旧 CPU 频率等全局配置带入当前平台。
 
@@ -33,9 +33,7 @@
 
 ### GPIO 与 UART
 
-UART 保留了上游接口和行为，**当前仅支持响应端始终就绪的使用方式**：`rsp_ready_i = 1`，一次请求在时钟沿被接受后撤销，不能为“等待响应”而将同一次写请求反复保持多个时钟。读响应在请求后的寄存器输出上取得，按 `rsp_valid_o` 消费。
-
-原因是 UART 的 `data_r` 没有独立的背压保持逻辑，且写使能只由 `we_i & req_valid_i` 决定，不包含 `req_ready_o`。CPU/总线可能暂停响应消费时，必须增加事务适配/缓冲并做回归。`vld_rdy` 本身只保存 valid，不保存 payload。
+UART 寄存器和收发行为保留上游。2026-10-01 按 GPIO 的方式改了总线接口：只在请求握手那一拍执行读写，读响应保持到 `rsp_ready_i`，未取走响应时不接受新请求，因此可以挂在 rib 等会暂停响应消费的总线上。`tests/reusable/peripherals_tb.sv` 覆盖了响应背压下读数据保持、被阻塞的写不提前执行且只执行一次。
 
 GPIO 在 2026-09-30 已改为仅在请求握手时执行读写，独立保持响应 valid/data，支持响应背压；原模式编码和 CTRL/DATA 地址保持不变，新增支持字节使能的 BSRR。SPI 同日重写为 CR1/CR2/SR/DR 子集、独立收发缓冲及请求/响应握手，屏幕控制脚移到 GPIO；有效位、迁移和验证范围见 [spi.md](spi.md)。原 SPI 文件的版权/许可证头保留，不将它冒记为上表固定参考提交的来源文件。
 

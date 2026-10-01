@@ -75,11 +75,12 @@
       "source": "source/perips/uart.v",
       "destination": "rtl/perips/uart.v",
       "source_sha256": "7b6b80b683243130b8afc6d776c8901af522e815f430043703c34e8bd1cf65d5",
-      "imported_sha256": "b824be9942ed52bd39a5ac2bdae70a2a9f53c8f778157e89ec4194c7fa7c72c6",
+      "imported_sha256": "3c691d1ab44b81b7d263a7b0c989efae13d2b835f2f0948b6699e9f0e17f62fb",
       "changes": [
         "Normalize line endings to LF and remove trailing whitespace.",
         "Remove dependency on upstream core/defines.v.",
-        "Expose CPU_CLOCK_HZ as a parameter; preserve upstream default and divider behavior."
+        "Expose CPU_CLOCK_HZ as a parameter; preserve upstream default and divider behavior.",
+        "Execute requests only on handshake and hold responses under backpressure (same pattern as gpio.v)."
       ]
     },
     {
