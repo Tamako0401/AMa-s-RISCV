@@ -11,7 +11,7 @@ _start:
 1:
     bge     t0, t1, 2f          /* branch if greater equal, if t0 >= t1, goto tag 2 forward 循环终止条件 */
     sw      zero, 0(t0)         /* store word, 将 0 存储到 t0+0 位置 */
-    addi    t0, t0, 4           /* t0 increment by 4, 擦下一位 (一个word是4字节) */ 
+    addi    t0, t0, 4           /* t0 increment by 4, 擦下一位 (一个word是4字节) */
     j       1b                  /* jump to 1 backword 无条件 */
 2:
 

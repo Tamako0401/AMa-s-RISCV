@@ -1,0 +1,11 @@
+--target=riscv32-unknown-elf
+-march=rv32i_zicsr
+-mabi=ilp32
+-ffreestanding
+-nostdlib
+-Wall
+-Wextra
+-Idevice
+-Idrivers
+-Ibsp
+-Icomponents/lcd
