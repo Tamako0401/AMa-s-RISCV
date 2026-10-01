@@ -4,20 +4,25 @@
 //   s0 = ROM   0x0000_0000, 64 KiB, 只读 -- 指令和常量; 也是复位向量
 //   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
 //   s2 = SPI   0x2000_0000                -- 寄存器偏移见 perips/spi.v
-//   s3 = 保留(未接入)
+//   s3 = UART  0x3000_0000                -- 偏移 0/4/8/C/10: 控制/状态/分频/TX/RX
 //   s4 = GPIO  0x4000_0000                -- CTRL / DATA / BSRR
 // GPIO outputs 0/1/2 drive CS / DC / RST_N; unconfigured pins use safe levels.
+// GPIO 8~15 驱动 led[0..7], 配置为输出且数据为 1 时点亮.
 //
-// 保留槽位的访问行为: req_ready 恒为 0, 即不握手。这与 "地址未命中任何从设备"
-// 的行为一致(RIB 没有错误响应通道), 访问会一直等待。
+// 未命中任何从设备的地址不会握手(RIB 没有错误响应通道), 访问会一直等待。
 module soc_top #(
     parameter [31:0] RESET_PC = 32'h00000000,
     parameter ROM_INIT_FILE = "",           // ROM 初值 hex 文件, 相对仿真工作目录
-    parameter RAM_INIT_FILE = ""            // RAM 初值 hex 文件, 相对仿真工作目录
+    parameter RAM_INIT_FILE = "",           // RAM 初值 hex 文件, 相对仿真工作目录
+    parameter CPU_CLOCK_HZ = 50000000       // 供 UART 计算默认波特率分频
 )(
 
     input wire clk,
     input wire rst_n,
+
+    input wire uart_rx,                     // 空闲为高
+    output wire uart_tx,
+    output wire [7:0] led,
 
     // SPI data/clock; LCD control pins are driven by GPIO below.
     output wire spi_mosi,                   // 控制器输出、设备输入
@@ -53,10 +58,15 @@ module soc_top #(
     wire[3:0] s2_sel;
     wire s2_we, s2_req_valid, s2_req_ready, s2_rsp_valid, s2_rsp_ready;
 
-    // rib 从设备 3: 保留; 从设备 4: GPIO
-    wire[31:0] s3_addr, s3_wdata, s4_addr, s4_wdata;
-    wire[3:0] s3_sel, s4_sel;
-    wire s3_we, s4_we, s3_req_valid, s4_req_valid;
+    // rib 从设备 3: UART (0x3000_0000)
+    wire[31:0] s3_addr, s3_wdata, s3_rdata;
+    wire[3:0] s3_sel;
+    wire s3_we, s3_req_valid, s3_req_ready, s3_rsp_valid, s3_rsp_ready;
+
+    // rib 从设备 4: GPIO (0x4000_0000)
+    wire[31:0] s4_addr, s4_wdata;
+    wire[3:0] s4_sel;
+    wire s4_we, s4_req_valid;
     wire [31:0] s4_rdata, gpio_ctrl, gpio_data;
     wire s4_req_ready, s4_rsp_valid, s4_rsp_ready;
 
@@ -150,17 +160,18 @@ module soc_top #(
         .s2_rsp_ready_o(s2_rsp_ready),
         .s2_data_i(s2_rdata),
 
-        // 从设备 3 = 保留: 不握手
+        // 从设备 3 = UART (0x3000_0000)
         .s3_addr_o(s3_addr),
         .s3_data_o(s3_wdata),
         .s3_sel_o(s3_sel),
         .s3_we_o(s3_we),
         .s3_req_valid_o(s3_req_valid),
-        .s3_req_ready_i(1'b0),
-        .s3_rsp_valid_i(1'b0),
-        .s3_rsp_ready_o(),
-        .s3_data_i(32'h0),
+        .s3_req_ready_i(s3_req_ready),
+        .s3_rsp_valid_i(s3_rsp_valid),
+        .s3_rsp_ready_o(s3_rsp_ready),
+        .s3_data_i(s3_rdata),
 
+        // 从设备 4 = GPIO (0x4000_0000)
         .s4_addr_o(s4_addr),
         .s4_data_o(s4_wdata),
         .s4_sel_o(s4_sel),
@@ -229,6 +240,26 @@ module soc_top #(
         .spi_clk(spi_clk)
     );
 
+    // UART (0x3000_0000)
+    uart #(
+        .CPU_CLOCK_HZ(CPU_CLOCK_HZ)
+    ) u_uart(
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(s3_addr),
+        .data_i(s3_wdata),
+        .sel_i(s3_sel),
+        .we_i(s3_we),
+        .data_o(s3_rdata),
+        .req_valid_i(s3_req_valid),
+        .req_ready_o(s3_req_ready),
+        .rsp_valid_o(s3_rsp_valid),
+        .rsp_ready_i(s3_rsp_ready),
+        .tx_pin(uart_tx),
+        .rx_pin(uart_rx)
+    );
+
+    // GPIO (0x4000_0000)
     gpio u_gpio(
         .clk(clk), .rst_n(rst_n), .addr_i(s4_addr), .data_i(s4_wdata),
         .sel_i(s4_sel), .we_i(s4_we), .data_o(s4_rdata),
@@ -241,5 +272,10 @@ module soc_top #(
     assign spi_ss = gpio_ctrl[1:0] == 2'b01 ? gpio_data[0] : 1'b1;
     assign lcd_dc = gpio_ctrl[3:2] == 2'b01 ? gpio_data[1] : 1'b0;
     assign lcd_rst_n = gpio_ctrl[5:4] == 2'b01 ? gpio_data[2] : 1'b1;
+
+    genvar i;
+    generate for (i = 0; i < 8; i = i + 1) begin: g_led
+        assign led[i] = gpio_ctrl[(8 + i) * 2 +: 2] == 2'b01 && gpio_data[8 + i];
+    end endgenerate
 
 endmodule

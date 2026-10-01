@@ -24,4 +24,5 @@ rtl/perips/rom.v
 rtl/perips/ram.v
 rtl/perips/spi.v
 rtl/perips/gpio.v
+rtl/perips/uart.v
 rtl/soc_top/soc_top.v
