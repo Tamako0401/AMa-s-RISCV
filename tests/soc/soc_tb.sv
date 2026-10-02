@@ -38,11 +38,44 @@ module soc_tb;
     assign dv   = u_soc.u_core.dbus_req_valid_o;
     assign dr   = u_soc.u_core.dbus_req_ready_i;
 
+    reg uart_rx_line = 1;        // 串口空闲为高
     soc_top u_soc(
         .clk(clk),
         .rst_n(rst_n),
+        .uart_rx(uart_rx_line),
         .spi_miso(1'b0)          // 本测试不驱动 SPI 设备
     );
+
+    // UART: 从 uart_tx 引脚解码字节(不看内部寄存器), 收到两个字节后从 uart_rx 发 0x3C。
+    // 每位持续 BAUD+1 个时钟, 在每位中点采样。
+    localparam [7:0] UART_RX_BYTE = 8'h3c;
+    reg check_uart = 0;
+    integer uart_tx_bytes = 0;
+    reg [7:0] uart_byte;
+    integer bit_clks, b;
+    always @(negedge u_soc.uart_tx) if (rst_n && check_uart) begin
+        bit_clks = u_soc.u_uart.uart_baud[15:0] + 1;
+        repeat (bit_clks / 2) @(posedge clk);
+        if (u_soc.uart_tx !== 1'b0) $fatal(1, "UART start bit");
+        for (b = 0; b < 8; b = b + 1) begin
+            repeat (bit_clks) @(posedge clk);
+            uart_byte[b] = u_soc.uart_tx;
+        end
+        repeat (bit_clks) @(posedge clk);
+        if (u_soc.uart_tx !== 1'b1) $fatal(1, "UART stop bit");
+        if (uart_byte !== (uart_tx_bytes == 0 ? 8'h41 : 8'h5a))
+            $fatal(1, "UART TX byte %0d got=%h", uart_tx_bytes, uart_byte);
+        uart_tx_bytes = uart_tx_bytes + 1;
+        if (uart_tx_bytes == 2) begin
+            uart_rx_line = 0;                                   // 起始位
+            repeat (bit_clks) @(posedge clk);
+            for (b = 0; b < 8; b = b + 1) begin
+                uart_rx_line = UART_RX_BYTE[b];                 // 低位先发
+                repeat (bit_clks) @(posedge clk);
+            end
+            uart_rx_line = 1;                                   // 停止位
+        end
+    end
 
     // rib 的互斥性: 任一时刻最多一个从设备被选中, 最多一个主设备收到响应
     wire [2:0] sel_cnt = u_soc.u_rib.s0_req_valid_o + u_soc.u_rib.s1_req_valid_o
@@ -85,6 +118,7 @@ module soc_tb;
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
         unused = $value$plusargs("stores=%d", expected_stores);
         check_spi = $test$plusargs("check_spi");
+        check_uart = $test$plusargs("check_uart");
         $readmemh(rom_path, u_soc.u_rom.mem);
         // RAM 初值是可选的: 用到已初始化 .data 的程序必须给 +ram=。
         // 这里直接写进存储数组, 相当于实机由 ram.v 的 RAM_INIT_FILE 完成。
@@ -115,6 +149,8 @@ module soc_tb;
             $fatal(1, "Store count %0d expected %0d", stores, expected_stores);
         if (check_spi && (gpio_checks != 5 || spi_edges != 32))
             $fatal(1, "SPI/GPIO checkpoints=%0d clocks=%0d", gpio_checks, spi_edges);
+        if (check_uart && (uart_tx_bytes != 2 || u_soc.led !== 8'ha5))
+            $fatal(1, "UART bytes=%0d led=%h", uart_tx_bytes, u_soc.led);
         $display("PASS SoC %s cycles=%0d stores=%0d", rom_path, cycles, stores);
         $finish;
     end

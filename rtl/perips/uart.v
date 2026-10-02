@@ -1,5 +1,5 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
-// Changes: Normalize line endings to LF and remove trailing whitespace. Remove dependency on upstream core/defines.v. Expose CPU_CLOCK_HZ as a parameter; preserve upstream default and divider behavior.
+// Changes: Normalize line endings to LF and remove trailing whitespace. Remove dependency on upstream core/defines.v. Expose CPU_CLOCK_HZ as a parameter; preserve upstream default and divider behavior. Execute requests only on handshake and hold responses under backpressure.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
  /*
  Copyright 2020 Blue Liang, liangkangnan@163.com
@@ -30,14 +30,14 @@ module uart #(
     input wire[31:0] data_i,
     input wire[3:0] sel_i,
     input wire we_i,
-	output wire[31:0] data_o,
+    output wire[31:0] data_o,
 
     input wire req_valid_i,
     output wire req_ready_o,
     output wire rsp_valid_o,
     input wire rsp_ready_i,
 
-	output wire tx_pin,
+    output wire tx_pin,
     input wire rx_pin
 
     );
@@ -95,8 +95,11 @@ module uart #(
     // UART接收数据寄存器，只读
     reg[31:0] uart_rx;
 
-    wire wen = we_i & req_valid_i;
-    wire ren = (~we_i) & req_valid_i;
+    reg remain;
+    assign req_ready_o = rst_n && (!remain || rsp_ready_i);
+    assign rsp_valid_o = remain;
+    wire wen = we_i & req_valid_i & req_ready_o;
+    wire ren = (~we_i) & req_valid_i & req_ready_o;
     wire write_reg_ctrl_en = wen & (addr_i[7:0] == UART_CTRL);
     wire write_reg_status_en = wen & (addr_i[7:0] == UART_STATUS);
     wire write_reg_baud_en = wen & (addr_i[7:0] == UART_BAUD);
@@ -188,7 +191,13 @@ module uart #(
     always @ (posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             data_r <= 32'h0;
+            remain <= 1'b0;
         end else begin
+            if (remain && rsp_ready_i) remain <= 1'b0;
+            if (req_valid_i && req_ready_o) begin
+                remain <= 1'b1;
+                data_r <= 32'h0;
+            end
             if (ren) begin
                 case (addr_i[7:0])
                     UART_CTRL:   data_r <= uart_ctrl;
@@ -197,8 +206,6 @@ module uart #(
                     UART_RXDATA: data_r <= uart_rx;
                     default:     data_r <= 32'h0;
                 endcase
-            end else begin
-                data_r <= 32'h0;
             end
         end
     end
@@ -431,16 +438,5 @@ module uart #(
             end
         end
     end
-
-    vld_rdy #(
-        .CUT_READY(0)
-    ) u_vld_rdy(
-        .clk(clk),
-        .rst_n(rst_n),
-        .vld_i(req_valid_i),
-        .rdy_o(req_ready_o),
-        .rdy_i(rsp_ready_i),
-        .vld_o(rsp_valid_o)
-    );
 
 endmodule
