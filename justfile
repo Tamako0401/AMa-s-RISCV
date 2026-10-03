@@ -17,3 +17,11 @@ app name="lcd_demo" flags="":
     cd {{justfile_directory()}} && mkdir -p build/app/{{name}} && \
         {{cc}} {{sw_cflags}} {{flags}} {{sw_inc}} -T sw/link.ld {{sw_lib}} sw/app/{{name}}/*.c \
             -o build/app/{{name}}/{{name}}.elf
+
+
+# 仿真点亮: 编译后在 rtl/soc_top 上跑, st7789_model 从真实 SPI 引脚重建画面
+# 并打印 ASCII 图, 同时核对关键像素。优先用 verilator(快两个数量级),
+# 没有才退回 iverilog。
+
+app-sim name="lcd_demo":
+    python3 {{justfile_directory()}}/scripts/test-lcd.py {{name}}
