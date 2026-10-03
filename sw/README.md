@@ -24,6 +24,21 @@ just app <名字>      # 编译 sw/app/<名字>/*.c
 
 新程序: 建 `sw/app/<程序>/main.c`
 
+## 仿真点亮
+
+```
+python3 scripts/test-lcd.py [程序名]     # 默认 lcd_demo
+just app-sim                            # 同上
+```
+
+`tests/soc/st7789_model.sv` 挂在 `soc_top` 的**真实 SPI 引脚**上, 从引脚重建
+240x320 画面并打印 ASCII 图, 同时核对 COLMOD/MADCTL 和边框、色块、对角线像素.
+一屏要搬约 19 万字节(1200 万周期), 所以优先用 verilator, 秒级完成; 没有 verilator
+会退回 iverilog, 大约要十几分钟.
+
+仿真构建额外传 `-DSIM_CYCLE_DIV=1000`: 屏幕初始化里的毫秒延时按真实计数要 2600
+万拍, 纯仿真跑不动. 该宏默认 1, **不影响实机行为**.
+
 ## 注意
 
 - 程序用到外设, **不能在 spike 上运行* (spike 里没有 GPIO/SPI), 只能在 SoC 仿真或板上运行.

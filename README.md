@@ -19,3 +19,5 @@ MES50HP/PGL50H 最小系统现已完成仿真及 PDS 50 MHz 时序/位流构建�
 完整 CPU 回归：`nu --no-config-file scripts/test-cpu.nu`；添加 `--modelsim` 可使用 ModelSim。需要 Python 和 LLVM RISC-V 编译工具，具体依赖见 CPU 基线文档。当前为保守取指的功能基线，尚未进行性能评估、正式 ISA 认证或 PGL50H 上板。
 
 通用 SoC 回归：`python scripts/test-soc.py`，覆盖 RIB、ROM/RAM、SPI 和 GPIO 控屏通路。组件回归包含四种模式、全部分频和独立引脚收发测试；ModelSim 使用 `scripts/test-spi.nu --modelsim`。数字仿真不代表真实屏幕或上板已通过。
+
+LCD 点亮仿真：`python scripts/test-lcd.py`，把 `sw/app/lcd_demo` 真正跑在 RTL SoC 上，`tests/soc/st7789_model.sv` 从 SPI 引脚重建 240x320 画面并核对像素。优先用 verilator（秒级），没有则退回 iverilog（十几分钟）。仿真构建用 `-DSIM_CYCLE_DIV=1000` 缩短屏幕初始化延时，实机行为不变。
