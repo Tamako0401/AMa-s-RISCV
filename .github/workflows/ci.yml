@@ -1,0 +1,46 @@
+# 数字仿真验收回归。覆盖: 组件自检、CPU 回归、SPI 引脚时序、
+# 通用 SoC 回归、LCD 演示(ST7789 模型)、MES50HP 板级固件与系统仿真。
+# 不在 CI 运行: ModelSim(本地)、PDS 布局布线/位流(本地授权工具)、实机验收。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog verilator clang lld llvm python3
+
+      - name: Install Nushell
+        run: |
+          NU_VER=0.98.0
+          curl -sSfL "https://github.com/nushell/nushell/releases/download/${NU_VER}/nu-${NU_VER}-x86_64-unknown-linux-musl.tar.gz" \
+            | sudo tar xz -C /usr/local/bin --strip-components=1 --wildcards '*/nu'
+          nu --version
+
+      - name: Component tests (reusable)
+        run: nu --no-config-file scripts/test-reusable.nu
+
+      - name: CPU regression (Icarus)
+        run: nu --no-config-file scripts/test-cpu.nu
+
+      - name: SPI pin-timing test (Icarus)
+        run: nu --no-config-file scripts/test-spi.nu
+
+      - name: SoC regression
+        run: python3 scripts/test-soc.py
+
+      - name: LCD demo simulation (ST7789 model, Verilator)
+        run: python3 scripts/test-lcd.py
+
+      - name: Board firmware build + system simulation (MES50HP)
+        run: python3 scripts/build-board.py --simulate

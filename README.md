@@ -57,6 +57,8 @@ CoreMark、最高工作频率实测、ILA/片上抓波分析、DDR、Cache、动
 
 Nu 不在 PATH 时使用已安装的 `nu.exe` 完整路径。ModelSim 额外需要 `vlib/vmap/vlog/vsim`。CPU 入口支持 `--quick` 和 `--vcd`。默认 PDS 为 `C:/pango/PDS_2022.2-SP1-Lite/bin/pds_shell.exe`；其他安装路径设置 `$env.PDS_SHELL`。
 
+GitHub Actions(`.github/workflows/ci.yml`)在推送和 PR 时自动运行 Icarus/Verilator 验收：组件自检、CPU 回归、SPI 引脚时序、SoC 回归、LCD 演示仿真和板级固件/系统仿真。ModelSim、PDS 布局布线和实机验收依赖本地授权工具和硬件，不在 CI 范围内。
+
 MES50HP 工程生成到 `build/mes50hp/build.pds`，SRAM 配置文件为 `build/mes50hp/generate_bitstream/mes50hp_top.sbit`。PDS 必须从生成目录启动；更改固件或 RTL 后重新构建，并核对 `build-manifest.json` 中的源码、镜像、位流和时序报告校验值。`invalid-first-run/` 是初始化镜像未加载的诊断存档，不能用于下载。所有 `build/` 生成物均被 Git 忽略，需要在本机构建。
 
 实机验收：串口设为 **115200 / 8N1 / 无流控**，打开串口后按 KEY1；观察 `AMA CPU PASS`、CPU 驱动的 LED 移动图案；关闭本地回显并发送单个 `Z`，核对回显，再按 KEY1 验证重启。完整接线、引脚和下载步骤见 [板级文档](boards/mes50hp/README.md)。
