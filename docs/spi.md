@@ -81,4 +81,6 @@ SPI 测试覆盖四种模式 × 八档分频、00/FF/交替数据、独立 MISO 
 
 2026-09-30：Icarus 和 ModelSim 10.5b 均通过 32 组模式/分频、四种模式各三个连续字节及上述边界测试，GPIO/UART 测试通过；三个 SoC 程序通过，MES50HP 最小系统的配置启动和 KEY1 重启 UART/回显/LED 仿真通过。本次未做新 SPI 的 PDS 布局布线或实机屏幕验证。
 
-本次接口不兼容旧 CTRL/DATA/STATUS/DC 布局：旧 DATA=`+4` 迁到 DR=`+0x0c`；启动位不再存在；CPHA 从旧 bit2 迁到 bit0，SPE 为 bit6；CS/DC/RST_N 改为 GPIO 控制。旧测试程序已同步迁移。MES50HP 最小板级系统目前只使用 UART/GPIO，没有接入 SPI 屏幕。
+本次接口不兼容旧 CTRL/DATA/STATUS/DC 布局：旧 DATA=`+4` 迁到 DR=`+0x0c`；启动位不再存在；CPHA 从旧 bit2 迁到 bit0，SPE 为 bit6；CS/DC/RST_N 改为 GPIO 控制。旧测试程序已同步迁移。
+
+2026-10-02：MES50HP 板级系统（`rtl/soc/minimal_soc.v`）已接入同一 SPI，地址同为 `0x40002000`，GPIO 位 0/1/2 同样为 CS_N/DC/RST_N，LED 移到 GPIO 位 8–15 与 `soc_top` 一致；MISO 接地，背光在顶层固定点亮。SPI 的 DR/CR1 写背压会 Stall SoC 数据口，这是板级系统相对 UART/GPIO 新增的唯一非始终就绪外设。目标屏幕为 GMT024-8p10p-SPI（ST7789V，240×320），初始化序列对齐厂商例程；板级构建与验收见 [板级文档](../boards/mes50hp/README.md)。

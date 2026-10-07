@@ -23,8 +23,8 @@ __attribute__((noinline)) static u32 sum(u32 n) {
     return result;
 }
 int main(void) {
-    REG(GPIO) = 0x5555; // eight outputs
-    REG(GPIO+4) = 1;
+    REG(GPIO) = 0x55550000; // GPIO 8~15 outputs -> LED; 0~2 reserved for the LCD
+    REG(GPIO+4) = 1u << 8;
     REG(UART+8) = 433; // 50 MHz / (433+1), approx. 115207 baud
     REG(UART) = 3; // TX + RX
     u32 error = initialized != 0x12345678u ? 2 : 0;
@@ -37,7 +37,7 @@ int main(void) {
     ((volatile unsigned short *)scratch)[1] = 0x7654;
     if (scratch[0] != 0x765412efu) error = 6;
     if (error) {
-        REG(GPIO+4) = 0x80 | error;
+        REG(GPIO+4) = (0x80 | error) << 8;
         puts_uart("AMA CPU FAIL "); putc_uart('0'+error); puts_uart("\r\n");
         for (;;) {}
     }
@@ -47,7 +47,7 @@ int main(void) {
         if ((u32)(cycles()-previous) >= HEARTBEAT_CYCLES) {
             previous=cycles();
             pattern = pattern == 128 ? 1 : pattern << 1;
-            REG(GPIO+4) = pattern;
+            REG(GPIO+4) = pattern << 8;
         }
         if (REG(UART+4) & 2u) {
             char c = (char)REG(UART+16);

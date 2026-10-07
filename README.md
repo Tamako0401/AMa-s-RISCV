@@ -14,10 +14,11 @@
 | 基础组件 | ALU、寄存器堆、存储、GPIO/UART 自检通过；GPIO 支持 BSRR 和响应背压 | UART 仍需响应始终就绪或事务适配，无 FIFO |
 | 通用 RIB SoC | ROM/RAM 分离，接入 SPI 与屏幕 GPIO；3 个系统程序通过 | UART 槽位未接入，未做该顶层的 PDS/实机验证 |
 | SPI | CR1/CR2/SR/DR 子集，独立收发缓冲；Icarus、ModelSim 通过四种模式 × 八档分频及边界测试 | 屏幕控制器/分辨率核实、驱动、板级接线、真实屏幕验收 |
-| MES50HP 最小系统 | 统一 64 KiB RAM + UART/GPIO；配置启动、KEY1 重启、UART 输出/回显及 CPU 控灯仿真通过；当前代码重新完成 PDS 50 MHz 时序及位流构建 | 实机下载、串口与 LED 验收；该系统尚未接入 SPI |
+| MES50HP 最小系统 | 统一 64 KiB RAM + UART/GPIO；配置启动、KEY1 重启、UART 输出/回显及 CPU 控灯仿真通过；PDS 50 MHz 时序及位流构建通过；**实机 LED 验收已通过（用户实测）** | 实机串口验收记录 |
+| MES50HP SPI 屏幕 | SPI 已接入板级系统（`0x40002000`），初始化序列对齐 GMT024-8p10p-SPI 厂商例程（ST7789V 240×320）；板级引脚级画面仿真逐像素核对通过，PDS 50 MHz 时序及位流构建通过 | 实机屏幕验收 |
 | Difftest | 已有 RTL/Spike 离线提交日志比较入口 | 日志会过滤真实 NOP/MRET 等情况，未比对 store 内容；本次未运行 Spike |
 
-本次 PDS 映射为 3318 LUT、2243 FF、4 APM、32 DRM；50 MHz 约束全部满足，慢角 setup slack 为 +1.272 ns。报告估算的 53.396 MHz 不是实测最高频率；31 项源码、固件、位流及时序文件与构建清单一致。
+本次（接入 SPI 屏幕后）PDS 映射为 3415 LUT、2301 FF、4 APM、32 DRM；50 MHz 约束全部满足，慢角 setup slack 为 +1.166 ns。该数字对应 LCD 演示固件的位流；报告估算的频率不是实测最高频率。
 
 板卡已购并到货，当前板级工程对应随板资料的 **MES50HP / PGL50H-6IFBG484**。旧 PGL22G 参考工程和远程 PG2L200H 学习实验的器件、引脚、时钟不能直接套用。远程平台尚未适配。
 
@@ -33,9 +34,9 @@ CoreMark、最高工作频率实测、ILA/片上抓波分析、DDR、Cache、动
 | 复位 PC | `0x00000000` | `0x80000000`，顶层显式覆盖 |
 | 指令/数据存储 | 64 KiB ROM `0x00000000`；64 KiB RAM `0x10000000` | 统一 64 KiB RAM `0x80000000` |
 | 栈顶 | `0x10010000` | `0x80010000` |
-| SPI | RIB SoC：`0x20000000` | 未接入 |
+| SPI | RIB SoC：`0x40002000` | `0x40002000`，只接屏幕，MISO 接地 |
 | UART | RIB SoC 的 s3 槽位未接入 | `0x30000000` |
-| GPIO | RIB SoC：`0x40000000`；bit0/1/2 为 CS_N/DC/RST_N | `0x40000000`；低 8 位连接 LED |
+| GPIO | RIB SoC：`0x40000000`；bit0/1/2 为 CS_N/DC/RST_N，bit8~15 为 LED | `0x40000000`；位分配与 RIB SoC 相同 |
 | 链接脚本 | `tests/cpu/link.ld`、`sw/link.ld` | `sw/board/link.ld` |
 | 测试完成标志 | RAM 首字 `0x10000000`，不是正式外设 | UART `AMA CPU PASS`，无测试邮箱 |
 
@@ -54,6 +55,7 @@ CoreMark、最高工作频率实测、ILA/片上抓波分析、DDR、Cache、动
 | 通用 SoC 回归 | `python scripts/test-soc.py` | `build/soc/` |
 | 板级固件与系统仿真 | `python scripts/build-board.py --simulate` | `build/mes50hp/` |
 | 板级仿真与 PDS 全流程 | `python scripts/build-board.py --simulate --pds` | `build/mes50hp/` |
+| 板级 SPI 屏幕固件、仿真与位流 | `python scripts/build-board.py --lcd --simulate --pds` | `build/mes50hp/` |
 
 Nu 不在 PATH 时使用已安装的 `nu.exe` 完整路径。ModelSim 额外需要 `vlib/vmap/vlog/vsim`。CPU 入口支持 `--quick` 和 `--vcd`。默认 PDS 为 `C:/pango/PDS_2022.2-SP1-Lite/bin/pds_shell.exe`；其他安装路径设置 `$env.PDS_SHELL`。
 
@@ -85,8 +87,8 @@ MES50HP 工程生成到 `build/mes50hp/build.pds`，SRAM 配置文件为 `build/
 
 ## 接下来做什么
 
-1. 完成 MES50HP 的 UART、回显、LED 和 KEY1 实机验收，记录源码版本、镜像、时钟及现象。
-2. 核实 SPI 屏型号、控制器、分辨率和电压，完成驱动及 CPU 控屏闭环。
+1. 补齐 MES50HP 的 UART、回显和 KEY1 实机验收记录（LED 已由用户实测通过），记录源码版本、镜像、时钟及现象。
+2. 完成 GMT024-8p10p-SPI 屏幕（ST7789V，240×320，3.3 V）的实机接线与画面验收；驱动、初始化序列、板级集成和引脚级仿真已完成。
 3. 接入可信计时与 CoreMark，建立性能、资源和时序基线，再根据应用测量决定流水、显示 FIFO/DMA 或访存优化。
 4. 团队确认最终流水级数、分工、应用范围及交付计划，完善片上抓波和性能分析报告。
 

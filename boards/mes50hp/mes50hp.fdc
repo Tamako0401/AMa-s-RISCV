@@ -78,7 +78,51 @@ define_attribute {p:led[7]} {PAP_IO_STANDARD} {LVCMOS33}
 define_attribute {p:led[7]} {PAP_IO_NONE} {TRUE}
 define_attribute {p:led[7]} {PAP_IO_DRIVE} {8}
 define_attribute {p:led[7]} {PAP_IO_SLEW} {SLOW}
+# GMT024-8p10p-SPI LCD (ST7789V). Pin locations follow the vendor demo
+# display_test.fdc (ADDA pack, experiment 8); write-only, no MISO.
+define_attribute {p:lcd_sck} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:lcd_sck} {PAP_IO_LOC} {W8}
+define_attribute {p:lcd_sck} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:lcd_sck} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:lcd_sck} {PAP_IO_NONE} {TRUE}
+define_attribute {p:lcd_sck} {PAP_IO_DRIVE} {8}
+define_attribute {p:lcd_sck} {PAP_IO_SLEW} {SLOW}
+define_attribute {p:lcd_mosi} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:lcd_mosi} {PAP_IO_LOC} {V7}
+define_attribute {p:lcd_mosi} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:lcd_mosi} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:lcd_mosi} {PAP_IO_NONE} {TRUE}
+define_attribute {p:lcd_mosi} {PAP_IO_DRIVE} {8}
+define_attribute {p:lcd_mosi} {PAP_IO_SLEW} {SLOW}
+define_attribute {p:lcd_cs} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:lcd_cs} {PAP_IO_LOC} {V9}
+define_attribute {p:lcd_cs} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:lcd_cs} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:lcd_cs} {PAP_IO_NONE} {TRUE}
+define_attribute {p:lcd_cs} {PAP_IO_DRIVE} {8}
+define_attribute {p:lcd_cs} {PAP_IO_SLEW} {SLOW}
+define_attribute {p:lcd_dc} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:lcd_dc} {PAP_IO_LOC} {T8}
+define_attribute {p:lcd_dc} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:lcd_dc} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:lcd_dc} {PAP_IO_NONE} {TRUE}
+define_attribute {p:lcd_dc} {PAP_IO_DRIVE} {8}
+define_attribute {p:lcd_dc} {PAP_IO_SLEW} {SLOW}
+define_attribute {p:lcd_rst_n} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:lcd_rst_n} {PAP_IO_LOC} {U8}
+define_attribute {p:lcd_rst_n} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:lcd_rst_n} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:lcd_rst_n} {PAP_IO_NONE} {TRUE}
+define_attribute {p:lcd_rst_n} {PAP_IO_DRIVE} {8}
+define_attribute {p:lcd_rst_n} {PAP_IO_SLEW} {SLOW}
+define_attribute {p:lcd_bl} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:lcd_bl} {PAP_IO_LOC} {U9}
+define_attribute {p:lcd_bl} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:lcd_bl} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:lcd_bl} {PAP_IO_NONE} {TRUE}
+define_attribute {p:lcd_bl} {PAP_IO_DRIVE} {8}
+define_attribute {p:lcd_bl} {PAP_IO_SLEW} {SLOW}
 # Asynchronous human/UART inputs; RX has a two-flop synchronizer.
 set_false_path -from [get_ports {key1_n uart_rx}]
-# No external synchronous capture clock on LED/UART outputs.
-set_false_path -to [get_ports {led[*] uart_tx}]
+# No external synchronous capture clock on LED/UART/LCD outputs.
+set_false_path -to [get_ports {led[*] uart_tx lcd_sck lcd_mosi lcd_cs lcd_dc lcd_rst_n lcd_bl}]

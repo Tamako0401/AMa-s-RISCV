@@ -5,6 +5,7 @@ module board_tb;
     reg key1_n=1, uart_rx=1;
     wire uart_tx;
     wire [7:0] led;
+    wire lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl;
     mes50hp_top dut(.*);
     defparam dut.soc.MEM_FILE = "sim.hex";
     localparam BIT_NS=8680;

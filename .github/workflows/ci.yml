@@ -44,3 +44,6 @@ jobs:
 
       - name: Board firmware build + system simulation (MES50HP)
         run: python3 scripts/build-board.py --simulate
+
+      - name: Board LCD demo simulation (MES50HP, ST7789 model)
+        run: python3 scripts/build-board.py --lcd --simulate

@@ -1,6 +1,6 @@
 # MES50HP 最小 CPU 上板工程
 
-适用随板资料中的 **MES50HP / PGL50H-6IFBG484**，工具实测 PDS 2022.2-SP1-Lite。这里只使用 50 MHz 时钟、片上 RAM、LED 和板载 USB-UART；不需要 DDR、SPI 屏或 ADDA。
+适用随板资料中的 **MES50HP / PGL50H-6IFBG484**，工具实测 PDS 2022.2-SP1-Lite。使用 50 MHz 时钟、片上 RAM、LED、板载 USB-UART 和 GMT024-8p10p-SPI 屏幕（ST7789V，240×320，只写）；不需要 DDR 或 ADDA。
 
 该工程使用 `rtl/soc/minimal_soc.v` 的统一 RAM 布局，显式把 CPU 的 `RESET_PC` 设为 `0x80000000`。仓库通用 RIB SoC 和 CPU 回归使用 ROM/RAM 分离布局、默认入口 `0x00000000`；两套顶层、链接脚本和程序镜像应各自配套。
 
@@ -35,6 +35,18 @@ PDS 的进程工作目录必须为 `build/mes50hp`；启动后仅在 Tcl 里 `cd
 
 本地首次错误工作目录生成物保存在 `build/mes50hp/invalid-first-run`，其中初始化镜像未加载，**不能用于下载**。这是诊断存档，不是交付工程。
 
+## SPI 屏幕演示
+
+```text
+python scripts/build-board.py --lcd --simulate --pds
+```
+
+固件 `sw/board/lcd_main.c` 复用分层驱动（`sw/drivers`、`sw/bsp`、`sw/components/lcd`），画面与通用 SoC 的 `sw/app/lcd_demo` 相同：黑底、白边框、绿对角线、红/绿/蓝三个色块。初始化序列逐值对齐厂商例程 `GMT024-8p10p-SPI-ST7789.c`（VCOM/porch/gamma，INVOFF，SPI 模式 3），只把 COLMOD 写成同义的 `0x55`。背光固定点亮，未接 GPIO 调光。
+
+板级仿真用 `tests/board/board_lcd_tb.sv`：st7789_model 直接从顶层引脚重建画面并逐像素核对。仿真镜像用 `-DSIM_CYCLE_DIV=1000` 缩短初始化延时；用于下载的 `firmware.hex` 保持真实延时。
+
+实机验收标准（待观察）：下载位流并按 KEY1 后，屏幕显示上述画面，串口收到 `AMA LCD PASS`，随后 LED 继续移位。先接好屏幕再上电；核对 VCC 为 3.3 V。
+
 ## 平台接口
 
 | 项目 | 约定 |
@@ -44,7 +56,8 @@ PDS 的进程工作目录必须为 `build/mes50hp`；启动后仅在 Tcl 里 `cd
 | RAM | `0x80000000`–`0x8000ffff`，64 KiB，单端口同步读、按字节写，初始化固件随位流配置 |
 | 栈顶 | `0x80010000` |
 | UART | `0x30000000`，偏移 0/4/8/C/10 为控制、状态、分频、TX、RX |
-| GPIO | `0x40000000` 控制、`0x40000004` 数据、`0x40000008` BSRR；低 8 位对应 LED1–8 |
+| GPIO | `0x40000000` 控制、`0x40000004` 数据、`0x40000008` BSRR；位 0/1/2 为 LCD CS_N/DC/RST_N，位 8–15 对应 LED1–8 |
+| SPI | `0x40002000`，CR1/CR2/SR/DR 子集，寄存器语义见 [SPI 文档](../../docs/spi.md)；只接屏幕，MISO 固定接地 |
 | CPU 扩展 | 软件使用 RV32I + cycle CSR；保留源核 M/CSR，不代表完整特权验证 |
 
 SoC 数据访问优先于取指，统一串行处理事务并锁存目标与响应。UART/GPIO 的请求只脉冲一次、响应侧固定就绪，由 SoC 捕获读值再交给 CPU，满足第一批组件的接入限制。该板级版本不沿用仿真的 `0x10000000` 完成邮箱。
@@ -62,6 +75,11 @@ SoC 数据访问优先于取指，统一串行处理事务并锁存目标与响�
 | key1_n | K18 | KEY1，低有效 |
 | uart_tx / uart_rx | R9 / R8 | FPGA 视角 TX/RX，板载 CP2102 |
 | led[0:7] | B2 / A2 / B3 / A3 / C5 / A5 / F7 / F8 | LED1–8，按手册高电平亮 |
+| lcd_sck / lcd_mosi | W8 / V7 | 屏幕 SCL / SDA |
+| lcd_cs / lcd_dc | V9 / T8 | 屏幕 CS / AO |
+| lcd_rst_n / lcd_bl | U8 / U9 | 屏幕 RESET / BL（背光固定点亮） |
+
+屏幕管脚位置取自厂商例程 `6-实验例程Demo-基于盘古50K/8-ADDA+SPI显示实验/display_test.fdc`。屏幕排针从上到下 GND VCC SCL SDA RESET AO CS BL：VCC 接 3.3 V、GND 共地，其余六针对应上表。
 
 以上 I/O 使用 LVCMOS33。没有复制整套厂商 HDL/IP；引脚事实及约束写法来自随板资料，SoC、顶层、固件与系统测试为本仓库新增。
 
@@ -77,3 +95,5 @@ SoC 数据访问优先于取指，统一串行处理事务并锁存目标与响�
 2026-09-30 合入当前 CPU 核后，重新运行系统仿真，配置时启动和 KEY1 复位后的 UART、Z 回显、CPU 控灯均通过；重新完成 PDS 全流程，仍为 3298 LUT、2243 FF、4 APM、32 DRM，50 MHz 时序约束全部满足，慢角 setup slack 为 +1.780 ns。构建脚本生成的 `build-manifest.json` 记录对应源码、固件、位流及时序报告的 SHA256。实机结果仍待核对。
 
 2026-10-01 更新仓库与知识库时，发现旧构建清单中的 `gpio.v`、`minimal_soc.v` 已与当前源码不同，因此基于 `cf94471` 重新执行 `python scripts/build-board.py --simulate --pds`。配置启动、KEY1 重启、UART PASS、Z 回显和 CPU 控灯仿真通过；PDS 全流程及位流生成通过，初始化镜像加载正常。当前映射为 **3318 LUT、2243 FF、4 APM、32 DRM**，50 MHz 约束全部满足，慢角 setup slack **+1.272 ns**；报告估算 **53.396 MHz**，不是实测最高频率。构建清单的 31 项源码、固件、位流及时序文件均逐项匹配。实机下载与观察仍未完成。
+
+2026-10-02 接入 SPI 屏幕：SPI 外设接入 `minimal_soc`（`0x40002000`，DR/CR1 写背压 Stall 数据口），GPIO 位 0/1/2 控屏、LED 移到位 8–15，背光固定点亮；bring-up 仿真（LED 新映射）通过。`--lcd` 流程下板级 LCD 仿真 `board_lcd_tb` 从顶层引脚重建画面，边框/对角线/色块逐像素核对通过；通用 RIB SoC 的 `lcd_tb` 回归同样通过（初始化序列已对齐厂商 GMT024 例程）。`python scripts/build-board.py --lcd --pds` 全流程通过：固件 3140 字节，映射 **3415 LUT、2301 FF、4 APM、32 DRM**，50 MHz 约束全部满足，慢角 setup slack **+1.166 ns**（SPI 逻辑使余量略降）。位流为 `build/mes50hp/generate_bitstream/mes50hp_top.sbit`，对应 LCD 演示固件。实机屏幕验收待做。
