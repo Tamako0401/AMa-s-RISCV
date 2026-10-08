@@ -64,6 +64,8 @@
 
 后续状态（2026-10-02）：用户确认 LED 上板测试已成功。SPI 屏已核实为 GMT024-8p10p-SPI（ST7789V，240×320，排针 GND/VCC/SCL/SDA/RESET/AO/CS/BL，LVCMOS33）；FPGA 引脚取自厂商例程 `8-ADDA+SPI显示实验/display_test.fdc`：SCL=W8、SDA=V7、CS=V9、AO=T8、RESET=U8、BL=U9。板级系统已接入 SPI（`0x40002000`，MISO 接地，BL 顶层固定点亮），GPIO 位 0/1/2 控屏、位 8–15 控 LED，与通用 RIB SoC 一致；ST7789 初始化序列逐值对齐厂商例程（INVOFF、模式 3，COLMOD 写同义的 0x55）。板级固件 `sw/board/lcd_main.c` + `scripts/build-board.py --lcd`；引脚级画面仿真 `tests/board/board_lcd_tb.sv` 通过。实机屏幕验收仍未做。另新增 GitHub Actions CI（`.github/workflows/ci.yml`）跑全部 Icarus/Verilator 仿真回归；ModelSim、PDS、实机验收仍依赖本地。
 
+后续状态（2026-10-08）：LCD 六引脚约束（W8/V7/V9/T8/U8/U9）与厂商 `display_test.fdc` 逐位复核一致，核对报告见 `docs/lcd-pin-constraints.md`。位流固化到板上 QSPI Flash（W25Q128/GD25Q128/XT25BF128 三选一，接 PGL50H 专用配置脚，勿在 FDC 约束）流程：PDS Fabric Configuration → Boundary Scan 右键 PGL50H → Scan Outer Flash（Logos 烧 Flash 的前置步骤；报 `Flash id is 0x0` 时在 File→Connect To Server 向导把 TCK 降到最低重扫）→ Operations→Convert File 把 `.sbit` 转 `.sfc`（Flash 选 WINBOND W25Q128，三颗指令兼容）→ flash 挂链后右键 Program 烧 `.sfc` → 断电或按"重新加载配置"键自举验收。用户首次固化时 Scan Outer Flash 报 ID 0x0 失败待复查，固化尚未验收成功。同日 `build-board.py` 改为按变体分目录：LED/串口 bring-up 在 `build/mes50hp/`（`--pds`），LCD 演示在 `build/mes50hp-lcd/`（`--lcd --pds`），两个目录各自是独立 PDS 工程（PDS 以启动目录区分工程），位流同名不同目录，均已当日重建通过、50 MHz 时序满足。注意：此前 build/mes50hp 里遗留的 .sfc 实为 LCD 固件所转，已删除，固化前须从目标目录的 .sbit 重新 Convert。
+
 - 将“源代码授权允许复用”“比赛接受二次设计”“团队具有可说明的贡献”分别判断。
 - 已查看的 tinyriscv 核心、总线和外设文件带 Apache-2.0 声明。复用时逐项确认授权，保留适用声明、许可证及 NOTICE，标明修改。不得把整库一概认定为 Apache-2.0。
 - 参考 `ipcore` 中已见 PANGO 专有声明。按所用工具/IP 条款处理；优先在授权 PDS 环境中重新生成匹配目标器件的 IP，并核实提交/分发范围。

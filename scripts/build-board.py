@@ -10,11 +10,15 @@ def run(*args):
                    cwd=OUT, check=True)
 
 def main():
+    global OUT
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--simulate',action='store_true',help='Also test UART and CPU-driven LEDs')
     parser.add_argument('--lcd',action='store_true',help='Build the SPI LCD demo firmware instead of the bring-up app')
     parser.add_argument('--pds',action='store_true',help='Run installed PDS in the isolated output directory')
     args=parser.parse_args()
+    # Keep the LED and LCD variants in separate directories so each becomes
+    # its own PDS project (PDS picks the project directory at process launch).
+    if args.lcd: OUT=ROOT/'build/mes50hp-lcd'
     OUT.mkdir(parents=True,exist_ok=True)
     cflags=['--target=riscv32-unknown-elf','-march=rv32i_zicsr','-mabi=ilp32',
             '-O2','-ffreestanding','-fno-builtin','-fno-stack-protector','-msmall-data-limit=0',
@@ -92,7 +96,7 @@ def main():
         # does not relocate that directory or its readmemh search path.
         with (OUT/'pds-build.log').open('w',encoding='utf8') as log:
             result=subprocess.run([pds,'-file','build.tcl'],cwd=OUT,stdout=log,stderr=subprocess.STDOUT)
-        if result.returncode: raise RuntimeError('PDS failed; inspect build/mes50hp/pds-build.log')
+        if result.returncode: raise RuntimeError(f'PDS failed; inspect {OUT}/pds-build.log')
         log=(OUT/'pds-build.log').read_text(encoding='utf8',errors='replace')
         if 'Cannot open specified data file' in log:
             raise RuntimeError('PDS did not load firmware initialization')

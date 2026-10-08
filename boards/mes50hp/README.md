@@ -6,7 +6,7 @@
 
 ## 现成文件与实机验收
 
-工程生成在仓库的 `build/mes50hp/build.pds`，SRAM 下载文件为 `build/mes50hp/generate_bitstream/mes50hp_top.sbit`。
+工程生成在仓库的 `build/mes50hp/build.pds`，SRAM 下载文件为 `build/mes50hp/generate_bitstream/mes50hp_top.sbit`。LCD 演示变体（`--lcd`）生成在独立的 `build/mes50hp-lcd/`（自带 `build.pds` 与同名位流），两个目录是两个互相独立的 PDS 工程，互不影响；PDS 通过启动目录区分工程，打开对应目录的 `.pds` 即选择对应程序。
 
 1. 使用随板电源供电；USB 下载器连接 JTAG；电脑另接板载 USB-UART Type-C。JTAG 下载器和串口是两个用途不同的接口。
 2. 在 PDS 打开上述 `.pds`。使用 Fabric Configuration 扫描 JTAG，确认识别器件与 PGL50H 匹配；选择上述 `.sbit` 执行 SRAM 配置。第一轮不需要烧写 Flash，断电会丢失此次 SRAM 配置。
