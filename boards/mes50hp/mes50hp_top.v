@@ -1,6 +1,10 @@
 // MES50HP / PGL50H-6IFBG484. KEY1 is active-low user reset, not PROGRAM_N.
 // LCD: GMT024-8p10p-SPI (ST7789V, 240x320, write-only). Backlight is tied on.
-module mes50hp_top (
+module mes50hp_top #(
+    // Testbenches override this with the simulation image; keep the default
+    // for PDS so the board build still picks up firmware.hex.
+    parameter MEM_FILE = "firmware.hex"
+) (
     input wire clk, input wire key1_n,
     input wire uart_rx, output wire uart_tx,
     output wire [7:0] led,
@@ -17,7 +21,7 @@ module mes50hp_top (
     wire fault;
     reg [1:0] rx_sync = 2'b11;
     always @(posedge clk) rx_sync <= {rx_sync[0], uart_rx};
-    minimal_soc soc (
+    minimal_soc #(.MEM_FILE(MEM_FILE)) soc (
         .clk(clk), .rst_n(reset_pipe[15]), .uart_rx(rx_sync[1]), .uart_tx(uart_tx),
         .led(led), .fault(fault),
         .spi_clk(lcd_sck), .spi_mosi(lcd_mosi),

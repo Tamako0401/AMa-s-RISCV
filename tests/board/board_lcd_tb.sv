@@ -20,14 +20,15 @@ module board_lcd_tb;
     wire [7:0] led;
     wire lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl;
 
-    mes50hp_top dut(
+    // Parameter override at instantiation: Verilator rejects hierarchical
+    // defparam (dut.soc.MEM_FILE), Icarus accepts both forms.
+    mes50hp_top #(.MEM_FILE("sim.hex")) dut(
         .clk(clk), .key1_n(key1_n),
         .uart_rx(1'b1), .uart_tx(uart_tx),
         .led(led),
         .lcd_sck(lcd_sck), .lcd_mosi(lcd_mosi), .lcd_cs(lcd_cs),
         .lcd_dc(lcd_dc), .lcd_rst_n(lcd_rst_n), .lcd_bl(lcd_bl)
     );
-    defparam dut.soc.MEM_FILE = "sim.hex";
 
     // 面板模型接在真实顶层引脚上
     st7789_model #(.W(W), .H(H)) u_panel(

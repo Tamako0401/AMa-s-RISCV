@@ -6,8 +6,9 @@ module board_tb;
     wire uart_tx;
     wire [7:0] led;
     wire lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl;
-    mes50hp_top dut(.*);
-    defparam dut.soc.MEM_FILE = "sim.hex";
+    // Parameter override at instantiation: Verilator rejects hierarchical
+    // defparam (dut.soc.MEM_FILE), Icarus accepts both forms.
+    mes50hp_top #(.MEM_FILE("sim.hex")) dut(.*);
     localparam BIT_NS=8680;
     integer count=0;
     integer boots=0;
