@@ -54,7 +54,9 @@ int main(void)
         if (now - previous >= 25000000u) {
             previous = now;
             pattern = pattern == 128 ? 1 : pattern << 1;
-            GPIO->DATA = pattern << 8;
+            u32 led_on = pattern << 8;
+            u32 led_off = 0xFF00u & ~led_on;
+            GPIO->BSRR = (led_off << 16) | led_on;
         }
     }
 }
