@@ -30,8 +30,15 @@ module reset_tb;
         done <= 1;
     end
 
+    // 超时: 每次释放复位后数拍子, 不用 fork + repeat (Ubuntu 自带的老 Verilator 不支持)
+    integer boot, waited;
+    always @(posedge clk) begin
+        if (!rst_n) waited <= 0;
+        else waited <= waited + 1;
+        if (waited == 200000) $fatal(1, "boot %0d: timeout", boot);
+    end
+
     reg [1023:0] rom_path, ram_path;
-    integer boot;
     initial begin
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
         $readmemh(rom_path, u_soc.u_rom.mem);
@@ -40,11 +47,7 @@ module reset_tb;
         for (boot = 0; boot < 2; boot = boot + 1) begin
             repeat (5) @(posedge clk);
             rst_n = 1;
-            fork
-                wait (done);
-                begin repeat (200000) @(posedge clk); $fatal(1, "boot %0d: timeout", boot); end
-            join_any
-            disable fork;
+            wait (done);
             if (result != 1)
                 $fatal(1, "boot %0d: tohost=%0d (2 = 初值没恢复, 3 = .bss 不是 0)", boot, result);
             $display("PASS reset boot %0d: lives 初值为 3, score 为 0", boot);
