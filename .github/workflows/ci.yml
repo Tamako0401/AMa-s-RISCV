@@ -139,8 +139,8 @@ jobs:
         run: |
           mkdir -p build/ci
           sudo apt-get update 2>&1 | tee build/ci/apt-update.log
-          read -r -a compiler_packages <<< "$COMPILER_PACKAGES"
-          sudo apt-get install -y --no-install-recommends verilator python3 g++ make "${compiler_packages[@]}" 2>&1 | tee build/ci/toolchain.log
+          read -r -a pkgs <<< "$COMPILER_PACKAGES"
+          sudo apt-get install -y --no-install-recommends verilator python3 g++ make "${pkgs[@]}" 2>&1 | tee build/ci/toolchain.log
 
       - name: CoreMark CRC 与性能底线
         env:
