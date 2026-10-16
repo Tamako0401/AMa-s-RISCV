@@ -49,6 +49,24 @@ just app-sim                            # 同上
 仿真构建额外传 `-DSIM_CYCLE_DIV=1000`: 屏幕初始化里的毫秒延时按真实计数要 2600
 万拍, 纯仿真跑不动. 该宏默认 1, **不影响实机行为**.
 
+## CoreMark
+
+```
+python3 scripts/coremark.py [--iterations 3] [--opt=-O3]     # 仿真: CRC 校验 + CoreMark/MHz
+python3 scripts/build-board.py --harvard --app coremark --pds  # 上板位流
+```
+
+- 算法文件在 `third_party/coremark/`, **一字不改** (CoreMark 规则); 本仓库只写移植层
+  `sw/app/coremark/`: `core_portme.c` (用 `cycle` 计数器计时, tick = 时钟周期),
+  `core_portme.h` (类型和配置), `ee_printf.c` (官方 printf, 只实现了 `uart_send_char`).
+- 编译用 `-march=rv32im_zicsr`, 打开 CPU 已支持的乘除法.
+- CoreMark/MHz = 迭代次数 × 10⁶ / Total ticks, 与主频无关. 仿真和实机是同一份 RTL,
+  周期数相同, 所以**仿真就能算准 CoreMark/MHz**; 仿真跑不满 10 秒, 输出里那句
+  "Must execute for at least 10 secs" 忽略即可, 脚本只看 CRC.
+- 上板版本 `ITERATIONS=0`: CoreMark 先试跑, 再自动选够 10 秒的次数. 串口 115200 看
+  `Correct operation validated` 和 `Iterations/Sec` (整数, 精确值用 Iterations 和
+  Total ticks 算: CoreMark = 迭代次数 × 主频 / Total ticks).
+
 ## 注意
 
 - 程序用到外设, **不能在 spike 上运行* (spike 里没有 GPIO/SPI), 只能在 SoC 仿真或板上运行.

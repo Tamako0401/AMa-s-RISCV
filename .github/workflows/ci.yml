@@ -56,3 +56,6 @@ jobs:
 
       - name: soc_top reset restores .data from ROM
         run: python3 scripts/test-lcd.py reset_check --tb reset_tb
+
+      - name: CoreMark on soc_top (CRC check, CoreMark/MHz)
+        run: python3 scripts/coremark.py

@@ -2,8 +2,9 @@
 and generate an isolated PDS build script.
 
 --harvard builds the Harvard soc_top instead of minimal_soc: firmware comes from
-sw/ (sw/startup.S, sw/link.ld; app sw/app/board_check or sw/app/lcd_demo) and the
-ROM image from scripts/elf2hex.py. RAM is not preloaded; startup.S copies .data."""
+sw/ (sw/startup.S, sw/link.ld; app sw/app/board_check or sw/app/lcd_demo, or
+--app coremark) and the ROM image from scripts/elf2hex.py. RAM is not preloaded;
+startup.S copies .data."""
 from pathlib import Path
 import argparse, shutil, subprocess, os, hashlib, json, sys
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,10 +29,18 @@ def main():
     parser.add_argument('--pds',action='store_true',help='Run installed PDS in the isolated output directory')
     parser.add_argument('--harvard',action='store_true',
                         help='Use the Harvard soc_top (ROM 0x0 + RAM 0x10000000) and sw/ firmware')
+    parser.add_argument('--app',choices=['coremark'],
+                        help='With --harvard: build another sw/app (coremark: ITERATIONS=0, '
+                             'CoreMark picks a count that runs >= 10 s; simulate with scripts/coremark.py)')
     args=parser.parse_args()
+    if args.app and not args.harvard: parser.error('--app needs --harvard')
+    if args.app and args.lcd: parser.error('--app and --lcd are exclusive')
+    if args.app and args.simulate:
+        parser.error('simulate CoreMark with: python3 scripts/coremark.py')
     # Keep every variant in its own directory so each becomes its own PDS
     # project (PDS picks the project directory at process launch).
-    OUT=ROOT/('build/mes50hp'+('-harvard' if args.harvard else '')+('-lcd' if args.lcd else ''))
+    OUT=ROOT/('build/mes50hp'+('-harvard' if args.harvard else '')+('-lcd' if args.lcd else '')
+              +(f'-{args.app}' if args.app else ''))
     OUT.mkdir(parents=True,exist_ok=True)
     if args.harvard: return harvard(args)
     cflags=['--target=riscv32-unknown-elf','-march=rv32i_zicsr','-mabi=ilp32',
@@ -140,7 +149,15 @@ def harvard(args):
         run('clang',*cflags,*inc,*defines,'-T',ROOT/'sw/link.ld',*sources_c,'-o',elf)
         write_hex(elf_to_rom(elf), OUT/(name+'.hex'))    # ROM image only
         return elf
-    elf=build('firmware',[])
+    if args.app=='coremark':
+        import coremark
+        sources_c=[ROOT/p for p in coremark.SOURCES]
+        app=ROOT/'sw/app/coremark'
+        elf=OUT/'firmware.elf'
+        coremark.build(elf,0)              # ITERATIONS=0: CoreMark sizes the run to >= 10 s
+        write_hex(elf_to_rom(elf),OUT/'firmware.hex')
+    else:
+        elf=build('firmware',[])
     print(f'Firmware: {app.relative_to(ROOT)}; output: {OUT}',flush=True)
     sources=[ROOT/p for p in (ROOT/'rtl/soc.f').read_text().splitlines() if p and not p.startswith('+')]
     sources.append(ROOT/'boards/mes50hp/mes50hp_top_harvard.v')
