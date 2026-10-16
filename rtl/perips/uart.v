@@ -135,25 +135,24 @@ module uart #(
     end
 
     // 写uart_status
+    // 两个标志各自更新: 软件写 STATUS 的那一拍不能跳过硬件事件 (见 tests/reusable/uart_status_tb.sv)。
     always @ (posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_status <= 32'h0;
         end else begin
-            if (write_reg_status_en & sel_i[0]) begin
-                // 写RX完成标志
+            // TX忙标志: 只由硬件更新, 软件写不影响
+            // 开始发送数据时，置位TX忙标志
+            if (tx_start) begin
+                uart_status[0] <= 1'b1;
+            // 发送完成时，清TX忙标志
+            end else if ((state == S_STOP) & (cycle_cnt == uart_baud[15:0])) begin
+                uart_status[0] <= 1'b0;
+            end
+            // RX完成标志: 接收完成置位优先于软件清除, 同一拍收到的新字节不会丢
+            if (rx_recv_over) begin
+                uart_status[1] <= 1'b1;
+            end else if (write_reg_status_en & sel_i[0]) begin
                 uart_status[1] <= data_i[1];
-            end else begin
-                // 开始发送数据时，置位TX忙标志
-                if (tx_start) begin
-                    uart_status[0] <= 1'b1;
-                // 发送完成时，清TX忙标志
-                end else if ((state == S_STOP) & (cycle_cnt == uart_baud[15:0])) begin
-                    uart_status[0] <= 1'b0;
-                // 接收完成，置位接收完成标志
-                end
-                if (rx_recv_over) begin
-                    uart_status[1] <= 1'b1;
-                end
             end
         end
     end
