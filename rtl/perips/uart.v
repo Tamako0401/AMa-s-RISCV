@@ -54,7 +54,7 @@ module uart #(
     reg[3:0] state;
     reg[3:0] next_state;
     reg[15:0] cycle_cnt;
-    reg tx_bit;
+    reg tx_bit = 1'b1;                 // 上电尚无时钟时也保持空闲电平
     reg[3:0] bit_cnt;
 
     reg rx_q0;
@@ -295,7 +295,7 @@ module uart #(
     // tx_bit
     always @ (posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            tx_bit <= 1'b0;
+            tx_bit <= 1'b1;
         end else begin
             case (state)
                 S_IDLE, S_STOP: begin

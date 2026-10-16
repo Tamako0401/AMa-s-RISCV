@@ -215,22 +215,22 @@ def harvard(args):
         # Same firmware with software delays shortened 1000x (bsp.c SIM_CYCLE_DIV);
         # UART keeps the real 115200 baud.
         build('sim',['-DSIM_CYCLE_DIV=1000'])
-        tb='board_lcd_tb' if args.lcd else 'board_tb'
-        tb_sources=[*sources,ROOT/'tests/board'/(tb+'.sv')]
-        if args.lcd:
-            tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
-        params=["-GTOHOST_ADDR=32'h10000000"] if args.lcd else []   # sw/link.ld .tohost
-        if shutil.which('verilator'):
-            objdir=OUT/'obj'
-            run('verilator','--binary','--timing','-Wno-fatal','--top-module',tb,'-DHARVARD',*params,
-                '+incdir+'+(ROOT/'rtl/core').as_posix(),*tb_sources,
-                '--Mdir',objdir.as_posix(),'-o',tb+'_sim')
-            run(str(objdir/(tb+'_sim')))
-        else:
-            run('iverilog','-g2012','-s',tb,'-DHARVARD',
-                *(['-P',f"{tb}.TOHOST_ADDR=32'h10000000"] if args.lcd else []),
-                '-I',ROOT/'rtl/core','-o',OUT/'board.vvp',*tb_sources)
-            run('vvp',OUT/'board.vvp')
+        for tb in (['board_lcd_tb'] if args.lcd else ['board_tb','uart_reset_tb']):
+            tb_sources=[*sources,ROOT/'tests/board'/(tb+'.sv')]
+            if args.lcd:
+                tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
+            params=["-GTOHOST_ADDR=32'h10000000"] if args.lcd else []   # sw/link.ld .tohost
+            if shutil.which('verilator'):
+                objdir=OUT/'obj'
+                run('verilator','--binary','--timing','-Wno-fatal','--top-module',tb,'-DHARVARD',*params,
+                    '+incdir+'+(ROOT/'rtl/core').as_posix(),*tb_sources,
+                    '--Mdir',objdir.as_posix(),'-o',tb+'_sim')
+                run(str(objdir/(tb+'_sim')))
+            else:
+                run('iverilog','-g2012','-s',tb,'-DHARVARD',
+                    *(['-P',f"{tb}.TOHOST_ADDR=32'h10000000"] if args.lcd else []),
+                    '-I',ROOT/'rtl/core','-o',OUT/'board.vvp',*tb_sources)
+                run('vvp',OUT/'board.vvp')
     if args.pds:
         pds_build(sources+[ROOT/'rtl/core/defines.v',ROOT/'boards/mes50hp/mes50hp.fdc',
                            *sources_c,ROOT/'sw/link.ld',elf,OUT/'firmware.hex'])
