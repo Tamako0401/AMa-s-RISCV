@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT/'build/mes50hp'
 sys.path.insert(0, str(ROOT/'scripts'))
 from elf2hex import elf_to_rom, write_hex  # noqa: E402
+import coremark  # noqa: E402
 
 # sw/ layered sources for the Harvard soc_top (keep in step with justfile sw_lib)
 SW_LIB = ['sw/startup.S','sw/drivers/spi.c','sw/drivers/uart.c','sw/bsp/bsp.c','sw/bsp/bsp_lcd.c',
@@ -32,6 +33,7 @@ def main():
     global OUT
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--board',choices=['mes50hp','ego1'],default='mes50hp')
+    parser.add_argument('--cc',choices=['clang','gcc'],default='clang',help='Compiler (default clang; gcc needs --harvard)')
     parser.add_argument('--simulate',action='store_true',help='Also test UART and CPU-driven LEDs')
     parser.add_argument('--lcd',action='store_true',help='Build the SPI LCD demo firmware instead of the bring-up app')
     parser.add_argument('--pds',action='store_true',help='Run installed PDS in the isolated output directory')
@@ -42,6 +44,8 @@ def main():
                         help='With --harvard: build another sw/app (coremark: ITERATIONS=0, '
                              'CoreMark picks a count that runs >= 10 s; simulate with scripts/coremark.py)')
     args=parser.parse_args()
+    if args.cc=='gcc' and not args.harvard:
+        parser.error('--cc gcc needs --harvard')
     if args.board=='ego1' and (not args.harvard or args.lcd or args.pds):
         parser.error('ego1 needs --harvard and does not support --lcd or --pds')
     if args.vivado and args.board!='ego1':
@@ -51,11 +55,12 @@ def main():
     if args.app and args.lcd:
         parser.error('--app and --lcd are exclusive')
     if args.app and args.simulate:
-        parser.error('simulate CoreMark with: python3 scripts/coremark.py')
+        parser.error('simulate CoreMark with: python3 scripts/coremark.py'
+                     +(' --cc gcc' if args.cc=='gcc' else ''))
     # Keep every variant in its own directory so each becomes its own PDS
     # project (PDS picks the project directory at process launch).
     OUT=ROOT/('build/'+args.board+('-harvard' if args.harvard else '')+('-lcd' if args.lcd else '')
-              +(f'-{args.app}' if args.app else ''))
+              +(f'-{args.app}' if args.app else '')+('-gcc' if args.cc=='gcc' else ''))
     OUT.mkdir(parents=True,exist_ok=True)
     if args.harvard:
         return harvard(args)
@@ -160,20 +165,25 @@ def harvard(args):
     cflags=['--target=riscv32-unknown-elf','-march=rv32i_zicsr','-mabi=ilp32','-O2',
             '-nostdlib','-ffreestanding','-fno-builtin','-Wall','-Wextra',
             '-msmall-data-limit=0','-mno-relax','-fuse-ld=lld']
+    libs=[]
+    if args.cc=='gcc':
+        cflags=[f'-march={coremark.MARCH}','-mabi=ilp32','-O2',
+                '-nostdlib','-ffreestanding','-fno-builtin','-Wall','-Wextra',
+                '-msmall-data-limit=0','-mno-relax']
+        libs=['-lgcc']
     app=ROOT/'sw/app'/('lcd_demo' if args.lcd else 'board_check')/'main.c'
     sources_c=[ROOT/p for p in SW_LIB]+[app]
     inc=[f'-I{ROOT/d}' for d in SW_INC]
     def build(name, defines):
         elf=OUT/(name+'.elf')
-        run('clang',*cflags,*inc,*defines,'-T',ROOT/'sw/link.ld',*sources_c,'-o',elf)
+        run(coremark.compiler(args.cc),*cflags,*inc,*defines,'-T',ROOT/'sw/link.ld',*sources_c,*libs,'-o',elf)
         write_hex(elf_to_rom(elf), OUT/(name+'.hex'))    # ROM image only
         return elf
     if args.app=='coremark':
-        import coremark
         sources_c=[ROOT/p for p in coremark.SOURCES]
         app=ROOT/'sw/app/coremark'
         elf=OUT/'firmware.elf'
-        coremark.build(elf,0)              # ITERATIONS=0: CoreMark sizes the run to >= 10 s
+        coremark.build(elf,0,cc=args.cc)   # ITERATIONS=0: CoreMark sizes the run to >= 10 s
         write_hex(elf_to_rom(elf),OUT/'firmware.hex')
     else:
         elf=build('firmware',[])

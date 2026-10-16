@@ -54,8 +54,8 @@ just app-sim                            # 同上
 ```
 python3 scripts/coremark.py [--cc clang] [--iterations 3] [--opt=-O3]  # 仿真: CRC 校验 + CoreMark/MHz
 python3 scripts/coremark.py --cc gcc --min-score 0.5       # GCC 仿真并检查性能底线
-python3 scripts/build-board.py --harvard --app coremark --pds  # 上板位流
-python3 scripts/build-board.py --board ego1 --harvard --app coremark --vivado  # EGO1 位流
+python3 scripts/build-board.py --harvard --app coremark --cc gcc --pds  # MES50HP 正式报分位流
+python3 scripts/build-board.py --board ego1 --harvard --app coremark --cc gcc --vivado  # EGO1 正式报分位流
 ```
 
 - 算法文件在 `third_party/coremark/`, **一字不改** (CoreMark 规则); 本仓库只写移植层
@@ -71,9 +71,10 @@ python3 scripts/build-board.py --board ego1 --harvard --app coremark --vivado  #
 - CoreMark/MHz = 迭代次数 × 10⁶ / Total ticks, 与主频无关. 仿真和实机是同一份 RTL,
   周期数相同, 所以**仿真就能算准 CoreMark/MHz**; 仿真跑不满 10 秒, 输出里那句
   "Must execute for at least 10 secs" 忽略即可, 脚本只看 CRC.
-- 上板版本 `ITERATIONS=0`: CoreMark 先试跑, 再自动选够 10 秒的次数. 串口 115200 看
-  `Correct operation validated` 和 `Iterations/Sec` (整数, 精确值用 Iterations 和
+- 赛题正式报分用 GCC (`--cc gcc`, 产物目录以 `-gcc` 结尾). 上板版本 `ITERATIONS=0`:
+  CoreMark 先试跑, 再自动选够 10 秒的次数. 串口 115200 看 `Correct operation validated` 和 `Iterations/Sec` (整数, 精确值用 Iterations 和
   Total ticks 算: CoreMark = 迭代次数 × 主频 / Total ticks).
+- GCC 正式上板成绩 (GCC 16.2, -O2): EGO1 600 次 / 16.7 s, **0.717 CoreMark/MHz** (与仿真一致); MES50HP 待测.
 
 ## 注意
 
