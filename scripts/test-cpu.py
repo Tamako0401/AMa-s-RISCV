@@ -29,7 +29,10 @@ def generate_alu():
     rng = random.Random(20260927)
     code = ['.section .text.init', '.globl _start', '_start:']
     mask = 0xffffffff
-    signed = lambda x: x if x < 0x80000000 else x - 0x100000000
+
+    def signed(x):
+        return x if x < 0x80000000 else x - 0x100000000
+
     ops = {
         'add': lambda a, b: a+b, 'sub': lambda a, b: a-b,
         'sll': lambda a, b: a << (b & 31),

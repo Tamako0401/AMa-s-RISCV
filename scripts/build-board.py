@@ -6,7 +6,13 @@ sw/ (sw/startup.S, sw/link.ld; app sw/app/board_check or sw/app/lcd_demo, or
 --app coremark) and the ROM image from scripts/elf2hex.py. RAM is not preloaded;
 startup.S copies .data."""
 from pathlib import Path
-import argparse, shutil, subprocess, os, hashlib, json, sys
+import argparse
+import shutil
+import subprocess
+import os
+import hashlib
+import json
+import sys
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT/'build/mes50hp'
 sys.path.insert(0, str(ROOT/'scripts'))
@@ -33,8 +39,10 @@ def main():
                         help='With --harvard: build another sw/app (coremark: ITERATIONS=0, '
                              'CoreMark picks a count that runs >= 10 s; simulate with scripts/coremark.py)')
     args=parser.parse_args()
-    if args.app and not args.harvard: parser.error('--app needs --harvard')
-    if args.app and args.lcd: parser.error('--app and --lcd are exclusive')
+    if args.app and not args.harvard:
+        parser.error('--app needs --harvard')
+    if args.app and args.lcd:
+        parser.error('--app and --lcd are exclusive')
     if args.app and args.simulate:
         parser.error('simulate CoreMark with: python3 scripts/coremark.py')
     # Keep every variant in its own directory so each becomes its own PDS
@@ -42,7 +50,8 @@ def main():
     OUT=ROOT/('build/mes50hp'+('-harvard' if args.harvard else '')+('-lcd' if args.lcd else '')
               +(f'-{args.app}' if args.app else ''))
     OUT.mkdir(parents=True,exist_ok=True)
-    if args.harvard: return harvard(args)
+    if args.harvard:
+        return harvard(args)
     cflags=['--target=riscv32-unknown-elf','-march=rv32i_zicsr','-mabi=ilp32',
             '-O2','-ffreestanding','-fno-builtin','-fno-stack-protector','-msmall-data-limit=0',
             '-mno-relax']
@@ -63,7 +72,8 @@ def main():
         *objs,'-o',OUT/'firmware.elf')
     run('llvm-objcopy','-O','binary',OUT/'firmware.elf',OUT/'firmware.bin')
     data=(OUT/'firmware.bin').read_bytes()
-    if len(data)>65536: raise ValueError('Firmware exceeds 64 KiB RAM')
+    if len(data)>65536:
+        raise ValueError('Firmware exceeds 64 KiB RAM')
     size=len(data)
     data+=b'\xa5'*(65536-size)
     (OUT/'firmware.hex').write_text(''.join(f'{int.from_bytes(data[i:i+4],"little"):08x}\n'
@@ -100,7 +110,8 @@ def main():
                                          for i in range(0,65536,4)),encoding='ascii')
         tb='board_lcd_tb' if args.lcd else 'board_tb'
         tb_sources=[*sources,ROOT/'tests/board'/(tb+'.sv')]
-        if args.lcd: tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
+        if args.lcd:
+            tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
         # A full 240x320 frame is ~150k SPI bytes; Verilator is much faster
         # than Icarus for this, so prefer it when available.
         if shutil.which('verilator'):
@@ -119,7 +130,8 @@ def main():
         # does not relocate that directory or its readmemh search path.
         with (OUT/'pds-build.log').open('w',encoding='utf8') as log:
             result=subprocess.run([pds,'-file','build.tcl'],cwd=OUT,stdout=log,stderr=subprocess.STDOUT)
-        if result.returncode: raise RuntimeError(f'PDS failed; inspect {OUT}/pds-build.log')
+        if result.returncode:
+            raise RuntimeError(f'PDS failed; inspect {OUT}/pds-build.log')
         log=(OUT/'pds-build.log').read_text(encoding='utf8',errors='replace')
         if 'Cannot open specified data file' in log:
             raise RuntimeError('PDS did not load firmware initialization')
@@ -174,7 +186,8 @@ def harvard(args):
         build('sim',['-DSIM_CYCLE_DIV=1000'])
         tb='board_lcd_tb' if args.lcd else 'board_tb'
         tb_sources=[*sources,ROOT/'tests/board'/(tb+'.sv')]
-        if args.lcd: tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
+        if args.lcd:
+            tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
         params=["-GTOHOST_ADDR=32'h10000000"] if args.lcd else []   # sw/link.ld .tohost
         if shutil.which('verilator'):
             objdir=OUT/'obj'
@@ -196,7 +209,8 @@ def pds_build(files):
     pds=os.environ.get('PDS_SHELL',r'C:\pango\PDS_2022.2-SP1-Lite\bin\pds_shell.exe')
     with (OUT/'pds-build.log').open('w',encoding='utf8') as log:
         result=subprocess.run([pds,'-file','build.tcl'],cwd=OUT,stdout=log,stderr=subprocess.STDOUT)
-    if result.returncode: raise RuntimeError(f'PDS failed; inspect {OUT}/pds-build.log')
+    if result.returncode:
+        raise RuntimeError(f'PDS failed; inspect {OUT}/pds-build.log')
     log=(OUT/'pds-build.log').read_text(encoding='utf8',errors='replace')
     if 'Cannot open specified data file' in log:
         raise RuntimeError('PDS did not load firmware initialization')
@@ -211,4 +225,5 @@ def pds_build(files):
     (OUT/'build-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf8')
     print('PASS PDS: initialized firmware, bitstream generated, all timing constraints met.',flush=True)
 
-if __name__=='__main__': main()
+if __name__=='__main__':
+    main()

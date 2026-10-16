@@ -52,7 +52,8 @@ just app-sim                            # 同上
 ## CoreMark
 
 ```
-python3 scripts/coremark.py [--iterations 3] [--opt=-O3]     # 仿真: CRC 校验 + CoreMark/MHz
+python3 scripts/coremark.py [--cc clang] [--iterations 3] [--opt=-O3]  # 仿真: CRC 校验 + CoreMark/MHz
+python3 scripts/coremark.py --cc gcc --min-score 0.5       # GCC 仿真并检查性能底线
 python3 scripts/build-board.py --harvard --app coremark --pds  # 上板位流
 ```
 
@@ -60,6 +61,12 @@ python3 scripts/build-board.py --harvard --app coremark --pds  # 上板位流
   `sw/app/coremark/`: `core_portme.c` (用 `cycle` 计数器计时, tick = 时钟周期),
   `core_portme.h` (类型和配置), `ee_printf.c` (官方 printf, 只实现了 `uart_send_char`).
 - 编译用 `-march=rv32im_zicsr`, 打开 CPU 已支持的乘除法.
+- `--cc` 可选 `clang` (默认) 或 `gcc`; GCC 依次查找 `riscv32-unknown-elf-gcc`、
+  `riscv64-unknown-elf-gcc`、`riscv64-elf-gcc`, 都使用 `-mabi=ilp32`.
+- `--min-score X` 指定 CoreMark/MHz 底线, CRC 不通过或分数低于底线时以非零退出,
+  低分时打印实际值与底线. CI 分别检查 clang 和 GCC, 更换编译器版本后需重新校准底线.
+- `--summary <文件>` 追加 Markdown 表格, 记录编译器、选项、CRC、分数、迭代次数和
+  Total ticks; CI 传入 `$GITHUB_STEP_SUMMARY`.
 - CoreMark/MHz = 迭代次数 × 10⁶ / Total ticks, 与主频无关. 仿真和实机是同一份 RTL,
   周期数相同, 所以**仿真就能算准 CoreMark/MHz**; 仿真跑不满 10 秒, 输出里那句
   "Must execute for at least 10 secs" 忽略即可, 脚本只看 CRC.

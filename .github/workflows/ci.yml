@@ -1,6 +1,5 @@
-# 数字仿真验收回归。覆盖: 组件自检、CPU 回归、SPI 引脚时序、
-# 通用 SoC 回归、LCD 演示(ST7789 模型)、MES50HP 板级固件与系统仿真。
-# 不在 CI 运行: ModelSim(本地)、PDS 布局布线/位流(本地授权工具)、实机验收。
+# 数字仿真验收回归。覆盖组件、CPU、SPI、SoC、LCD、板级固件和 CoreMark。
+# 不在 CI 运行 ModelSim、PDS 布局布线/位流和实机验收。
 name: CI
 
 on:
@@ -9,53 +8,191 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  regressions:
-    runs-on: ubuntu-latest
+  cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install toolchain
+      - name: 安装工具链
         run: |
-          sudo apt-get update
-          sudo apt-get install -y iverilog verilator clang lld llvm python3
+          mkdir -p build/ci
+          sudo apt-get update 2>&1 | tee build/ci/apt-update.log
+          sudo apt-get install -y --no-install-recommends iverilog clang lld llvm python3 2>&1 | tee build/ci/toolchain.log
 
-      - name: Install Nushell
+      - name: 安装 Nushell
         run: |
           NU_VER=0.98.0
-          curl -sSfL "https://github.com/nushell/nushell/releases/download/${NU_VER}/nu-${NU_VER}-x86_64-unknown-linux-musl.tar.gz" \
-            | sudo tar xz -C /usr/local/bin --strip-components=1 --wildcards '*/nu'
+          archive="$RUNNER_TEMP/nu.tar.gz"
+          curl -sSfL "https://github.com/nushell/nushell/releases/download/${NU_VER}/nu-${NU_VER}-x86_64-unknown-linux-musl.tar.gz" -o "$archive"
+          echo "169a4823a9e993335d90c123987a351e3abc818e2cf3f978b722b849c2008688  $archive" | sha256sum --check --strict
+          sudo tar xzf "$archive" -C /usr/local/bin --strip-components=1 --wildcards '*/nu'
           nu --version
 
-      - name: Component tests (reusable)
-        run: nu --no-config-file scripts/test-reusable.nu
+      - name: 组件自检
+        run: nu --no-config-file scripts/test-reusable.nu 2>&1 | tee build/ci/reusable.log
 
-      - name: CPU regression (Icarus)
-        run: nu --no-config-file scripts/test-cpu.nu
+      - name: CPU 回归
+        run: nu --no-config-file scripts/test-cpu.nu 2>&1 | tee build/ci/cpu.log
 
-      - name: SPI pin-timing test (Icarus)
-        run: nu --no-config-file scripts/test-spi.nu
+      - name: SPI 引脚时序
+        run: nu --no-config-file scripts/test-spi.nu 2>&1 | tee build/ci/spi.log
 
-      - name: SoC regression
-        run: python3 scripts/test-soc.py
+      - name: 上传失败日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpu-logs
+          path: build/**/*.log
+          if-no-files-found: ignore
 
-      - name: LCD demo simulation (ST7789 model, Verilator)
-        run: python3 scripts/test-lcd.py
+  soc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装工具链
+        run: |
+          mkdir -p build/ci
+          sudo apt-get update 2>&1 | tee build/ci/apt-update.log
+          sudo apt-get install -y --no-install-recommends iverilog verilator clang lld llvm python3 g++ make 2>&1 | tee build/ci/toolchain.log
 
-      - name: Board firmware build + system simulation (MES50HP)
-        run: python3 scripts/build-board.py --simulate
+      - name: SoC 回归
+        run: python3 scripts/test-soc.py 2>&1 | tee build/ci/soc.log
 
-      - name: Board LCD demo simulation (MES50HP, ST7789 model)
-        run: python3 scripts/build-board.py --lcd --simulate
+      - name: LCD 仿真
+        run: python3 scripts/test-lcd.py 2>&1 | tee build/ci/lcd.log
 
-      - name: Board simulation on Harvard soc_top (MES50HP, sw/ firmware)
-        run: python3 scripts/build-board.py --harvard --simulate
+      - name: 复位恢复 .data
+        run: python3 scripts/test-lcd.py reset_check --tb reset_tb 2>&1 | tee build/ci/reset.log
 
-      - name: Board LCD demo on Harvard soc_top (MES50HP, ST7789 model)
-        run: python3 scripts/build-board.py --harvard --lcd --simulate
+      - name: 上传失败日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soc-logs
+          path: build/**/*.log
+          if-no-files-found: ignore
 
-      - name: soc_top reset restores .data from ROM
-        run: python3 scripts/test-lcd.py reset_check --tb reset_tb
+  board:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装工具链
+        run: |
+          mkdir -p build/ci
+          sudo apt-get update 2>&1 | tee build/ci/apt-update.log
+          sudo apt-get install -y --no-install-recommends verilator clang lld llvm python3 g++ make 2>&1 | tee build/ci/toolchain.log
 
-      - name: CoreMark on soc_top (CRC check, CoreMark/MHz)
-        run: python3 scripts/coremark.py
+      - name: 板级自检
+        run: python3 scripts/build-board.py --simulate 2>&1 | tee build/ci/board.log
+
+      - name: 板级 LCD 仿真
+        run: python3 scripts/build-board.py --lcd --simulate 2>&1 | tee build/ci/board-lcd.log
+
+      - name: Harvard 板级自检
+        run: python3 scripts/build-board.py --harvard --simulate 2>&1 | tee build/ci/board-harvard.log
+
+      - name: Harvard 板级 LCD 仿真
+        run: python3 scripts/build-board.py --harvard --lcd --simulate 2>&1 | tee build/ci/board-harvard-lcd.log
+
+      - name: 上传失败日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: board-logs
+          path: build/**/*.log
+          if-no-files-found: ignore
+
+  coremark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cc: clang
+            packages: clang lld
+            # ubuntu-24.04 的 clang 18.1.3 实测 0.558
+            min-score: 0.55
+          - cc: gcc
+            packages: gcc-riscv64-unknown-elf
+            # ubuntu-24.04 的 GCC 13.2.0 实测 0.660; 仿真结果是确定的, 底线略低于实测值
+            min-score: 0.65
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装工具链
+        env:
+          COMPILER_PACKAGES: ${{ matrix.packages }}
+        run: |
+          mkdir -p build/ci
+          sudo apt-get update 2>&1 | tee build/ci/apt-update.log
+          read -r -a compiler_packages <<< "$COMPILER_PACKAGES"
+          sudo apt-get install -y --no-install-recommends verilator python3 g++ make "${compiler_packages[@]}" 2>&1 | tee build/ci/toolchain.log
+
+      - name: CoreMark CRC 与性能底线
+        env:
+          COREMARK_CC: ${{ matrix.cc }}
+          MIN_SCORE: ${{ matrix.min-score }}
+        run: |
+          python3 scripts/coremark.py --cc "$COREMARK_CC" --min-score "$MIN_SCORE" --summary "$GITHUB_STEP_SUMMARY" 2>&1 | tee build/ci/coremark.log
+
+      - name: 上传失败日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coremark-${{ matrix.cc }}-logs
+          path: build/**/*.log
+          if-no-files-found: ignore
+
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装工具链
+        run: |
+          mkdir -p build/ci
+          sudo apt-get update 2>&1 | tee build/ci/apt-update.log
+          sudo apt-get install -y --no-install-recommends verilator python3 python3-venv 2>&1 | tee build/ci/toolchain.log
+
+      - name: 安装检查工具
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ruff"
+          "$RUNNER_TEMP/ruff/bin/python" -m pip install ruff==0.15.21 2>&1 | tee build/ci/ruff-install.log
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 2>&1 | tee build/ci/actionlint-install.log
+          echo "$RUNNER_TEMP/ruff/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Python 检查
+        run: ruff check scripts/ 2>&1 | tee build/ci/ruff.log
+
+      - name: CoreMark 原样性检查
+        run: python3 scripts/check-coremark-upstream.py 2>&1 | tee build/ci/coremark-upstream.log
+
+      - name: Workflow 检查
+        run: actionlint .github/workflows/ci.yml 2>&1 | tee build/ci/actionlint.log
+
+      - name: RTL 检查
+        continue-on-error: true
+        run: verilator --lint-only -Wall -f rtl/soc.f --top-module soc_top 2>&1 | tee build/ci/verilator-lint.log
+
+      - name: 上传失败日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-logs
+          path: build/**/*.log
+          if-no-files-found: ignore
