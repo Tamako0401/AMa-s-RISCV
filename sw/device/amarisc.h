@@ -57,11 +57,27 @@ typedef struct {
 #define GPIO_MODE_OUTPUT   0x1UL
 #define GPIO_MODE_INPUT    0x2UL
 
+/* ---------------- UART: 8N1, 无 FIFO ---------------- */
+typedef struct {
+    __IO uint32_t CTRL;      /* 0x00 bit0 发送使能, bit1 接收使能 */
+    __IO uint32_t STATUS;    /* 0x04 bit0 正在发送; bit1 收到一字节 (写 0 清除) */
+    __IO uint32_t BAUD;      /* 0x08 分频: 波特率 = clk / (BAUD + 1) */
+    __O  uint32_t TXDATA;    /* 0x0C 写入即开始发送 */
+    __I  uint32_t RXDATA;    /* 0x10 最近收到的字节 */
+} UART_TypeDef;
+
+#define UART_CTRL_TXEN     (0x1UL << 0)
+#define UART_CTRL_RXEN     (0x1UL << 1)
+#define UART_STATUS_TXBUSY (0x1UL << 0)
+#define UART_STATUS_RXDONE (0x1UL << 1)
+
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE   0x40002000UL
 #define GPIO_BASE   0x40000000UL
+#define UART1_BASE  0x40001000UL
 
 #define SPI1        ((SPI_TypeDef *)SPI1_BASE)
 #define GPIO        ((GPIO_TypeDef *)GPIO_BASE)
+#define UART1       ((UART_TypeDef *)UART1_BASE)
 
 #endif

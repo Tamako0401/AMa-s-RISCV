@@ -25,3 +25,13 @@ void delay_ms(uint32_t ms)
             ;
     }
 }
+
+uint32_t bsp_cycles(void)
+{
+    return read_cycle();
+}
+
+uint32_t bsp_ms_to_cycles(uint32_t ms)
+{
+    return ms * DELAY_CYCLES_PER_MS;
+}

@@ -22,6 +22,7 @@ ROM_BYTES = 65536          # 与 rtl/soc_top/soc_top.v 的 u_rom 一致
 SW_SOURCES = [
     'sw/startup.S',
     'sw/drivers/spi.c',
+    'sw/drivers/uart.c',
     'sw/bsp/bsp.c',
     'sw/bsp/bsp_lcd.c',
     'sw/components/lcd/lcd.c',
