@@ -73,12 +73,10 @@ module rom #(
     end
 
     // 采样地址: 读数据在下一拍输出, 正好与 rsp_valid_o 对齐
-    always @ (posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            addr_r <= {AW{1'b0}};
-        end else begin
-            addr_r <= word_addr[AW-1:0];
-        end
+    // 不带复位: 这样才能推断成块 RAM (BRAM 的地址寄存器没有异步复位), 否则整个 ROM 被
+    // 综合成 LUT, 程序越大 LUT 越多。复位后的 addr_r 没人读 (rsp_valid_o 由带复位的 vld_rdy 给出)
+    always @ (posedge clk) begin
+        addr_r <= word_addr[AW-1:0];
     end
 
     assign data_o = mem[addr_r];
