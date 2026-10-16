@@ -97,3 +97,22 @@ SoC 数据访问优先于取指，统一串行处理事务并锁存目标与响�
 2026-10-01 更新仓库与知识库时，发现旧构建清单中的 `gpio.v`、`minimal_soc.v` 已与当前源码不同，因此基于 `cf94471` 重新执行 `python scripts/build-board.py --simulate --pds`。配置启动、KEY1 重启、UART PASS、Z 回显和 CPU 控灯仿真通过；PDS 全流程及位流生成通过，初始化镜像加载正常。当前映射为 **3318 LUT、2243 FF、4 APM、32 DRM**，50 MHz 约束全部满足，慢角 setup slack **+1.272 ns**；报告估算 **53.396 MHz**，不是实测最高频率。构建清单的 31 项源码、固件、位流及时序文件均逐项匹配。实机下载与观察仍未完成。
 
 2026-10-02 接入 SPI 屏幕：SPI 外设接入 `minimal_soc`（`0x40002000`，DR/CR1 写背压 Stall 数据口），GPIO 位 0/1/2 控屏、LED 移到位 8–15，背光固定点亮；bring-up 仿真（LED 新映射）通过。`--lcd` 流程下板级 LCD 仿真 `board_lcd_tb` 从顶层引脚重建画面，边框/对角线/色块逐像素核对通过；通用 RIB SoC 的 `lcd_tb` 回归同样通过（初始化序列已对齐厂商 GMT024 例程）。`python scripts/build-board.py --lcd --pds` 全流程通过：固件 3140 字节，映射 **3415 LUT、2301 FF、4 APM、32 DRM**，50 MHz 约束全部满足，慢角 setup slack **+1.166 ns**（SPI 逻辑使余量略降）。位流为 `build/mes50hp/generate_bitstream/mes50hp_top.sbit`，对应 LCD 演示固件。实机屏幕验收待做。
+
+## 哈佛 soc_top 版 (`--harvard`)
+
+上板也可以用通用 RIB SoC (`rtl/soc_top`): ROM 0x0000_0000 放代码和 .data 初值, RAM 0x1000_0000
+放变量和栈, 外设 GPIO 0x4000_0000 / UART 0x4000_1000 / SPI 0x4000_2000。顶层
+`boards/mes50hp/mes50hp_top_harvard.v` 与 `mes50hp_top.v` 端口、模块名相同, 共用 `mes50hp.fdc`。
+
+```
+python scripts/build-board.py --harvard --simulate --pds        # sw/app/board_check: 串口 + 回显 + LED
+python scripts/build-board.py --harvard --lcd --simulate --pds  # sw/app/lcd_demo
+```
+
+位流在 `build/mes50hp-harvard[-lcd]/generate_bitstream/mes50hp_top.sbit`。固件来自 `sw/`
+(`sw/startup.S`、`sw/link.ld`), ROM 镜像由 `scripts/elf2hex.py` 生成, RAM 不预装。
+
+实机验收与上面相同: 115200 8N1, 看到 `AMA CPU PASS`, 发 `Z` 回显, LED 移位; **按 KEY1 后应再次 PASS**
+(`board_check` 会改掉有初值的变量, 复位后由 startup.S 从 ROM 恢复; 没恢复会报 `AMA CPU FAIL 2`)。
+综合后核对报告的 DRM 用量: ROM、RAM 各 64 KiB, 若接近 0 说明存储没有带初值被推断出来。
+注意 soc_top 访问未映射地址会一直等待, 不像 minimal_soc 那样亮 LED7 报故障。

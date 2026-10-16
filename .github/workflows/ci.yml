@@ -47,3 +47,12 @@ jobs:
 
       - name: Board LCD demo simulation (MES50HP, ST7789 model)
         run: python3 scripts/build-board.py --lcd --simulate
+
+      - name: Board simulation on Harvard soc_top (MES50HP, sw/ firmware)
+        run: python3 scripts/build-board.py --harvard --simulate
+
+      - name: Board LCD demo on Harvard soc_top (MES50HP, ST7789 model)
+        run: python3 scripts/build-board.py --harvard --lcd --simulate
+
+      - name: soc_top reset restores .data from ROM
+        run: python3 scripts/test-lcd.py reset_check --tb reset_tb

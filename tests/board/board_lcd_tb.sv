@@ -7,6 +7,12 @@
 // 程序镜像: 构建目录下的 sim.hex (scripts/build-board.py --lcd --simulate)。
 // 结束判定: 向 0x8000F000 写 1 (lcd_main.c 的 TOHOST)。
 `timescale 1ns/1ps
+// 哈佛版顶层 (mes50hp_top_harvard.v, build-board.py --harvard) 里 CPU 实例名为 u_core
+`ifdef HARVARD
+`define BOARD_CPU dut.soc.u_core
+`else
+`define BOARD_CPU dut.soc.cpu
+`endif
 module board_lcd_tb;
     parameter [31:0] TOHOST_ADDR = 32'h8000F000;
     parameter integer W = 240;
@@ -42,11 +48,11 @@ module board_lcd_tb;
     // 层次化引用核的数据总线, 只用于观察"程序什么时候写完 tohost"
     wire [31:0] da, dw;
     wire        dwe, dv, dr;
-    assign da  = dut.soc.cpu.dbus_addr_o;
-    assign dw  = dut.soc.cpu.dbus_data_o;
-    assign dwe = dut.soc.cpu.dbus_we_o;
-    assign dv  = dut.soc.cpu.dbus_req_valid_o;
-    assign dr  = dut.soc.cpu.dbus_req_ready_i;
+    assign da  = `BOARD_CPU.dbus_addr_o;
+    assign dw  = `BOARD_CPU.dbus_data_o;
+    assign dwe = `BOARD_CPU.dbus_we_o;
+    assign dv  = `BOARD_CPU.dbus_req_valid_o;
+    assign dr  = `BOARD_CPU.dbus_req_ready_i;
 
     integer cycles = 0;
     reg seen = 0;
