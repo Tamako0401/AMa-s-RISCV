@@ -55,6 +55,7 @@ just app-sim                            # 同上
 python3 scripts/coremark.py [--cc clang] [--iterations 3] [--opt=-O3]  # 仿真: CRC 校验 + CoreMark/MHz
 python3 scripts/coremark.py --cc gcc --min-score 0.5       # GCC 仿真并检查性能底线
 python3 scripts/build-board.py --harvard --app coremark --pds  # 上板位流
+python3 scripts/build-board.py --board ego1 --harvard --app coremark --vivado  # EGO1 位流
 ```
 
 - 算法文件在 `third_party/coremark/`, **一字不改** (CoreMark 规则); 本仓库只写移植层

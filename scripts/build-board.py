@@ -1,5 +1,5 @@
-"""Build the MES50HP board firmware (bring-up app, or the SPI LCD demo with --lcd)
-and generate an isolated PDS build script.
+"""Build board firmware (bring-up app, or the SPI LCD demo with --lcd)
+and generate an isolated PDS (MES50HP) or Vivado (EGO1) build script.
 
 --harvard builds the Harvard soc_top instead of minimal_soc: firmware comes from
 sw/ (sw/startup.S, sw/link.ld; app sw/app/board_check or sw/app/lcd_demo, or
@@ -12,6 +12,7 @@ import subprocess
 import os
 import hashlib
 import json
+import shlex
 import sys
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT/'build/mes50hp'
@@ -30,15 +31,21 @@ def run(*args):
 def main():
     global OUT
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--board',choices=['mes50hp','ego1'],default='mes50hp')
     parser.add_argument('--simulate',action='store_true',help='Also test UART and CPU-driven LEDs')
     parser.add_argument('--lcd',action='store_true',help='Build the SPI LCD demo firmware instead of the bring-up app')
     parser.add_argument('--pds',action='store_true',help='Run installed PDS in the isolated output directory')
+    parser.add_argument('--vivado',action='store_true',help='Run Vivado batch for EGO1')
     parser.add_argument('--harvard',action='store_true',
                         help='Use the Harvard soc_top (ROM 0x0 + RAM 0x10000000) and sw/ firmware')
     parser.add_argument('--app',choices=['coremark'],
                         help='With --harvard: build another sw/app (coremark: ITERATIONS=0, '
                              'CoreMark picks a count that runs >= 10 s; simulate with scripts/coremark.py)')
     args=parser.parse_args()
+    if args.board=='ego1' and (not args.harvard or args.lcd or args.pds):
+        parser.error('ego1 needs --harvard and does not support --lcd or --pds')
+    if args.vivado and args.board!='ego1':
+        parser.error('--vivado needs --board ego1')
     if args.app and not args.harvard:
         parser.error('--app needs --harvard')
     if args.app and args.lcd:
@@ -47,7 +54,7 @@ def main():
         parser.error('simulate CoreMark with: python3 scripts/coremark.py')
     # Keep every variant in its own directory so each becomes its own PDS
     # project (PDS picks the project directory at process launch).
-    OUT=ROOT/('build/mes50hp'+('-harvard' if args.harvard else '')+('-lcd' if args.lcd else '')
+    OUT=ROOT/('build/'+args.board+('-harvard' if args.harvard else '')+('-lcd' if args.lcd else '')
               +(f'-{args.app}' if args.app else ''))
     OUT.mkdir(parents=True,exist_ok=True)
     if args.harvard:
@@ -173,12 +180,26 @@ def harvard(args):
     print(f'Firmware: {app.relative_to(ROOT)}; output: {OUT}',flush=True)
     sources=[ROOT/p for p in (ROOT/'rtl/soc.f').read_text().splitlines() if p and not p.startswith('+')]
     sources.append(ROOT/'boards/mes50hp/mes50hp_top_harvard.v')
-    tcl=['cd {'+OUT.as_posix()+'}',
-         'set_arch -family Logos -device PGL50H -speedgrade -6 -package FBG484']
-    tcl += ['add_design {'+p.as_posix()+'}' for p in sources]
-    tcl += ['add_constraint {'+(ROOT/'boards/mes50hp/mes50hp.fdc').as_posix()+'}',
-            'compile -top_module mes50hp_top -include_path {'+(ROOT/'rtl/core').as_posix()+'}',
-            'synthesize -ads -selected_syn_tool_opt 2', 'dev_map', 'pnr', 'report_timing', 'gen_bit_stream']
+    if args.board=='mes50hp':
+        tcl=['cd {'+OUT.as_posix()+'}',
+             'set_arch -family Logos -device PGL50H -speedgrade -6 -package FBG484']
+        tcl += ['add_design {'+p.as_posix()+'}' for p in sources]
+        tcl += ['add_constraint {'+(ROOT/'boards/mes50hp/mes50hp.fdc').as_posix()+'}',
+                'compile -top_module mes50hp_top -include_path {'+(ROOT/'rtl/core').as_posix()+'}',
+                'synthesize -ads -selected_syn_tool_opt 2', 'dev_map', 'pnr', 'report_timing', 'gen_bit_stream']
+    else:
+        tcl=['cd {'+OUT.as_posix()+'}']
+        tcl += ['read_verilog {'+p.as_posix()+'}' for p in
+                [*sources,ROOT/'boards/ego1/ego1_top.v']]
+        tcl += ['read_xdc {'+(ROOT/'boards/ego1/ego1.xdc').as_posix()+'}',
+                'synth_design -top ego1_top -part xc7a35tcsg324-1 -include_dirs {'+
+                (ROOT/'rtl/core').as_posix()+'}',
+                'opt_design', 'place_design', 'route_design',
+                'report_timing_summary -file timing_summary.rpt',
+                'report_utilization -file utilization.rpt',
+                'set wns [get_property SLACK [get_timing_paths -delay_type max]]',
+                'if {$wns < 0} {error "Timing failed: WNS = $wns ns"}',
+                'write_bitstream -force ego1_top.bit']
     (OUT/'build.tcl').write_text('\n'.join(tcl)+'\n',encoding='utf8')
     if args.simulate:
         # Same firmware with software delays shortened 1000x (bsp.c SIM_CYCLE_DIV);
@@ -203,6 +224,33 @@ def harvard(args):
     if args.pds:
         pds_build(sources+[ROOT/'rtl/core/defines.v',ROOT/'boards/mes50hp/mes50hp.fdc',
                            *sources_c,ROOT/'sw/link.ld',elf,OUT/'firmware.hex'])
+    if args.vivado:
+        vivado_build(sources+[ROOT/'rtl/core/defines.v',ROOT/'boards/ego1/ego1_top.v',
+                              ROOT/'boards/ego1/ego1.xdc',*sources_c,ROOT/'sw/link.ld',
+                              elf,OUT/'firmware.hex',OUT/'build.tcl'])
+
+def vivado_build(files):
+    """Run Vivado in OUT; Tcl checks WNS before writing the bitstream."""
+    vivado=shlex.split(os.environ.get('VIVADO',
+        'distrobox enter vivado -- '
+        '/tools/Xilinx/2025.2/Vivado/bin/vivado'))
+    bitstream=OUT/'ego1_top.bit'
+    bitstream.unlink(missing_ok=True)
+    with (OUT/'vivado-build.log').open('w',encoding='utf8') as log:
+        result=subprocess.run([*vivado,'-mode','batch','-source','build.tcl'],
+                              cwd=OUT,stdout=log,stderr=subprocess.STDOUT,
+                              env={**os.environ,'DBX_CONTAINER_MANAGER':'docker'})
+    if result.returncode:
+        raise RuntimeError(f'Vivado failed; inspect {OUT}/vivado-build.log')
+    log=(OUT/'vivado-build.log').read_text(encoding='utf8',errors='replace')
+    if "$readmem data file 'firmware.hex' is read successfully" not in log:
+        raise RuntimeError('Vivado did not load firmware initialization')
+    if not bitstream.exists():
+        raise RuntimeError('Vivado did not generate the bitstream')
+    files=[*files,bitstream,OUT/'timing_summary.rpt',OUT/'utilization.rpt']
+    manifest={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    (OUT/'build-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf8')
+    print('PASS Vivado: bitstream generated, WNS >= 0; see timing_summary.rpt and utilization.rpt.',flush=True)
 
 def pds_build(files):
     """Run PDS in OUT, check initialization/bitstream/timing, write build-manifest.json."""
