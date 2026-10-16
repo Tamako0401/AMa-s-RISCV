@@ -4,7 +4,7 @@
 // 与 tests/soc/soc_tb.sv 的分工: soc_tb 用汇编小程序验总线互连, 这里跑真正的
 // 屏幕驱动软件, 验的是"能不能点亮一块屏"。
 //
-// 程序镜像: +rom= 与 +ram= (由 scripts/test-lcd.py 生成)。
+// 程序镜像: +rom= (由 scripts/test-lcd.py 经 scripts/elf2hex.py 生成); +ram= 可选, sw/ 程序不用。
 // 结束判定: 向 RAM 窗口第 0 个字 0x1000_0000 写 1 —— sw/link.ld 把 .tohost 放在
 // 那里, 程序结束前写 tohost = 1。
 `timescale 1ns/1ps

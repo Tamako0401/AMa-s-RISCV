@@ -34,10 +34,13 @@ SECTIONS
 
     .data : {                /* 已经初始化的全局变量 */
         . = ALIGN(4);
+        _data_start = .;     /* 运行地址(VMA)的起点, 在 RAM 里 */
         *(.data .data.*)
         *(.sdata .sdata.*)
         . = ALIGN(4);
-    } > RAM
+        _data_end = .;
+    } > RAM AT > ROM         /* 运行时在 RAM, 初值存放(LMA)在 ROM: 像单片机的 Flash -> SRAM */
+    _data_load = LOADADDR(.data); /* 初值在 ROM 里的地址. 启动汇编每次复位都从这里拷到 _data_start, 所以复位后变量回到初值 */
 
     .bss : {                 /* 没有初始化的全局变量 */
         . = ALIGN(4);
