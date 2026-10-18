@@ -219,7 +219,7 @@ def harvard(args):
     if args.board=='mes50hp':
         # PDS 参数覆盖依赖工具版本, 生成同名顶层并固化 HW_ID。
         top=OUT/'mes50hp_top_matrix.v'
-        top.write_text(sources[-1].read_text().replace('parameter [31:0] HW_ID = 0,',
+        top.write_text(sources[-1].read_text(encoding='utf8').replace('parameter [31:0] HW_ID = 0,',
                        f"parameter [31:0] HW_ID = 32'h{hardware_id:08x},"),encoding='utf8')
         sources[-1]=top
         tcl=['cd {'+OUT.as_posix()+'}',
@@ -227,7 +227,7 @@ def harvard(args):
         tcl += ['add_design {'+p.as_posix()+'}' for p in sources]
         tcl += ['add_constraint {'+(ROOT/'boards/mes50hp/matrix.fdc').as_posix()+'}',
                 'add_constraint {'+(ROOT/'boards/mes50hp/pins.fdc').as_posix()+'}',
-                'compile -top_module mes50hp_top_matrix -include_path {'+ROOT.as_posix()+';'+(ROOT/'rtl/core').as_posix()+'}',
+                'compile -top_module mes50hp_top_matrix -include_path {{'+ROOT.as_posix()+'} {'+(ROOT/'rtl/core').as_posix()+'}}',
                 'synthesize -ads -selected_syn_tool_opt 2', 'dev_map', 'pnr', 'report_timing', 'gen_bit_stream']
     else:
         tcl=['cd {'+OUT.as_posix()+'}']
