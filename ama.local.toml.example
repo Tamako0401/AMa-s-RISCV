@@ -1,0 +1,16 @@
+# 复制成 ama.local.toml 再改 (该文件不提交)。工具在 PATH 里就不用写, 整个文件也可以没有。
+
+# 认不出板子时的默认板子 (ego1 或 mes50hp)
+# board = "ego1"
+
+# Vivado 命令 (EGO1 构建和下载)。Windows 例子:
+# vivado = 'C:\Xilinx\Vivado\2024.2\bin\vivado.bat'
+# Linux 装在 distrobox 容器里的例子:
+# vivado = "distrobox enter vivado -- /tools/Xilinx/2025.2/Vivado/bin/vivado"
+# 需要的环境变量写在 [env] 里 (不要写成 "env X=1 命令", distrobox 那样会什么都不做):
+# [env]
+# DBX_CONTAINER_MANAGER = "docker"
+
+# PDS 不在本机时, 代跑 "build-board.py <参数> --pds" 的脚本 (比如在虚拟机里跑)。
+# 本机装了 PDS 就不要写这一项; PDS 不在默认位置时设环境变量 PDS_SHELL。
+# pds_build = "pds-build"

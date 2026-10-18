@@ -42,6 +42,24 @@ CoreMark、最高工作频率实测、ILA/片上抓波分析、DDR、Cache、动
 
 总线按 `valid && ready` 接受请求，每个 CPU 端口最多一笔未完成事务，响应允许延后。详细协议和限制见 [CPU 基线](docs/cpu-baseline.md)；地址约定见 [平台文档](docs/platform.md)。
 
+## 改完代码怎么上板
+
+用仓库根目录的 `ama`。它由 [uv](https://docs.astral.sh/uv/) 运行, 第一次会自动装好依赖 (typer、pyserial);
+Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` 看全部命令。
+
+| 什么时候 | 命令 | 说明 |
+| --- | --- | --- |
+| 平时改了 C | `./ama run snake` | 编译, 经串口 bootloader 下载到板子运行, 再显示串口输出 (Ctrl+] 退出)。几秒 |
+| 只编译 / 只下载 / 只看串口 | `./ama build snake` / `./ama upload snake` / `./ama monitor` | |
+| 没有板子 | `./ama sim snake` | 程序跑在 soc_top + 屏幕模型上, 测试台核对画面, 打印 PASS/FAIL (只有带测试台的程序能跑) |
+| 改了 `rtl/`、`boards/`、`sw/boot/` | `./ama fpga build`, `./ama fpga program` | 综合位流 (几分钟) 再烧进 FPGA。位流里固化 bootloader 和一个默认程序; 断电后要重新 program |
+
+- 程序就是 `sw/app/<名字>/`, 目录下的 .c 一起编译。
+- 板子按插着的 USB 串口芯片识别 (FT2232 = EGO1, CP2102 = 盘古), 认不出时加 `--board ego1` 或 `--board mes50hp`。
+- 下载时会核对板上位流和本地源码的硬件版本号, 对不上会提示先 `fpga build`、`fpga program`。原理见 [bootloader](docs/bootloader.md)。
+- Vivado/PDS 不在 PATH 时, 参考 `ama.local.toml.example` 写本机配置。盘古的下载器只能在 PDS 图形界面里用, `fpga program` 会告诉你选哪个文件。
+- 接线见 [boards/ego1/README.md](boards/ego1/README.md)、[boards/mes50hp/README.md](boards/mes50hp/README.md); 引脚怎么分配见 [GPIO 矩阵](docs/gpio-matrix.md)。
+
 ## 运行与构建
 
 在仓库根目录执行。需要 Python 3、Icarus Verilog 的 `iverilog/vvp`；CPU、SoC 和板级固件还需要支持 RISC-V 的 `clang`、`ld.lld`、`llvm-objcopy`，均须在 PATH。
