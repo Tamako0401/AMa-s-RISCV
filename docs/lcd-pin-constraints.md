@@ -43,4 +43,4 @@ SDO 不接 (屏幕只写), 背光 `lcd_bl` 目前在顶层常拉高 (`assign lcd
 ## 相关软件栈 (已存在)
 
 `sw/board/lcd_main.c` (demo 主程序), `sw/components/lcd/st7789.c` + `lcd.c` (驱动),
-`sw/drivers/spi.c`, `sw/bsp/bsp_lcd.c`。
+`sw/drivers/spi.c`, `sw/components/lcd/lcd_io.c`。

@@ -71,6 +71,22 @@ typedef struct {
 #define UART_STATUS_TXBUSY (0x1UL << 0)
 #define UART_STATUS_RXDONE (0x1UL << 1)
 
+/* ---------------- GPIO 矩阵 ---------------- */
+typedef struct {
+    __IO uint32_t OUT[4];
+    __O uint32_t OUT_W1TS[4];
+    __O uint32_t OUT_W1TC[4];
+    __IO uint32_t ENABLE[4];
+    __O uint32_t ENABLE_W1TS[4];
+    __O uint32_t ENABLE_W1TC[4];
+    __I uint32_t IN[4];
+    uint32_t reserved[100];
+    __IO uint32_t FUNC_OUT_SEL[128];
+    __IO uint32_t FUNC_IN_SEL[2];
+} IO_TypeDef;
+
+#define IO_MATRIX ((IO_TypeDef *)0x40003000UL)
+
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE   0x40002000UL
 #define GPIO_BASE   0x40000000UL

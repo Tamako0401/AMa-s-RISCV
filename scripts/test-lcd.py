@@ -24,7 +24,7 @@ SW_SOURCES = [
     'sw/drivers/spi.c',
     'sw/drivers/uart.c',
     'sw/bsp/bsp.c',
-    'sw/bsp/bsp_lcd.c',
+    'sw/components/lcd/lcd_io.c',
     'sw/components/lcd/lcd.c',
     'sw/components/lcd/st7789.c',
     'sw/components/lcd/ili9341.c',

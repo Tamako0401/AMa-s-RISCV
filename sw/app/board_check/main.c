@@ -36,16 +36,22 @@ static uint32_t self_test(void)
     return 0;
 }
 
-static void show_leds(uint32_t pattern)             /* 只动 LED 那 8 位, 不碰屏幕的 GPIO 0~2 */
+#ifdef BOARD_EGO1
+static const uint32_t leds[] = { PIN_LD2_0, PIN_LD2_1, PIN_LD2_2, PIN_LD2_3, PIN_LD2_4, PIN_LD2_5, PIN_LD2_6, PIN_LD2_7 };
+#else
+static const uint32_t leds[] = { PIN_LED1, PIN_LED2, PIN_LED3, PIN_LED4, PIN_LED5, PIN_LED6, PIN_LED7, PIN_LED8 };
+#endif
+
+static void show_leds(uint32_t pattern)
 {
-    gpio_reset(GPIO, LED_PINS & ~(pattern << LED_SHIFT));
-    gpio_set(GPIO, pattern << LED_SHIFT);
+    for (uint32_t i = 0; i < 8; i++)
+        io_write(leds[i], (pattern >> i) & 1);
 }
 
 int main(void)
 {
-    gpio_reset(GPIO, LED_PINS);
-    gpio_set_mode(GPIO, LED_PINS, GPIO_MODE_OUTPUT);
+    for (uint32_t i = 0; i < 8; i++)
+        io_dir(leds[i], IO_OUTPUT);
     show_leds(1);
     uart_init(CONSOLE_UART, SYSCLK_HZ, 115200);
 

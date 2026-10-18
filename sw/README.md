@@ -12,7 +12,7 @@ startup.S     设栈, 把 .data 初值从 ROM 拷到 RAM, 清 BSS, 调 main
 link.ld       ROM 0x0000_0000 放代码和 .data 初值, RAM 0x1000_0000 放数据和栈
 ```
 
-- 屏幕驱动通过 `components/lcd/lcd_io.h` 的 6 个函数访问硬件, 由 `bsp/bsp_lcd.c` 实现.
+- 屏幕是插上去的模块, 不属于板子, 不放在 bsp 里: 驱动通过 `components/lcd/lcd_io.h` 访问硬件, 由 `components/lcd/lcd_io.c` 经 GPIO 矩阵实现.
 - 外设地址见 `docs/platform.md`: GPIO 0x4000_0000, UART 0x4000_1000, SPI 0x4000_2000.
 
 ## 编译
@@ -22,7 +22,9 @@ just app            # 默认 lcd_demo
 just app <名字>      # 编译 sw/app/<名字>/*.c
 ```
 
-新程序: 建 `sw/app/<程序>/main.c`
+新程序: 建 `sw/app/<程序>/main.c` (目录下所有 .c 一起编译; `test/` 子目录放电脑上跑的逻辑测试)。
+
+上板和仿真用仓库根目录的 `./ama` (`./ama --help`), 如 `./ama run snake`、`./ama sim snake`, 见根目录 README。
 
 ## 存储与复位
 
@@ -41,7 +43,7 @@ python3 scripts/test-lcd.py [程序名]     # 默认 lcd_demo
 just app-sim                            # 同上
 ```
 
-`tests/soc/st7789_model.sv` 挂在 `soc_top` 的**真实 SPI 引脚**上, 从引脚重建
+`tests/soc/st7789_model.sv` 挂在 `soc_top` 矩阵的屏幕引脚上, 从引脚重建
 240x320 画面并打印 ASCII 图, 同时核对 COLMOD/MADCTL 和边框、色块、对角线像素.
 一屏要搬约 19 万字节(1200 万周期), 所以优先用 verilator, 秒级完成; 没有 verilator
 会退回 iverilog, 大约要十几分钟.
@@ -82,3 +84,11 @@ python3 scripts/build-board.py --board ego1 --harvard --app coremark --cc gcc --
 - 编译用 `rv32i_zicsr`: `delay_ms` 读 cycle 计数器.
 - 尚未上板. 真屏上可能要在 `components/lcd/st7789.c` 的初始化表里调整, 以及spi mode的试.
 - `sw/board/` 并不属于本文所描述范围.
+
+## GPIO 矩阵
+
+哈佛固件的引脚通过 `drivers/io.h` 访问 0x40003000，编号由 `boards/<板>/pins.csv` 生成到 `bsp/<板>_pins.h`。`BOARD_EGO1` / `BOARD_MES50HP` 只选择引脚头文件；仿真默认盘古。普通 GPIO 用 W1TS/W1TC 写电平与方向，SPI 输出通过 `io_connect_out` 接线；UART 上电默认接板载串口。
+
+用屏幕的 app 在 main 中调用对应的 `lcd_init_st7735` / `lcd_init_st7789`，参数是屏幕接在哪几个脚 (`lcd_pins_t`)；SPI 模式和速度是屏幕芯片的参数，由驱动自己定。宽高由器件初始化设置，通过 `lcd_width()` / `lcd_height()` 读取。snake 的网格按运行时宽高计算，数组按最大 240×320 屏分配。
+
+`sw/board/` 保留 minimal_soc 的旧 GPIO 接线，屏幕底层实现独立放在 `sw/board/lcd_io.c`，不经过矩阵。

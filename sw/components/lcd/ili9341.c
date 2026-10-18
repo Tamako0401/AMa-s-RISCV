@@ -4,6 +4,7 @@
 
 #define ILI9341_MAX_HZ 10000000UL    /* 写时钟周期最短 100ns */
 
+
 static const uint8_t ili9341_seq[] = {
     0x01, LCD_SEQ_DELAY, 150,                       /* SWRESET 软件复位 */
     0xEF, 3, 0x03, 0x80, 0x02,                      /* 以下 5 条是厂商未公开的调校寄存器 */
@@ -34,9 +35,11 @@ static const uint8_t ili9341_seq[] = {
     0x29, LCD_SEQ_DELAY, 100,                       /* DISPON 打开显示 */
 };
 
-void lcd_init_ili9341(void)
+void lcd_init_ili9341(const lcd_pins_t *pins)
 {
-    lcd_io_init(0, ILI9341_MAX_HZ);
+    lcd_io_init(pins, 0, ILI9341_MAX_HZ);
+    lcd_w = 240;
+    lcd_h = 320;
     lcd_reset();
     lcd_run_seq(ili9341_seq, sizeof(ili9341_seq));
 }

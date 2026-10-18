@@ -4,6 +4,7 @@
 
 #define ST7789_MAX_HZ 60000000UL     /* 写时钟周期最短 16ns */
 
+
 /* 寄存器取值对齐目标模块 GMT024-8p10p-SPI 的厂商例程
  * (资料包 3-SPI显示屏硬件手册/GMT024-8p10p-SPI-ST7789.c, ST7789V2):
  * VCOM/porch/gamma 逐值照抄; 厂商用硬件复位, 不用 SWRESET;
@@ -33,9 +34,11 @@ static const uint8_t st7789_seq[] = {
     0x29, LCD_SEQ_DELAY, 100,           /* DISPON 打开显示 */
 };
 
-void lcd_init_st7789(void)
+void lcd_init_st7789(const lcd_pins_t *pins)
 {
-    lcd_io_init(3, ST7789_MAX_HZ);     /* 模式 3, 与厂商 bit-bang 一致: 空闲高, 上升沿采样 */
+    lcd_io_init(pins, 3, ST7789_MAX_HZ); /* 模式 3, 与厂商 bit-bang 一致: 空闲高, 上升沿采样 */
+    lcd_w = 240;
+    lcd_h = 320;
     lcd_reset();
     lcd_run_seq(st7789_seq, sizeof(st7789_seq));
 }

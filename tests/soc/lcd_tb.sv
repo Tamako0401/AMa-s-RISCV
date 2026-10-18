@@ -37,20 +37,17 @@ module lcd_tb;
     // SoC 的屏幕引脚, 显式连出来再送给面板模型
     wire spi_mosi, spi_ss, spi_clk, lcd_dc, lcd_rst_n;
 
-    soc_top u_soc(
-        .clk(clk),
-        .rst_n(rst_n),
-        .uart_rx(1'b1),
-        .uart_tx(),
-        .led(),
-        .spi_mosi(spi_mosi),
-        .spi_miso(1'b0),               // 只写屏幕, 不用 MISO
-        .spi_ss(spi_ss),
-        .spi_clk(spi_clk),
-        .lcd_dc(lcd_dc),
-        .lcd_rst_n(lcd_rst_n)
+    `include "boards/mes50hp/pins_top.vh"
+    wire [127:0] io_o, io_oe;
+    wire [127:0] io_i = {69'b0, 1'b1, 58'b0};
+    assign {spi_clk, spi_mosi, spi_ss, lcd_dc, lcd_rst_n} =
+        {io_o[24], io_o[25], io_o[20], io_o[23], io_o[22]};
+    soc_top #(.IO_N(`IO_N), .UART_TX_PIN(`UART_TX_PIN), .UART_RX_PIN(`UART_RX_PIN)) u_soc(
+        .clk(clk), .rst_n(rst_n),
+        .io_o(io_o), .io_oe(io_oe), .io_i(io_i),
+        .uart_rx(1'b1), .uart_tx(), .led(),
+        .spi_mosi(), .spi_miso(1'b0), .spi_ss(), .spi_clk(), .lcd_dc(), .lcd_rst_n()
     );
-
     // 面板模型接在真实引脚上
     st7789_model #(.W(W), .H(H)) u_panel(
         .rst_n(lcd_rst_n),
