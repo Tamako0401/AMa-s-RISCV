@@ -10,14 +10,23 @@ module uart_reset_tb;
     reg rst_n = 0, locked = 0;
     wire key1_n = rst_n & locked;
     wire uart_tx;
+`ifdef HARVARD
+    `include "boards/mes50hp/pins_top.vh"
+    wire [`IO_N-1:0] io;
+    assign io[`UART_RX_PIN] = 1'b1;
+    assign uart_tx = io[`UART_TX_PIN];
+    mes50hp_top_matrix #(.MEM_FILE("sim.hex")) dut(.clk(clk), .key1_n(key1_n), .io(io));
+`else
     mes50hp_top #(.MEM_FILE("sim.hex")) dut (
         .clk(clk), .key1_n(key1_n), .uart_rx(1'b1), .uart_tx(uart_tx), .led(),
         .lcd_sck(), .lcd_mosi(), .lcd_cs(), .lcd_dc(), .lcd_rst_n(), .lcd_bl()
     );
+`endif
 
     integer boot = 0, count = 0, writes = 0;
     reg first_write = 0;
     reg [7:0] byte_rx;
+    integer b;
     always @(posedge clk or negedge key1_n) begin
         if (!key1_n) begin
             first_write <= 0;
@@ -49,7 +58,7 @@ module uart_reset_tb;
         if (count == 0) $display("boot %0d: first start bit at %0t", boot, $time);
         #(BIT_NS / 2);
         if (uart_tx !== 1'b0) $fatal(1, "Invalid start bit");
-        for (integer b = 0; b < 8; b = b + 1) begin
+        for (b = 0; b < 8; b = b + 1) begin
             #BIT_NS; byte_rx[b] = uart_tx;
         end
         #BIT_NS;

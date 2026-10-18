@@ -28,6 +28,16 @@ module board_lcd_tb;
 
     // Parameter override at instantiation: Verilator rejects hierarchical
     // defparam (dut.soc.MEM_FILE), Icarus accepts both forms.
+`ifdef HARVARD
+    `include "boards/mes50hp/pins_top.vh"
+    wire [`IO_N-1:0] io;
+    assign io[`UART_RX_PIN] = 1'b1;
+    assign uart_tx = io[`UART_TX_PIN];
+    assign {lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl} =
+        {io[24], io[25], io[20], io[23], io[22], io[21]};
+    assign led = io[56:49];
+    mes50hp_top_matrix #(.MEM_FILE("sim.hex")) dut(.clk(clk), .key1_n(key1_n), .io(io));
+`else
     mes50hp_top #(.MEM_FILE("sim.hex")) dut(
         .clk(clk), .key1_n(key1_n),
         .uart_rx(1'b1), .uart_tx(uart_tx),
@@ -35,6 +45,7 @@ module board_lcd_tb;
         .lcd_sck(lcd_sck), .lcd_mosi(lcd_mosi), .lcd_cs(lcd_cs),
         .lcd_dc(lcd_dc), .lcd_rst_n(lcd_rst_n), .lcd_bl(lcd_bl)
     );
+`endif
 
     // 面板模型接在真实顶层引脚上
     st7789_model #(.W(W), .H(H)) u_panel(

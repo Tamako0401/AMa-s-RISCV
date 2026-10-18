@@ -2,7 +2,7 @@ OUTPUT_ARCH(riscv)  /* 告诉ld是锐克五架构 */
 ENTRY(_start)       /* 指定程序入口是符号_start. (定义在启动汇编文件中). cpu上电/复位以后, PC跳转到_start开始执行. */
 
 /* 哈佛式存储器: 指令和数据分开, 与 rtl/core/rib.v 的从设备译码一致.
- *   ROM 0x0000_0000, 64 KiB, 只读 -- 放指令和只读数据, 也是复位向量
+ *   ROM 0x0000_0000, 62 KiB -- 放指令和只读数据, 后 2 KiB 留给 bootloader
  *   RAM 0x1000_0000, 64 KiB, 读写 -- 放已初始化/未初始化变量和栈
  * 每个设备占 addr[31:28] 一个档位(256 MiB 窗口).
  * (tests/cpu/link.ld 会把 RAM 窗口的第 0 个字留给回归测试台的"结束信箱",
@@ -10,7 +10,7 @@ ENTRY(_start)       /* 指定程序入口是符号_start. (定义在启动汇编
  */
 MEMORY              /* 声明内存 */
 {
-    ROM (rx)  : ORIGIN = 0x00000000, LENGTH = 64K
+    ROM (rx)  : ORIGIN = 0x00000000, LENGTH = 62K /* 后 2K 留给 bootloader */
     RAM (rwx) : ORIGIN = 0x10000000, LENGTH = 64K
     /* 必须和实际使用的硬件相匹配. */
 }

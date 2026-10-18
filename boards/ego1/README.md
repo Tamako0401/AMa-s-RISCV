@@ -1,23 +1,39 @@
 # EGO1 哈佛 SoC 上板工程
 
-用于没有 MES50HP 时验证 UART 和 CoreMark; 比赛正式板仍为 MES50HP。
-器件 `xc7a35tcsg324-1`, 直接例化 `boards/mes50hp/mes50hp_top_harvard.v`。
+用于没有 MES50HP 时验证 UART、CoreMark 和屏幕程序; 比赛正式板仍为 MES50HP。
+器件 `xc7a35tcsg324-1`, `ego1_top.v` 直接例化 `rtl/soc_top`。
 P17 的 100 MHz 经 MMCME2_BASE 和 BUFG 变为 50 MHz, 锁定前保持复位,
-因此共用 `sw/` 固件、50 MHz BSP 和 115200 波特率。LCD 输出悬空。
+因此共用 `sw/` 固件、50 MHz BSP 和 115200 波特率。
 
-## 构建
+外设接线由 `pins.csv` 生成到 `pins.xdc`，`ego1.xdc` 只保留时钟和复位：
 
-在仓库根目录执行:
+| 板上 | 接到 | 说明 |
+| --- | --- | --- |
+| J5-1~6 | ST7735S 128x160 屏 SCL / SDA / RES / DC / BLK / CS | app 在运行时连接矩阵 |
+| S0 / S1 / S2 / S3 / S4 | 矩阵 PIN_S0~PIN_S4 (右 / 下 / 开局 / 左 / 上) | 按下为 1, 矩阵打两拍同步 |
+| S6 | 复位 | 按下为低 |
+
+EGO1 版固件带 `-DBOARD_EGO1` 编译，仅选择 `ego1_pins.h`。app 显式接屏幕引脚并调用 ST7735 初始化；宽高由驱动设置。J5、开关、按键、两组 LED 和 UART 都接入矩阵。
+
+## 构建与下载
+
+平时用仓库根目录的 `./ama` (`./ama --help`):
 
 ```sh
-python3 scripts/build-board.py --board ego1 --harvard
-python3 scripts/build-board.py --board ego1 --harvard --vivado
-python3 scripts/build-board.py --board ego1 --harvard --app coremark --vivado
+./ama fpga build && ./ama fpga program   # 第一次, 或改了 rtl/、boards/、sw/boot/ 之后 (几分钟)
+./ama run snake                          # 平时: 编译, 经串口下载, 显示串口输出 (几秒)
+```
+
+`ama fpga` 底下调用的是:
+
+```sh
+python3 scripts/build-board.py --board ego1 --harvard [--app <程序>] --vivado
+vivado -mode batch -source boards/ego1/program.tcl -tclargs <位流>
 ```
 
 依赖 Python 3、clang 的 RISC-V 后端、ld.lld 和 Vivado (本机为 2025.2)。
 第一条只生成固件和非工程模式 `build.tcl`; 后两条运行综合、布局布线并生成位流。
-只支持哈佛版和 CoreMark, 不支持 `--lcd`、`--pds`。
+只支持哈佛版, 不支持 `--lcd`、`--pds`; `--app` 可选 `sw/app` 下任一程序。
 `--simulate` 沿用 MES50HP 的 50 MHz SoC 测试台, 不验证 MMCM 和 EGO1 引脚。
 
 默认调用:
@@ -39,7 +55,7 @@ DBX_CONTAINER_MANAGER=docker distrobox enter vivado -- /tools/Xilinx/2025.2/Viva
 - `build-manifest.json`: 成功构建的输入和产物 SHA-256。
 
 脚本检查 ROM 初值成功读取、WNS >= 0 和位流生成, 失败即报错。
-XDC 只定义实际使用的 IO 和 100 MHz 主时钟, 50 MHz 生成时钟由 Vivado 推导;
+XDC 定义引脚表中的 IO 和 100 MHz 主时钟, 50 MHz 生成时钟由 Vivado 推导;
 UART、按键和 LED 没有同步外部接口时序约束, WNS 用来验收内部时序。
 
 2026-10-16 本机 Vivado 2025.2 实测 (布线后, RAMB36 单位为个):

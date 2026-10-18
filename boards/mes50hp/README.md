@@ -102,17 +102,23 @@ SoC 数据访问优先于取指，统一串行处理事务并锁存目标与响�
 
 上板也可以用通用 RIB SoC (`rtl/soc_top`): ROM 0x0000_0000 放代码和 .data 初值, RAM 0x1000_0000
 放变量和栈, 外设 GPIO 0x4000_0000 / UART 0x4000_1000 / SPI 0x4000_2000。顶层
-`boards/mes50hp/mes50hp_top_harvard.v` 与 `mes50hp_top.v` 端口、模块名相同, 共用 `mes50hp.fdc`。
+`boards/mes50hp/mes50hp_top_matrix.v` 使用时钟、KEY1 和 `io[]` 端口，约束来自 `matrix.fdc` 与生成的 `pins.fdc`。旧的两个顶层和 `mes50hp.fdc` 保留给旧路径。
 
 ```
 python scripts/build-board.py --harvard --simulate --pds        # sw/app/board_check: 串口 + 回显 + LED
 python scripts/build-board.py --harvard --lcd --simulate --pds  # sw/app/lcd_demo
 ```
 
-位流在 `build/mes50hp-harvard[-lcd]/generate_bitstream/mes50hp_top.sbit`。固件来自 `sw/`
+位流在 `build/mes50hp-harvard[-lcd]/generate_bitstream/mes50hp_top_matrix.sbit`。固件来自 `sw/`
 (`sw/startup.S`、`sw/link.ld`), ROM 镜像由 `scripts/elf2hex.py` 生成, RAM 不预装。
 
 实机验收与上面相同: 115200 8N1, 看到 `AMA CPU PASS`, 发 `Z` 回显, LED 移位; **按 KEY1 后应再次 PASS**
 (`board_check` 会改掉有初值的变量, 复位后由 startup.S 从 ROM 恢复; 没恢复会报 `AMA CPU FAIL 2`)。
 综合后核对报告的 DRM 用量: ROM、RAM 各 64 KiB, 若接近 0 说明存储没有带初值被推断出来。
 注意 soc_top 访问未映射地址会一直等待, 不像 minimal_soc 那样亮 LED7 报故障。
+
+矩阵版引脚事实保存在 `pins.csv`，运行 `python3 scripts/gen-pins.py mes50hp` 生成约束、顶层掩码与 C 引脚头文件。固件用 `-DBOARD_MES50HP` 选择引脚名；未定义板型的仿真也默认盘古。
+
+屏幕在 app 中连接 J8_27 / J8_28 / J8_23 / J8_26 / J8_25 / J8_24，依次为 SCK / MOSI / CS / DC / RST / BL。KEY2~KEY8 由顶层取反，软件读到 1 表示按下；snake 用 KEY2 开局，KEY5~KEY8 对应左/下/上/右。
+
+PMOD 按标准的两排插针编号命名：1~4 为 AB6 / AB7 / Y8 / U6，7~10 为 AA6 / Y7 / W9 / T7。手册表 3-13 和原理图使用双排交错编号 1~8；这里按各排顺序换算成标准 PMOD 编号，避免把表中的 9/10（GND）当成 IO。
