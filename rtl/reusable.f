@@ -6,8 +6,10 @@ rtl/core/gpr_reg.v
 rtl/core/exu_alu_datapath.v
 rtl/core/axi_bridge.v
 rtl/perips/gpio.v
+rtl/perips/gpio_matrix.v
 rtl/perips/uart.v
 rtl/perips/spi.v
+rtl/perips/sysctl.v
 rtl/perips/rom.v
 rtl/perips/ram.v
 rtl/core/periph_bus.v

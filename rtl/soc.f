@@ -21,9 +21,11 @@ rtl/core/pipe_ctrl.v
 rtl/core/tinyriscv_core.v
 rtl/core/rib.v
 rtl/core/periph_bus.v
+rtl/perips/sysctl.v
 rtl/perips/rom.v
 rtl/perips/ram.v
 rtl/perips/spi.v
 rtl/perips/gpio.v
+rtl/perips/gpio_matrix.v
 rtl/perips/uart.v
 rtl/soc_top/soc_top.v

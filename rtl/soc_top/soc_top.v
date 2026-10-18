@@ -1,7 +1,7 @@
 // SoC 顶层: 处理器核 + RIB 总线 + 存储器
 //
 // 地址映射(由 rib 的 addr[31:28] 译码决定, 与 tests/cpu/link.ld、sw/link.ld 一致):
-//   s0 = ROM   0x0000_0000, 64 KiB, 只读 -- 指令和常量; 也是复位向量
+//   s0 = ROM   0x0000_0000, 64 KiB, 可选 app 区写入 -- 后 2 KiB 为引导区
 //   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
 //   s2 = 保留(未接入)
 //   s3 = 保留(未接入)
@@ -9,16 +9,23 @@
 //          0x4000_0000  GPIO  -- CTRL / DATA / BSRR
 //          0x4000_1000  UART  -- 偏移 0/4/8/C/10: 控制/状态/分频/TX/RX
 //          0x4000_2000  SPI   -- CR1 / CR2 / SR / DR, 见 docs/spi.md
-//          0x4000_3000 以后: 空, 读返回 0, 写被丢弃
+//          0x4000_3000  GPIO 矩阵, 见 docs/gpio-matrix.md
+//          0x4000_4000  SYSCTL -- HW_ID / ROM_WE
+//          0x4000_5000 以后: 空, 读返回 0, 写被丢弃
 // GPIO outputs 0/1/2 drive CS / DC / RST_N; unconfigured pins use safe levels.
 // GPIO 8~15 驱动 led[0..7], 配置为输出且数据为 1 时点亮.
 //
 // 未命中任何 rib 从设备的地址不会握手(RIB 没有错误响应通道), 访问会一直等待。
 module soc_top #(
+    parameter [31:0] HW_ID = 0,
+    parameter ROM_WRITABLE = 0,
     parameter [31:0] RESET_PC = 32'h00000000,
     parameter ROM_INIT_FILE = "",           // ROM 初值 hex 文件, 相对仿真工作目录
     parameter RAM_INIT_FILE = "",           // RAM 初值 hex 文件, 相对仿真工作目录
-    parameter CPU_CLOCK_HZ = 50000000       // 供 UART 计算默认波特率分频
+    parameter CPU_CLOCK_HZ = 50000000,      // 供 UART 计算默认波特率分频
+    parameter IO_N = 0,
+    parameter UART_TX_PIN = 255,
+    parameter UART_RX_PIN = 255
 )(
 
     input wire clk,
@@ -34,7 +41,10 @@ module soc_top #(
     output wire spi_ss,                     // 片选, 低有效
     output wire spi_clk,
     output wire lcd_dc,                     // LCD 命令/数据选择: 0=命令, 1=数据
-    output wire lcd_rst_n                   // LCD 复位, 低有效
+    output wire lcd_rst_n,                  // LCD 复位, 低有效
+    output wire[127:0] io_o,
+    output wire[127:0] io_oe,
+    input wire[127:0] io_i
 
     );
 
@@ -68,13 +78,15 @@ module soc_top #(
     wire s4_we, s4_req_valid, s4_req_ready, s4_rsp_valid, s4_rsp_ready;
 
     // 子总线各口, 口号见文件头; 第 k 口占 [k*32 +: 32] / [k*4 +: 4] / [k]
-    localparam PERIPH_N = 3;
-    localparam P_GPIO = 0, P_UART = 1, P_SPI = 2;
+    localparam PERIPH_N = 5;
+    localparam P_GPIO = 0, P_UART = 1, P_SPI = 2, P_MATRIX = 3, P_SYSCTL = 4;
     wire[PERIPH_N*32-1:0] p_addr, p_wdata, p_rdata;
     wire[PERIPH_N*4-1:0] p_sel;
     wire[PERIPH_N-1:0] p_we, p_req_valid, p_req_ready, p_rsp_valid, p_rsp_ready;
 
     wire[31:0] gpio_ctrl, gpio_data;
+    wire matrix_uart_rx, matrix_spi_miso;
+    wire rom_we;
 
 
     tinyriscv_core #(
@@ -192,6 +204,7 @@ module soc_top #(
 
     // 指令存储器: 64 KiB, 深度与 tests/cpu/link.ld 的 ROM 区一致
     rom #(
+        .WRITABLE(ROM_WRITABLE),
         .DP(16384),
         .ROM_INIT_FILE(ROM_INIT_FILE)
     ) u_rom(
@@ -201,6 +214,7 @@ module soc_top #(
         .data_i(s0_wdata),
         .sel_i(s0_sel),
         .we_i(s0_we),
+        .we_en_i(rom_we),
         .data_o(s0_rdata),
         .req_valid_i(s0_req_valid),
         .req_ready_o(s0_req_ready),
@@ -268,7 +282,7 @@ module soc_top #(
         .rsp_valid_o(p_rsp_valid[P_SPI]),
         .rsp_ready_i(p_rsp_ready[P_SPI]),
         .spi_mosi(spi_mosi),
-        .spi_miso(spi_miso),
+        .spi_miso(IO_N == 0 ? spi_miso : matrix_spi_miso),
         .spi_clk(spi_clk)
     );
 
@@ -288,7 +302,33 @@ module soc_top #(
         .rsp_valid_o(p_rsp_valid[P_UART]),
         .rsp_ready_i(p_rsp_ready[P_UART]),
         .tx_pin(uart_tx),
-        .rx_pin(uart_rx)
+        .rx_pin(IO_N == 0 ? uart_rx : matrix_uart_rx)
+    );
+
+    gpio_matrix #(
+        .IO_N(IO_N),
+        .UART_TX_PIN(UART_TX_PIN),
+        .UART_RX_PIN(UART_RX_PIN)
+    ) u_gpio_matrix(
+        .clk(clk), .rst_n(rst_n),
+        .addr_i(p_addr[P_MATRIX*32 +: 32]), .data_i(p_wdata[P_MATRIX*32 +: 32]),
+        .sel_i(p_sel[P_MATRIX*4 +: 4]), .we_i(p_we[P_MATRIX]),
+        .data_o(p_rdata[P_MATRIX*32 +: 32]),
+        .req_valid_i(p_req_valid[P_MATRIX]), .req_ready_o(p_req_ready[P_MATRIX]),
+        .rsp_valid_o(p_rsp_valid[P_MATRIX]), .rsp_ready_i(p_rsp_ready[P_MATRIX]),
+        .io_o(io_o), .io_oe(io_oe), .io_i(io_i),
+        .uart_tx_i(uart_tx), .uart_rx_o(matrix_uart_rx),
+        .spi_sck_i(spi_clk), .spi_mosi_i(spi_mosi), .spi_miso_o(matrix_spi_miso)
+    );
+
+    sysctl #(.HW_ID(HW_ID)) u_sysctl(
+        .clk(clk), .rst_n(rst_n),
+        .addr_i(p_addr[P_SYSCTL*32 +: 32]), .data_i(p_wdata[P_SYSCTL*32 +: 32]),
+        .sel_i(p_sel[P_SYSCTL*4 +: 4]), .we_i(p_we[P_SYSCTL]),
+        .data_o(p_rdata[P_SYSCTL*32 +: 32]),
+        .req_valid_i(p_req_valid[P_SYSCTL]), .req_ready_o(p_req_ready[P_SYSCTL]),
+        .rsp_valid_o(p_rsp_valid[P_SYSCTL]), .rsp_ready_i(p_rsp_ready[P_SYSCTL]),
+        .rom_we(rom_we)
     );
 
     // GPIO (0x4000_0000)

@@ -6,7 +6,7 @@
 //     a PANGO IP core, so the file elaborates and simulates with plain Icarus.
 //   - DP now really controls the depth (upstream DP was a dead parameter that
 //     only fed the commented-out gen_ram instance).
-//   - Explicitly read-only: we_i/data_i/sel_i are ignored.
+//   - 可选 app 区写入, 引导区始终写保护。
 // See docs/third-party.md and docs/cpu-baseline.md.
  /*
  Copyright 2020 Blue Liang, liangkangnan@163.com
@@ -31,13 +31,14 @@
 //     req_valid_i / req_ready_o / rsp_valid_o / rsp_ready_i
 //
 // 特性:
-// - 只读: 写请求会被正常握手但被丢弃(we_i/data_i/sel_i 不参与任何逻辑);
+// - 默认只读; WRITABLE 时由 we_en_i 开放 app 区的按字节写入;
 // - addr_i 是字节地址, 内部右移 2 位取字地址, 高位超出 DP 的部分被截断
 //   (调用方需保证地址落在合法区间, 与上游 gen_ram 的约定一致);
 // - 读数据在请求握手后的下一拍与 rsp_valid_o 同时有效;
 // - 程序初值由 $readmemh 从 ROM_INIT_FILE 载入; 文件名为空则不初始化(读到 X)。
 //   该初始化方式在仿真中已验证; 能否被综合工具推断成 ROM 初值尚未验证。
 module rom #(
+    parameter WRITABLE = 0,
     parameter DP = 16384,                 // 深度, 单位 word(4字节)
     parameter ROM_INIT_FILE = ""          // 初始化 hex 文件名, 相对仿真工作目录
 )(
@@ -48,6 +49,7 @@ module rom #(
     input wire[31:0] data_i,
     input wire[3:0] sel_i,
     input wire we_i,
+    input wire we_en_i,
     output wire[31:0] data_o,
 
     input wire req_valid_i,
@@ -78,6 +80,16 @@ module rom #(
     always @ (posedge clk) begin
         addr_r <= word_addr[AW-1:0];
     end
+
+    // 存储体不复位, 保留块 RAM 推断; 引导区即使开锁也不能覆盖。
+    generate if (WRITABLE) begin: writable
+        integer b;
+        always @(posedge clk) begin
+            if (we_i && we_en_i && req_valid_i && req_ready_o && addr_i < 32'hf800)
+                for (b = 0; b < 4; b = b + 1)
+                    if (sel_i[b]) mem[word_addr[AW-1:0]][b*8 +: 8] <= data_i[b*8 +: 8];
+        end
+    end endgenerate
 
     assign data_o = mem[addr_r];
 
