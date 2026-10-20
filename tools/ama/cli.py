@@ -29,7 +29,6 @@ fpga = typer.Typer(help='位流: 只有改了 rtl/、boards/、sw/boot/ 才需�
 cli.add_typer(fpga, name='fpga')
 
 
-
 App = typer.Argument(..., help='sw/app/ 下的程序名')
 BoardOpt = typer.Option(None, '--board', '-b', help='ego1 或 mes50hp; 不写就按插着的串口芯片识别')
 PortOpt = typer.Option(None, '--port', '-p', help='串口; 不写就自动找')
@@ -166,30 +165,32 @@ def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt):
 
 def sim_binary(out):
     obj = out / 'obj'
-    sources = ['tests/soc/st7789_model.sv', 'sim/uart_rx.sv', 'sim/sim_top.sv']
+    sources = ['boards/mes50hp/mes50hp_top.v', 'tests/soc/st7789_model.sv', 'sim/uart_rx.sv', 'sim/sim_top.sv']
     inputs = [ROOT / p for p in sources + ['rtl/soc.f', 'boards/mes50hp/pins_top.vh']]
     inputs += [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().split() if not p.startswith('+')]
     inputs += list((ROOT / 'rtl').rglob('*.vh'))
     binary = obj / 'sim'
     if not binary.exists() or any(p.stat().st_mtime_ns > binary.stat().st_mtime_ns for p in inputs):
         step('编译仿真外壳')
-        run(
-            *tool('verilator'),
-            '--binary',
-            '--timing',
-            '-Wno-fatal',
-            '--top-module',
-            'sim_top',
-            '-f',
-            'rtl/soc.f',
-            *sources,
-            '--Mdir',
-            obj,
-            '-o',
-            'sim',
-            cwd=ROOT,
-            stdout=subprocess.DEVNULL,
-        )
+        # verilator 的进度输出很长, 放进日志; 报错走 stderr 照样显示
+        with (out / 'verilator.log').open('w') as log:
+            run(
+                *tool('verilator'),
+                '--binary',
+                '--timing',
+                '-Wno-fatal',
+                '--top-module',
+                'sim_top',
+                '-f',
+                'rtl/soc.f',
+                *sources,
+                '--Mdir',
+                obj,
+                '-o',
+                'sim',
+                cwd=ROOT,
+                stdout=log,
+            )
     return binary
 
 

@@ -21,7 +21,7 @@ flowchart LR
 | --- | --- | --- |
 | `build <程序>` | `sw/` 各层 + `sw/app/<程序>/` + `sw/boot/` | `build/fw/<板>/<程序>/` 下 app.elf、boot.elf、rom.hex |
 | `run` / `upload <程序>` | 同上 | 板子上跑起来 |
-| `sim <程序>` | 同上 (不带 bootloader) + `sim/` 外壳 | 窗口; 结束时截图 `build/sim/<程序>.png` |
+| `sim <程序>` | 同上 (按盘古编译, 不带 bootloader) + `sim/` 外壳 | 窗口; 结束时截图 `build/sim/<程序>.png` |
 | `test [路径]` | `tests.toml`、`sw/app/*/test/` | 每个测试一行 PASS/FAIL, 日志在 `build/test/` |
 | `fpga build <程序>` | rom.hex + `rtl/` + `boards/<板>/` | `build/fpga/<板>-<程序>/` 下的位流 |
 | `fpga program <程序>` | 上面的位流 | EGO1 直接烧; 盘古打印 PDS 里的操作步骤 |
@@ -42,7 +42,8 @@ flowchart LR
 - **测试**: 每个测试目录一个 `tests.toml`, 一个 `[[test]]` 是一个测试台, 判定只看仿真退出码 (0 = PASS)。
   字段: `tb`、`rtl`、`extra`、`params` (每组编译一次)、`runs` (每项运行一次: `app` 或 `program`、`defines`、
   `plusargs`、`link`)、`expect = "fail"`。
-- **仿真和测试用盘古的接线** (屏幕、串口接在 IO 矩阵哪个脚), 因为固件编译要选一张引脚表。
+- **sim 是一块虚拟的盘古板**: `sim/sim_top.sv` 例化真实的 `mes50hp_top`, 屏幕模型和串口接在板子的脚上
+  (`pins_top.vh` 里的 `PIN_<名字>`), 固件按盘古编译。
 
 ## 代码
 

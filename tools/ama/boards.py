@@ -24,6 +24,7 @@ def gen_pins(board):
     for name in ['UART_TX', 'UART_RX']:
         n = next(i for i, pin in enumerate(pins) if pin['name'] == name)
         vh.append(f'`define {name}_PIN {n}')
+    vh += [f'`define PIN_{pin["name"]} {i}' for i, pin in enumerate(pins)]
     for direction in ['inout', 'out', 'in_n']:
         mask = sum(1 << i for i, pin in enumerate(pins) if pin['dir'] == direction)
         vh.append(f"`define IO_{direction.upper()}_MASK 128'h{mask:032x}")
