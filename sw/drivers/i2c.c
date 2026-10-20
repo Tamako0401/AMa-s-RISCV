@@ -1,14 +1,17 @@
 #include "i2c.h"
-#include "bsp.h"
 #include "io.h"
 
-/* 半个 SCL 周期: 100 kHz */
-#define HALF_CYCLES (SYSCLK_HZ / 200000)
-
-static void wait_half(void)
+static uint32_t cycles(void)
 {
-    uint32_t start = bsp_cycles();
-    while (bsp_cycles() - start < HALF_CYCLES)
+    uint32_t c;
+    __asm__ volatile("csrr %0, cycle" : "=r"(c));
+    return c;
+}
+
+static void wait_half(const i2c_pins_t *p)
+{
+    uint32_t start = cycles();
+    while (cycles() - start < p->half_cycles)
         ;
 }
 
@@ -34,20 +37,20 @@ static void start(const i2c_pins_t *p)
 {
     sda_out(p, 1);
     io_write(p->scl, 1);
-    wait_half();
+    wait_half(p);
     sda_out(p, 0);
-    wait_half();
+    wait_half(p);
     io_write(p->scl, 0);
 }
 
 static void stop(const i2c_pins_t *p)
 {
     sda_out(p, 0);
-    wait_half();
+    wait_half(p);
     io_write(p->scl, 1);
-    wait_half();
+    wait_half(p);
     sda_out(p, 1);
-    wait_half();
+    wait_half(p);
 }
 
 /* 返回 0 = 收到 ACK */
@@ -55,15 +58,15 @@ static int write_byte(const i2c_pins_t *p, uint8_t byte)
 {
     for (int i = 7; i >= 0; i--) {
         sda_out(p, byte >> i & 1);
-        wait_half();
+        wait_half(p);
         io_write(p->scl, 1);
-        wait_half();
+        wait_half(p);
         io_write(p->scl, 0);
     }
     sda_release(p);
-    wait_half();
+    wait_half(p);
     io_write(p->scl, 1);
-    wait_half();
+    wait_half(p);
     int nack = io_read(p->sda);
     io_write(p->scl, 0);
     return nack ? -1 : 0;
@@ -75,16 +78,16 @@ static uint8_t read_byte(const i2c_pins_t *p)
     uint8_t byte = 0;
     sda_release(p);
     for (int i = 0; i < 8; i++) {
-        wait_half();
+        wait_half(p);
         io_write(p->scl, 1);
-        wait_half();
+        wait_half(p);
         byte = byte << 1 | io_read(p->sda);
         io_write(p->scl, 0);
     }
     sda_out(p, 1);
-    wait_half();
+    wait_half(p);
     io_write(p->scl, 1);
-    wait_half();
+    wait_half(p);
     io_write(p->scl, 0);
     return byte;
 }

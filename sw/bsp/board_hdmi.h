@@ -15,7 +15,10 @@ static inline int board_hdmi_init(void)
 /* 配置发送芯片; 成功返回 0。之后开 VIDEO->CTRL 就出图 */
 static inline int board_hdmi_init(void)
 {
-    static const ms7210_pins_t pins = {.i2c = {.scl = PIN_HDMI_SCL, .sda = PIN_HDMI_SDA}, .rst = PIN_HDMI_RSTN};
+    static const ms7210_pins_t pins = {
+        .i2c = {.scl = PIN_HDMI_SCL, .sda = PIN_HDMI_SDA, .half_cycles = SYSCLK_HZ / 200000}, /* 100 kHz */
+        .rst = PIN_HDMI_RSTN,
+    };
     return ms7210_init(&pins);
 }
 #endif

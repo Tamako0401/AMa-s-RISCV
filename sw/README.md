@@ -5,10 +5,11 @@
 ```
 app/<程序>/       应用程序: main.c 等; boards/<板>/ 放本板接线 (LED 表、按键表…); test/ 放电脑上跑的测试
 components/       外部器件, 不碰寄存器: lcd/ (ST7789 / ST7735 / ILI9341, 画点线矩形)、key/ (按键消抖)、
-                  i2c/ (软件 I2C, 引脚经 GPIO 矩阵)、hdmi/ (MS7210 HDMI 发送芯片)
+                  hdmi/ (MS7210 HDMI 发送芯片)
 bsp/              板级: 主频、delay_ms、cycle 计数; <板>_pins.h (ama gen pins 生成); shield_lcd.h (屏插在哪);
                   board_hdmi.h (板上 HDMI 芯片)
-drivers/          片上外设: io.h (GPIO 矩阵)、uart、spi、video.h (图块 + 精灵, 见 docs/video.md)
+drivers/          片上外设: io.h (GPIO 矩阵)、uart、spi、video.h (图块 + 精灵, 见 docs/video.md)、
+                  i2c (软件 I2C, 引脚经 GPIO 矩阵; 不依赖 bsp, 速度由调用方传入)
 device/           amarisc.h: 寄存器定义和基址
 startup.S         设栈, 把 .data 初值从 ROM 拷到 RAM, 清 BSS, 调 main
 link.ld           app 的链接脚本; 分区见 memory.ld
