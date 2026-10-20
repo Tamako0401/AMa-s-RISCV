@@ -53,8 +53,28 @@ module st7789_model #(
     integer madctl = -1;       // 0x36 的参数
     integer ramwr_cnt = 0;     // 0x2C 出现次数
 
+    string frame_path;
+    integer frame_enabled;
+    integer frame_pixels = 0;
+    initial frame_enabled = $value$plusargs("frame=%s", frame_path);
+
+    task write_frame;
+        integer fd;
+        begin
+            // 小窗口也会频繁结束 RAMWR, 累积像素后再写以减少文件开销。
+            if (frame_enabled && pixels - frame_pixels >= 64) begin
+                fd = $fopen(frame_path, "wb");
+                for (integer i = 0; i < W*H; i = i + 1)
+                    $fwrite(fd, "%c%c", gram[i][7:0], gram[i][15:8]);
+                $fclose(fd);
+                frame_pixels = pixels;
+            end
+        end
+    endtask
+
     task handle_cmd(input [7:0] c);
         begin
+            if (st == ST_RAMWR) write_frame();
             cur_cmd = c;
             param_cnt = 0;
             p0 = 0;
@@ -110,6 +130,8 @@ module st7789_model #(
                             gram[cy*W + cx] = {pix_hi, d};
                             pixels = pixels + 1;
                         end
+                        // 驱动写完最后一个窗口后可能保持 CS 低, 不再发命令。
+                        if (cx == xe && cy == ye) write_frame();
                         // 窗口内自动推进, 到右下角后回绕
                         if (cx < xe) cx = cx + 1;
                         else begin
@@ -145,6 +167,7 @@ module st7789_model #(
 
     // 片选拉高或面板复位: 丢弃半截字节
     always @ (posedge cs_n or negedge rst_n) begin
+        if (cs_n && st == ST_RAMWR) write_frame();
         bit_cnt   = 0;
         shift     = 8'h00;
         pix_hi_ok = 0;

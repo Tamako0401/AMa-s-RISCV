@@ -51,7 +51,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 | --- | --- | --- |
 | 平时改了 C | `./ama run snake` | 编译, 经串口 bootloader 下载到板子运行, 再显示串口输出 (Ctrl+] 退出)。几秒 |
 | 只编译 / 只下载 / 只看串口 | `./ama build snake` / `./ama upload snake` / `./ama monitor` | |
-| 没有板子 | `./ama sim snake` | 程序跑在 soc_top + 屏幕模型上, 测试台核对画面, 打印 PASS/FAIL (只有带测试台的程序能跑) |
+| 没有板子 | `./ama sim snake` | sw/app 下的程序跑在 soc_top 上, 窗口显示屏幕, 终端显示串口; 关窗口或 Ctrl+C 结束, 截图在 build/sim/<程序>.png |
 | 改了 `rtl/`、`boards/`、`sw/boot/` | `./ama fpga build`, `./ama fpga program` | 综合位流 (几分钟) 再烧进 FPGA。位流里固化 bootloader 和一个默认程序; 断电后要重新 program |
 
 - 程序就是 `sw/app/<名字>/`, 目录下的 .c 一起编译。

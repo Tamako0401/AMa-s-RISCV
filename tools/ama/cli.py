@@ -27,12 +27,6 @@ CONFIG = tomllib.loads(LOCAL.read_text(encoding='utf8')) if LOCAL.exists() else 
 os.environ.update(CONFIG.get('env', {}))
 BOARDS = boards()
 
-# 有测试台的程序: 测试台 (tests/soc/<名>.sv) 和仿真专用的编译宏。仿真用盘古的接线
-SIMS = {
-    'selftest': ('lcd_tb', []),
-    'snake': ('snake_tb', ['-DSNAKE_STEP_CYCLES=1000000']),     # 走一步的间隔要够发一个串口字符
-}
-
 cli = typer.Typer(help=__doc__, no_args_is_help=True, add_completion=False,
                   context_settings={'help_option_names': ['-h', '--help']})
 fpga = typer.Typer(help='位流: 只有改了 rtl/、boards/、sw/boot/ 才需要 (几分钟)', no_args_is_help=True)
@@ -160,24 +154,49 @@ def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt):
     terminal(open_port(port, board))
 
 
+def sim_binary(out):
+    obj = out / 'obj'
+    sources = ['tests/soc/st7789_model.sv', 'sim/uart_rx.sv', 'sim/sim_top.sv']
+    inputs = [ROOT / p for p in sources + ['rtl/soc.f', 'boards/mes50hp/pins_top.vh']]
+    inputs += [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().split() if not p.startswith('+')]
+    inputs += list((ROOT / 'rtl').rglob('*.vh'))
+    binary = obj / 'sim'
+    if not binary.exists() or any(p.stat().st_mtime_ns > binary.stat().st_mtime_ns for p in inputs):
+        step('编译仿真外壳')
+        run('verilator', '--binary', '--timing', '-Wno-fatal', '--top-module', 'sim_top',
+            '-f', 'rtl/soc.f', *sources, '--Mdir', obj, '-o', 'sim', stdout=subprocess.DEVNULL)
+    return binary
+
+
 @cli.command()
-def sim(app: str = typer.Argument(..., help=f'有测试台的程序: {", ".join(SIMS)}')):
-    """在仿真里跑程序 (soc_top + 屏幕模型, 不用板子), 测试台核对画面后打印 PASS/FAIL。"""
+def sim(app: str = App):
+    """在仿真里运行 sw/app/ 下的程序, 窗口显示屏幕, 终端显示串口。"""
+    from sim.view import W, H, show, save_png
+
     check_app(app)
-    if app not in SIMS:
-        fail(f'{app} 还没有测试台; 现在能仿真的: {", ".join(SIMS)}')
     if not shutil.which('verilator'):
         fail('没找到 verilator')
-    tb, defines = SIMS[app]
     out = ROOT / 'build/sim'
-    elf = compile_app(app, 'mes50hp', 'clang', ['-DSIM_CYCLE_DIV=1000', *defines], out / app)
+    elf = compile_app(app, 'mes50hp', 'clang', ['-DSIM_CYCLE_DIV=1000'], out / app)
     rom = out / f'{app}.hex'
     write_hex(elf_to_rom(elf), rom)
-    step(f'仿真 {app} ({tb})')
-    obj = out / f'obj-{tb}'
-    run('verilator', '--binary', '--timing', '-Wno-fatal', '--top-module', tb, '-f', 'rtl/soc.f',
-        'tests/soc/st7789_model.sv', f'tests/soc/{tb}.sv', '--Mdir', obj, '-o', 'sim', stdout=subprocess.DEVNULL)
-    run(obj / 'sim', f'+rom={rom}')
+    binary = sim_binary(out)
+    frame = out / f'{app}.frame'
+    frame.write_bytes(bytes(W * H * 2))
+    step(f'仿真 {app}, 关窗口或 Ctrl+C 结束')
+    process = subprocess.Popen([str(binary), f'+rom={rom}', f'+frame={frame}'], cwd=ROOT,
+                               start_new_session=True)
+    try:
+        show(frame, process)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if process.poll() is None:
+            process.terminate()
+        process.wait()
+        png = out / f'{app}.png'
+        save_png(frame, png)
+        print(f'屏幕截图: {png.relative_to(ROOT)}')
 
 
 def fpga_bit(board, app):

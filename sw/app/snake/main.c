@@ -9,7 +9,12 @@
 #include "snake.h"
 
 #ifndef SNAKE_STEP_CYCLES
+#if SIM_CYCLE_DIV > 1
+/* 串口位速率不随延时缩放, 留够接收控制字符的时间。 */
+#define SNAKE_STEP_CYCLES 1000000UL
+#else
 #define SNAKE_STEP_CYCLES (150UL * DELAY_CYCLES_PER_MS)
+#endif
 #endif
 
 static snake_t snake;
