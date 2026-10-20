@@ -20,9 +20,27 @@
 `include "defines.v"
 
 // 取指模块
+//
+// 预取队列 + 代际(epoch)丢弃，替代原来的 4 状态单笔事务状态机：
+//   1. 取指地址自由前进：只要队列还有空间就连续发请求，不等下游把上一条取走；
+//   2. PC 跟着指令走：每个请求在标签队列里记下 {epoch, pc}，响应按序配对，
+//      交付出去的 (pc, inst) 永远来自同一次取指；
+//   3. 重定向不排空：flush 只做 epoch+1、PC 改成目标地址、清空指令队列；
+//      在途请求的响应照常接收，epoch 不匹配就丢弃，不需要等总线事务结束。
+//
+// 总线协议不变：req_valid 拉高后保持到 req_ready 握手，期间地址不变；每次只允许
+// 一笔请求处于"已拉高未握手"状态。响应通道恒就绪，否则总线事务永远无法结束。
+//
 // RESET_PC 默认 = 哈佛式指令存储器(ROM)基址 0x0000_0000, 见 docs/cpu-baseline.md。
+// FETCH_DEPTH 必须是 2 的幂。
+//
+// STALL_WINDOW: 流水线停顿时允许的预取窗口。soc_top 的取指已走 ROM 专用口,
+// 不再和访存抢总线, 这个上限在当前 SoC 上不影响结果; 如果取指和数据共用一条
+// 单笔事务总线, 把它调小(例如 2)可以避免取指把访存挤在总线外。
 module ifu #(
-    parameter [31:0] RESET_PC = 32'h00000000
+    parameter [31:0] RESET_PC = 32'h00000000,
+    parameter FETCH_DEPTH = 4,
+    parameter STALL_WINDOW = 2
 ) (
 
     input wire clk,
@@ -49,52 +67,130 @@ module ifu #(
 
 );
 
-    // One outstanding fetch and one response buffer. No fixed-latency or
-    // bus-arbitration assumptions. A redirected outstanding fetch is drained.
-    localparam IDLE = 2'd0, SEND = 2'd1, WAIT = 2'd2, FULL = 2'd3;
-    reg [1:0] state;
-    reg [31:0] next_pc, request_pc, instruction;
-    reg  killed;
-    wire blocked = stall_i[`STALL_PC] | jtag_halt_i;
+    localparam AW = $clog2(FETCH_DEPTH);  // 队列存储索引位宽
+    localparam PTRW = AW + 1;             // 指针多一位，用来区分满和空
+    localparam EW = 8;                    // epoch 位宽，够覆盖任何在途事务的生命期
 
-    assign req_valid_o = rst_n && state == SEND;
-    assign rsp_ready_o = rst_n && state == WAIT;
-    assign ibus_addr_o = request_pc;
+    // 指令队列: 每项 {pc, inst}
+    reg [63:0] inst_mem[0:FETCH_DEPTH-1];
+    reg [PTRW-1:0] inst_wptr, inst_rptr;
+
+    // 在途请求标签: 每项 {epoch, pc}
+    reg [EW+31:0] tag_mem[0:FETCH_DEPTH-1];
+    reg [PTRW-1:0] tag_wptr, tag_rptr;
+
+    // 取指地址与代际
+    reg [31:0] fetch_pc;
+    reg [EW-1:0] epoch;
+
+    // 已经拉高 req_valid、还没被总线接受的请求
+    reg req_pending;
+    reg [31:0] req_addr;
+    reg [EW-1:0] req_epoch;
+
+    wire [PTRW-1:0] inst_cnt = inst_wptr - inst_rptr;
+    wire [PTRW-1:0] tag_cnt = tag_wptr - tag_rptr;
+    wire inst_empty = (inst_cnt == {PTRW{1'b0}});
+    wire tag_empty = (tag_cnt == {PTRW{1'b0}});
+
+    // 已经进入取指通路的指令总数: 队列里 + 在途标签 + 正在握手的请求
+    wire [PTRW:0] inflight = {1'b0, inst_cnt} + {1'b0, tag_cnt} + {{PTRW{1'b0}}, req_pending};
+
+    // 队列还有余量就一直取；重定向和 jtag 暂停期间不发起新请求。
+    // 流水线停顿时没有指令被消费，把窗口压到 STALL_WINDOW，避免取指把访存挤在总线外。
+    localparam [PTRW:0] DEPTH_LIM = FETCH_DEPTH;
+    localparam [PTRW:0] STALL_LIM = STALL_WINDOW;
+    wire [PTRW:0] issue_limit = stall_i[`STALL_ID] ? STALL_LIM : DEPTH_LIM;
+    wire can_issue = rst_n && !jtag_halt_i && (inflight < issue_limit);
+    wire issue_start = can_issue && !req_pending && !flush_i;
+    wire issue_fire = req_pending && req_ready_i;
+    wire issue_next = can_issue && !flush_i;  // 与 issue_fire 同拍启动下一笔
+
+    assign req_valid_o = rst_n && req_pending;
+    assign rsp_ready_o = rst_n;  // 永远接收，避免总线事务悬挂
+    assign ibus_addr_o = req_pending ? req_addr : fetch_pc;
     assign ibus_data_o = 32'b0;
     assign ibus_sel_o = 4'b1111;
     assign ibus_we_o = 1'b0;
-    assign inst_valid_o = state == FULL && !blocked && !flush_i;
-    assign inst_o = inst_valid_o ? instruction : `INST_NOP;
-    assign pc_o = request_pc;
 
+    // 响应按发出顺序配对；epoch 不匹配说明这笔取指在重定向之前，直接丢弃
+    wire [EW+31:0] tag_head = tag_mem[tag_rptr[AW-1:0]];
+    wire rsp_take = rst_n && rsp_valid_i && !tag_empty;
+    wire rsp_match = rsp_take && (tag_head[EW+31:32] == epoch);
+
+    // 交给 ifu_idu 的指令；队列空时给 NOP 气泡
+    wire [63:0] inst_head = inst_mem[inst_rptr[AW-1:0]];
+    assign inst_valid_o = rst_n && !flush_i && !jtag_halt_i && !inst_empty;
+    assign inst_o = inst_valid_o ? inst_head[31:0] : `INST_NOP;
+    assign pc_o = inst_valid_o ? inst_head[63:32] : fetch_pc;
+
+    // ifu_idu 在 !stall[ID] 或 flush 时锁存；flush 那一拍指令已被丢弃，不用出队
+    wire inst_pop = inst_valid_o && !stall_i[`STALL_ID];
+
+    // 指令队列
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state <= IDLE;
-            next_pc <= RESET_PC;
-            request_pc <= RESET_PC;
-            instruction <= `INST_NOP;
-            killed <= 1'b0;
+            inst_wptr <= {PTRW{1'b0}};
+            inst_rptr <= {PTRW{1'b0}};
+        end else if (flush_i) begin
+            // 丢弃错误路径上已经取回的指令；标签队列不动，等在途响应回来被 epoch 丢掉
+            inst_wptr <= {PTRW{1'b0}};
+            inst_rptr <= {PTRW{1'b0}};
         end else begin
-            case (state)
-                IDLE:
-                if (!blocked && !flush_i) begin
-                    request_pc <= next_pc;
-                    next_pc <= next_pc + 4;
-                    killed <= 1'b0;
-                    state <= SEND;
-                end
-                SEND: if (req_ready_i) state <= WAIT;
-                WAIT:
-                if (rsp_valid_i) begin
-                    instruction <= ibus_data_i;
-                    state <= (killed || flush_i) ? IDLE : FULL;
-                end
-                FULL: if (!blocked || flush_i) state <= IDLE;
-            endcase
-            if (flush_i) begin
-                next_pc <= flush_addr_i;
-                killed  <= 1'b1;
+            if (rsp_match) begin
+                inst_mem[inst_wptr[AW-1:0]] <= {tag_head[31:0], ibus_data_i};
+                inst_wptr <= inst_wptr + 1'b1;
             end
+            if (inst_pop) inst_rptr <= inst_rptr + 1'b1;
         end
     end
+
+    // 标签队列: 记下请求发出时的 PC 和代际
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            tag_wptr <= {PTRW{1'b0}};
+            tag_rptr <= {PTRW{1'b0}};
+        end else begin
+            if (issue_fire) begin
+                tag_mem[tag_wptr[AW-1:0]] <= {req_epoch, req_addr};
+                tag_wptr <= tag_wptr + 1'b1;
+            end
+            if (rsp_take) tag_rptr <= tag_rptr + 1'b1;
+        end
+    end
+
+    // 取指地址: 只在真正发出一笔新请求时前进；重定向期间锁到目标地址
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            fetch_pc <= RESET_PC;
+            epoch    <= {EW{1'b0}};
+        end else if (flush_i) begin
+            fetch_pc <= flush_addr_i;
+            epoch    <= epoch + 1'b1;
+        end else if (issue_start || (issue_fire && issue_next)) begin
+            fetch_pc <= fetch_pc + 32'd4;
+        end
+    end
+
+    // 请求寄存: 拉高后保持到握手，期间地址不变；同拍可以接着发下一笔
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            req_pending <= 1'b0;
+            req_addr    <= RESET_PC;
+            req_epoch   <= {EW{1'b0}};
+        end else if (issue_fire) begin
+            if (issue_next) begin
+                req_pending <= 1'b1;
+                req_addr    <= fetch_pc;
+                req_epoch   <= epoch;
+            end else begin
+                req_pending <= 1'b0;
+            end
+        end else if (issue_start) begin
+            req_pending <= 1'b1;
+            req_addr    <= fetch_pc;
+            req_epoch   <= epoch;
+        end
+    end
+
 endmodule

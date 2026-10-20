@@ -1,6 +1,11 @@
 // SoC 顶层: 处理器核 + RIB 总线 + 存储器
 //
-// 地址映射(由 rib 的 addr[31:28] 译码决定, 与 tests/cpu/link.ld、sw/link.ld 一致):
+// 取指: CPU 的 ibus 直接接 ROM 的取指口, 不经过 rib, 取指和数据访问同拍进行、
+//       互不阻塞。因此指令必须位于 ROM 窗口(0x0000_0000 起 64 KiB); 这是严格
+//       哈佛式划分, soc_top 不支持从 RAM 取指。
+//
+// 数据: CPU 的 dbus 是 rib 的主设备 1。rib 主设备 0 保留未用。从设备由 addr[31:28]
+//       译码, 与 tests/cpu/link.ld、sw/link.ld 一致:
 //   s0 = ROM   0x0000_0000, 64 KiB, 可选 app 区写入 -- 后 2 KiB 为引导区
 //   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
 //   s2 = 保留(未接入)
@@ -35,10 +40,13 @@ module soc_top #(
 
 );
 
-    // 核 <-> rib: 主设备 0 = ibus(取指), 主设备 1 = dbus(访存)
-    wire [31:0] ibus_addr, ibus_data_i, ibus_data_o;
-    wire [3:0] ibus_sel;
-    wire ibus_we, ibus_req_valid, ibus_req_ready, ibus_rsp_valid, ibus_rsp_ready;
+    // 取指: ibus 直连 ROM 的取指口, 不经过 rib
+    wire [31:0] ibus_addr, ibus_data_i;
+    wire ibus_req_valid, ibus_req_ready, ibus_rsp_valid, ibus_rsp_ready;
+
+    // ROM 取指口
+    wire [31:0] rom_i_data;
+    wire rom_i_req_ready, rom_i_rsp_valid;
 
     wire [31:0] dbus_addr, dbus_data_i, dbus_data_o;
     wire [3:0] dbus_sel;
@@ -86,9 +94,9 @@ module soc_top #(
 
         .ibus_addr_o(ibus_addr),
         .ibus_data_i(ibus_data_i),
-        .ibus_data_o(ibus_data_o),
-        .ibus_sel_o(ibus_sel),
-        .ibus_we_o(ibus_we),
+        .ibus_data_o(),
+        .ibus_sel_o(),
+        .ibus_we_o(),
         .ibus_req_valid_o(ibus_req_valid),
         .ibus_req_ready_i(ibus_req_ready),
         .ibus_rsp_valid_i(ibus_rsp_valid),
@@ -110,16 +118,16 @@ module soc_top #(
         .clk  (clk),
         .rst_n(rst_n),
 
-        // 主设备 0 = ibus
-        .m0_addr_i(ibus_addr),
-        .m0_data_i(ibus_data_o),
-        .m0_sel_i(ibus_sel),
-        .m0_we_i(ibus_we),
-        .m0_req_valid_i(ibus_req_valid),
-        .m0_req_ready_o(ibus_req_ready),
-        .m0_rsp_ready_i(ibus_rsp_ready),
-        .m0_rsp_valid_o(ibus_rsp_valid),
-        .m0_data_o(ibus_data_i),
+        // 主设备 0 保留未用: 取指已直连 ROM 的取指口
+        .m0_addr_i(32'h0),
+        .m0_data_i(32'h0),
+        .m0_sel_i(4'h0),
+        .m0_we_i(1'b0),
+        .m0_req_valid_i(1'b0),
+        .m0_req_ready_o(),
+        .m0_rsp_ready_i(1'b0),
+        .m0_rsp_valid_o(),
+        .m0_data_o(),
 
         // 主设备 1 = dbus
         .m1_addr_i(dbus_addr),
@@ -189,7 +197,13 @@ module soc_top #(
     );
 
 
+    // 取指口直连 ibus: 取指不再和 dbus 抢 rib
+    assign ibus_req_ready = rom_i_req_ready;
+    assign ibus_rsp_valid = rom_i_rsp_valid;
+    assign ibus_data_i = rom_i_data;
+
     // 指令存储器: 64 KiB, 深度与 tests/cpu/link.ld 的 ROM 区一致
+    // 数据口接 rib 从设备 0(读 rodata、bootloader 写), 取指口接 ibus
     rom #(
         .WRITABLE(ROM_WRITABLE),
         .DP(16384),
@@ -206,7 +220,13 @@ module soc_top #(
         .req_valid_i(s0_req_valid),
         .req_ready_o(s0_req_ready),
         .rsp_valid_o(s0_rsp_valid),
-        .rsp_ready_i(s0_rsp_ready)
+        .rsp_ready_i(s0_rsp_ready),
+        .i_addr_i(ibus_addr),
+        .i_data_o(rom_i_data),
+        .i_req_valid_i(ibus_req_valid),
+        .i_req_ready_o(rom_i_req_ready),
+        .i_rsp_valid_o(rom_i_rsp_valid),
+        .i_rsp_ready_i(ibus_rsp_ready)
     );
 
 

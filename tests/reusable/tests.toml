@@ -34,3 +34,13 @@ rtl = "rtl/reusable.f"
 [[test]]
 tb = "uart_status_tb.sv"
 rtl = "rtl/reusable.f"
+
+[[test]]
+tb = "ifu_tb.sv"
+rtl = "rtl/cpu.f"
+params = [
+  { DEPTH = 4, RDELAY = 1 },
+  { DEPTH = 2, RDELAY = 3 },
+  { DEPTH = 4, RDELAY = 1, BACK2BACK = 1 },
+]
+runs = [{ plusargs = ["+seed=1"] }, { plusargs = ["+seed=7"] }]
