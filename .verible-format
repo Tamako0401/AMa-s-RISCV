@@ -1,0 +1,4 @@
+# 现有 Verilog 用四空格缩进。
+--indentation_spaces=4
+# 解析失败必须报错, 避免格式检查把未能处理的文件算作通过。
+--failsafe_success=false

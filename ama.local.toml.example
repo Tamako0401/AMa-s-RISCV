@@ -2,6 +2,7 @@
 #
 # 工具: 键名是 ama 调用的程序名, 值是替代它的命令 (字符串列表)。没写的就在 PATH 里找同名程序。
 #   可写的键: clang, riscv64-unknown-elf-gcc, cc, verilator, vivado, pds_shell
+#             ruff, clang-tidy, clang-format, verible-verilog-lint, verible-verilog-format
 # 替代命令必须表现得和原程序一样:
 #   - ama 在值后面追加原程序自己的参数, 替代命令要原样接受;
 #   - ama 选定当前目录 (仓库根或 build/ 下的工程目录) 再运行, 替代命令要在这个目录里读写, 认相对路径;

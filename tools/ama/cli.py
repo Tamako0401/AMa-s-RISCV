@@ -113,6 +113,22 @@ def test_cmd(paths: Optional[list[str]] = typer.Argument(None, help='测试目�
         raise typer.Exit(1)
 
 
+@cli.command('lint')
+def lint_cmd(fix: bool = typer.Option(False, '--fix', help='直接修复工具能自动修的问题')):
+    """检查 Python、C 和 Verilog 的规范及明显问题。"""
+    from .lint import lint
+    if not lint(fix):
+        raise typer.Exit(1)
+
+
+@cli.command('fmt')
+def fmt_cmd(fix: bool = typer.Option(False, '--fix', help='直接改写格式不对的文件')):
+    """检查 Python、C 和 Verilog 格式; 不加 --fix 只列出格式不对的文件。"""
+    from .lint import fmt
+    if not fmt(fix):
+        raise typer.Exit(1)
+
+
 @cli.command('run')
 def run_cmd(app: str = App, board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt, force: bool = ForceOpt):
     """编译, 下载, 然后显示串口输出 (最常用)。"""

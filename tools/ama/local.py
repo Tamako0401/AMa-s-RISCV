@@ -5,7 +5,8 @@ import tomllib
 from .boards import ROOT
 
 # ama 调用的外部程序; 键名就是程序名, 没配置就在 PATH 里找同名程序
-TOOLS = ['clang', 'riscv64-unknown-elf-gcc', 'cc', 'verilator', 'vivado', 'pds_shell']
+TOOLS = ['clang', 'riscv64-unknown-elf-gcc', 'cc', 'verilator', 'vivado', 'pds_shell',
+         'ruff', 'clang-tidy', 'clang-format', 'verible-verilog-lint', 'verible-verilog-format']
 
 LOCAL = ROOT / 'ama.local.toml'
 CONFIG = tomllib.loads(LOCAL.read_text(encoding='utf8')) if LOCAL.exists() else {}

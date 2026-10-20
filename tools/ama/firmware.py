@@ -71,15 +71,17 @@ def compiler(cc):
     return tool('clang' if cc == 'clang' else 'riscv64-unknown-elf-gcc')
 
 
-def run(*cmd, **kw):
+def run(*cmd, check=True, **kw):
     cmd = [str(c) for c in cmd]
-    print('  $ ' + shlex.join(cmd), file=kw.get('stdout'), flush=True)
+    if not kw.get('capture_output'):
+        print('  $ ' + shlex.join(cmd), file=kw.get('stdout'), flush=True)
     try:
-        code = subprocess.run(cmd, **kw).returncode
+        result = subprocess.run(cmd, **kw)
     except FileNotFoundError:
         raise SystemExit(f'找不到 {cmd[0]}: 装上它, 或在 ama.local.toml 里写它的命令')
-    if code:
+    if check and result.returncode:
         raise SystemExit('上面的命令失败了')
+    return result
 
 
 def check_app(app):

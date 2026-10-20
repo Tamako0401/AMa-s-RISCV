@@ -1,0 +1,6 @@
+# 现有 Python 按 120 列排版, 避免强制缩成 88 列。
+line-length = 120
+
+[format]
+# 现有字符串以单引号为主。
+quote-style = 'single'
