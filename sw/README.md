@@ -18,8 +18,8 @@ boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), �
 | --- | --- |
 | hello | 新程序的模板: `ama new <程序>` 复制它 (串口打招呼、画色块、LED 闪) |
 | [selftest](app/selftest/README.md) | 板级自检, 烧进位流的默认程序 |
-| snake | 贪吃蛇, 按键或串口 wasd 控制 |
-| coremark | CoreMark 跑分 (见下) |
+| [snake](app/snake/README.md) | 贪吃蛇, 按键或串口 wasd 控制 |
+| [coremark](app/coremark/README.md) | CoreMark 跑分 |
 
 **引脚功能只在 components / bsp 里选。** `io_connect_out` / `io_connect_in` (把引脚接到 SPI、UART) 只允许出现在
 components 和 bsp 里 (现在只有 `components/lcd/lcd_io.c`), 程序里只用 `io_dir` / `io_write` / `io_read`。
