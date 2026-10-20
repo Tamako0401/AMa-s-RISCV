@@ -25,7 +25,7 @@ module coremark_tb;
         .rst_n(rst_n),
         .io_o (io_o),
         .io_oe(),
-        .io_i (128'b1 << `UART_RX_PIN)
+        .io_i (128'd1 << `UART_RX_PIN)
     );
 
     // 观察数据总线上对 tohost 的写

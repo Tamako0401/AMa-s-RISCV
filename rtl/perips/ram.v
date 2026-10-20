@@ -61,7 +61,7 @@ module ram #(
     localparam AW = $clog2(DP);
 
     // 字节地址 -> 字地址
-    wire [31:0] word_addr = addr_i[31:2];
+    wire [31:0] word_addr = {2'b0, addr_i[31:2]};
 
     // 请求被接受的那一拍才写: 主设备保持 we_i 等待响应时不会重复写入
     wire wr_en = we_i & req_valid_i & req_ready_o;

@@ -69,8 +69,9 @@ module spi_tb;
         end
 
     integer waited;
-    task access (input bit write_en, input [31:0] offset, input [31:0] value, input [3:0] lanes,
-                 input integer hold_cycles, output [31:0] result);
+    task static access (input bit write_en, input logic [31:0] offset, input logic [31:0] value,
+                        input logic [3:0] lanes, input integer hold_cycles,
+                        output logic [31:0] result);
         @(negedge clk);
         addr = offset;
         wdata = value;
@@ -106,7 +107,7 @@ module spi_tb;
         @(negedge clk);
         rsp_ready = 0;
     endtask
-    task reset_dut;
+    task static reset_dut;
         @(negedge clk);
         monitor_on = 0;
         rst_n = 0;
@@ -118,7 +119,7 @@ module spi_tb;
         edge_number = 0;
         decoded = 0;
     endtask
-    task watch(input integer mode, input integer baud, input integer count);
+    task static watch(input integer mode, input integer baud, input integer count);
         target_cpol = (mode >> 1) & 1;
         target_cpha = mode & 1;
         half_clocks = 1 << baud;
@@ -129,7 +130,7 @@ module spi_tb;
         miso = target_cpha ? 0 : target_rx[0][7];
         monitor_on = 1;
     endtask
-    task wait_frames(input integer count);
+    task static wait_frames(input integer count);
         integer cycles;
         cycles = 0;
         while (frames < count) begin

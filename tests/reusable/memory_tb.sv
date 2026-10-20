@@ -60,7 +60,8 @@ module memory_tb;
     integer i;
 
     // 一次 ROM 访问; wr=1 用于验证写请求被忽略
-    task rom_access(input bit wr, input [31:0] off, input [31:0] value, input [3:0] lanes);
+    task static rom_access(input bit wr, input logic [31:0] off, input logic [31:0] value,
+                           input logic [3:0] lanes);
         begin
             @(negedge clk);
             rom_addr = off;
@@ -84,7 +85,8 @@ module memory_tb;
     endtask
 
     // 一次 RAM 访问
-    task ram_access(input bit wr, input [31:0] off, input [31:0] value, input [3:0] lanes);
+    task static ram_access(input bit wr, input logic [31:0] off, input logic [31:0] value,
+                           input logic [3:0] lanes);
         begin
             @(negedge clk);
             ram_addr = off;

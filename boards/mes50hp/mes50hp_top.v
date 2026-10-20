@@ -31,10 +31,10 @@ module mes50hp_top #(
     wire [127:0] io_o, io_oe, io_i;
     genvar n;
     generate
-        for (n = 0; n < IO_N; n = n + 1) begin : pins
-            if (INOUT_MASK[n]) begin
+        for (n = 0; n < IO_N; n = n + 1) begin : g_pins
+            if (INOUT_MASK[n]) begin : g_inout
                 assign io[n] = io_oe[n] ? io_o[n] : 1'bz;
-            end else if (OUT_MASK[n]) begin
+            end else if (OUT_MASK[n]) begin : g_output
                 assign io[n] = io_o[n];
             end
             assign io_i[n] = IN_N_MASK[n] ? ~io[n] : io[n];

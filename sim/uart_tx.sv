@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 // 窗口里按下的字符 (view.py 追加到 +keys 文件) 按 115200 发到板子的串口接收脚
 module uart_tx (
-    input wire clk,
-    output reg tx = 1
+    input  wire clk,
+    output reg  tx = 1
 );
     localparam BIT_CLKS = 434;  // 50 MHz / 115200
     string path;

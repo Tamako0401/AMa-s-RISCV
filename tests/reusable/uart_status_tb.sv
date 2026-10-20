@@ -46,7 +46,8 @@ module uart_status_tb;
     end
 
     // 一次 MMIO 读写: 下降沿给请求, 上升沿握手, 响应在下一拍
-    task access (input bit wr, input [31:0] offset, input [31:0] value, output [31:0] result);
+    task static access (input bit wr, input logic [31:0] offset, input logic [31:0] value,
+                        output logic [31:0] result);
         @(negedge clk);
         addr = offset;
         wdata = value;
@@ -63,7 +64,7 @@ module uart_status_tb;
 
     // 在接下来第 n 个上升沿写 STATUS = 0 (清 RX 标志), 只握手一拍
     // CI 的 Verilator 5.020 不支持 fork 调用栈里的 repeat。
-    task write_status_at(input integer n);
+    task static write_status_at(input integer n);
         for (integer i = 0; i < n - 1; i = i + 1) @(negedge clk);
         @(negedge clk);
         addr = 4;
@@ -76,7 +77,7 @@ module uart_status_tb;
         addr = 0;
     endtask
 
-    task send_rx(input [7:0] value);
+    task static send_rx(input logic [7:0] value);
         rx = 0;
         for (integer i = 0; i < BIT_CLKS; i = i + 1) @(negedge clk);
         for (integer b = 0; b < 8; b = b + 1) begin
@@ -87,7 +88,7 @@ module uart_status_tb;
         for (integer i = 0; i < BIT_CLKS; i = i + 1) @(negedge clk);
     endtask
 
-    task restart;
+    task static restart;
         reg [31:0] r;
         @(negedge clk);
         rst_n = 0;

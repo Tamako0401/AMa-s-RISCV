@@ -58,7 +58,7 @@ module st7789_model #(
     integer       frame_pixels = 0;
     initial frame_enabled = $value$plusargs("frame=%s", frame_path);
 
-    task write_frame;
+    task static write_frame;
         integer fd;
         begin
             // 小窗口也会频繁结束 RAMWR, 累积像素后再写以减少文件开销。
@@ -72,7 +72,7 @@ module st7789_model #(
         end
     endtask
 
-    task handle_cmd(input [7:0] c);
+    task static handle_cmd(input logic [7:0] c);
         begin
             if (st == ST_RAMWR) write_frame();
             cur_cmd = c;
@@ -96,7 +96,7 @@ module st7789_model #(
         end
     endtask
 
-    task handle_data(input [7:0] d);
+    task static handle_data(input logic [7:0] d);
         begin
             data_cnt = data_cnt + 1;
             case (st)
@@ -189,7 +189,7 @@ module st7789_model #(
     // *********************** 报告 ***********************
     // 把 GRAM 缩成 ASCII 图: 每 4 列取 1 字符, 每 8 行取 1 行。
     // 用色相而不是亮度, 这样"红/绿/蓝/白/黑"一眼可辨。
-    function [7:0] glyph(input [15:0] c);
+    function static [7:0] glyph(input logic [15:0] c);
         reg [4:0] r;
         reg [5:0] g;
         reg [4:0] b;
@@ -205,7 +205,7 @@ module st7789_model #(
         end
     endfunction
 
-    task render;
+    task static render;
         integer ry, rx;
         begin
             $display("    +%0s+", {60{"-"}});

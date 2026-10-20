@@ -55,9 +55,9 @@ module soc_top #(
     wire s1_we, s1_req_valid, s1_req_ready, s1_rsp_valid, s1_rsp_ready;
 
     // rib 从设备 2、3: 保留
-    wire [31:0] s2_addr, s2_wdata, s3_addr, s3_wdata;
-    wire [3:0] s2_sel, s3_sel;
-    wire s2_we, s2_req_valid, s3_we, s3_req_valid;
+    wire [31:0] unused_s2_addr, unused_s2_wdata, unused_s3_addr, unused_s3_wdata;
+    wire [3:0] unused_s2_sel, unused_s3_sel;
+    wire unused_s2_we, unused_s2_req_valid, unused_s3_we, unused_s3_req_valid;
 
     // rib 从设备 4: 外设子总线 (0x4000_0000)
     wire [31:0] s4_addr, s4_wdata, s4_rdata;
@@ -155,22 +155,22 @@ module soc_top #(
         .s1_data_i(s1_rdata),
 
         // 从设备 2 = 保留: 不握手
-        .s2_addr_o(s2_addr),
-        .s2_data_o(s2_wdata),
-        .s2_sel_o(s2_sel),
-        .s2_we_o(s2_we),
-        .s2_req_valid_o(s2_req_valid),
+        .s2_addr_o(unused_s2_addr),
+        .s2_data_o(unused_s2_wdata),
+        .s2_sel_o(unused_s2_sel),
+        .s2_we_o(unused_s2_we),
+        .s2_req_valid_o(unused_s2_req_valid),
         .s2_req_ready_i(1'b0),
         .s2_rsp_valid_i(1'b0),
         .s2_rsp_ready_o(),
         .s2_data_i(32'h0),
 
         // 从设备 3 = 保留: 不握手
-        .s3_addr_o(s3_addr),
-        .s3_data_o(s3_wdata),
-        .s3_sel_o(s3_sel),
-        .s3_we_o(s3_we),
-        .s3_req_valid_o(s3_req_valid),
+        .s3_addr_o(unused_s3_addr),
+        .s3_data_o(unused_s3_wdata),
+        .s3_sel_o(unused_s3_sel),
+        .s3_we_o(unused_s3_we),
+        .s3_req_valid_o(unused_s3_req_valid),
         .s3_req_ready_i(1'b0),
         .s3_rsp_valid_i(1'b0),
         .s3_rsp_ready_o(),

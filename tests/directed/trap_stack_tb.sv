@@ -41,7 +41,7 @@ module trap_stack_tb;
     reg [31:0] result;
     integer snapshots = 0;
     string rom_path;
-    task fail(input string why);
+    task static fail(input string why);
         $fatal(1, "CHECK 2 FAIL: %s", why);
     endtask
     initial begin

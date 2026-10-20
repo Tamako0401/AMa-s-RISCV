@@ -8,15 +8,15 @@ module storage_tb;
     reg [31:0] wd = 0;
     wire [31:0] qa, qb;
     gpr_reg rf (
-        clk,
-        rst_n,
-        we,
-        wa,
-        wd,
-        ra,
-        qa,
-        rb,
-        qb
+        .clk(clk),
+        .rst_n(rst_n),
+        .we_i(we),
+        .waddr_i(wa),
+        .wdata_i(wd),
+        .raddr1_i(ra),
+        .rdata1_o(qa),
+        .raddr2_i(rb),
+        .rdata2_o(qb)
     );
 
     reg [3:0] addr = 0;
@@ -28,12 +28,12 @@ module storage_tb;
         .DP(16),
         .AW(4)
     ) ram (
-        clk,
-        addr,
-        data,
-        mask,
-        wr,
-        dout
+        .clk(clk),
+        .addr_i(addr),
+        .data_i(data),
+        .sel_i(mask),
+        .we_i(wr),
+        .data_o(dout)
     );
 
     reg vi = 0, ready = 0;
@@ -41,22 +41,22 @@ module storage_tb;
     vld_rdy #(
         .CUT_READY(0)
     ) flow0 (
-        clk,
-        rst_n,
-        vi,
-        ri0,
-        ready,
-        vo0
+        .clk  (clk),
+        .rst_n(rst_n),
+        .vld_i(vi),
+        .rdy_o(ri0),
+        .rdy_i(ready),
+        .vld_o(vo0)
     );
     vld_rdy #(
         .CUT_READY(1)
     ) flow1 (
-        clk,
-        rst_n,
-        vi,
-        ri1,
-        ready,
-        vo1
+        .clk  (clk),
+        .rst_n(rst_n),
+        .vld_i(vi),
+        .rdy_o(ri1),
+        .rdy_i(ready),
+        .vld_o(vo1)
     );
     reg  [7:0] sync_in = 0;
     wire [7:0] sync_out;
@@ -64,37 +64,37 @@ module storage_tb;
         .DP(2),
         .DW(8)
     ) sync2 (
-        rst_n,
-        clk,
-        sync_in,
-        sync_out
+        .rst_n(rst_n),
+        .clk  (clk),
+        .din  (sync_in),
+        .dout (sync_out)
     );
     reg flush = 0;
     wire [7:0] pipe_q;
     gen_pipe_dff #(8) pipe_ff (
-        clk,
-        rst_n,
-        flush,
-        8'h13,
-        sync_in,
-        pipe_q
+        .clk(clk),
+        .rst_n(rst_n),
+        .hold_en(flush),
+        .def_val(8'h13),
+        .din(sync_in),
+        .qout(pipe_q)
     );
     wire [7:0] one_q, def_q;
     gen_rst_1_dff #(8) one_ff (
-        clk,
-        rst_n,
-        sync_in,
-        one_q
+        .clk  (clk),
+        .rst_n(rst_n),
+        .din  (sync_in),
+        .qout (one_q)
     );
     gen_rst_def_dff #(8) def_ff (
-        clk,
-        rst_n,
-        8'h42,
-        sync_in,
-        def_q
+        .clk(clk),
+        .rst_n(rst_n),
+        .def_val(8'h42),
+        .din(sync_in),
+        .qout(def_q)
     );
 
-    task tick;
+    task static tick;
         @(posedge clk);
         #1;
     endtask

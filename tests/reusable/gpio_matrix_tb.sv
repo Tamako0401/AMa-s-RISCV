@@ -43,7 +43,7 @@ module gpio_matrix_case #(
         .spi_miso_o(miso)
     );
 
-    task check(input bit ok, input string message);
+    task static check(input bit ok, input string message);
         if (!ok) begin
             $display("FAIL IO_N=%0d: %s", IO_N, message);
             $fatal(1);
@@ -51,7 +51,7 @@ module gpio_matrix_case #(
     endtask
 
     reg [31:0] result;
-    task access (input bit write_en, input [31:0] offset, input [31:0] value);
+    task static access (input bit write_en, input logic [31:0] offset, input logic [31:0] value);
         @(negedge clk);
         addr = offset;
         wdata = value;
@@ -71,7 +71,7 @@ module gpio_matrix_case #(
         @(negedge clk);
         rsp_ready = 0;
     endtask
-    task read_check(input [31:0] offset, input [31:0] expected);
+    task static read_check(input logic [31:0] offset, input logic [31:0] expected);
         access (0, offset, 0);
         check(result === expected, $sformatf("read %h got %h expected %h", offset, result, expected
               ));
@@ -149,8 +149,8 @@ module gpio_matrix_case #(
         end
 
         for (n = 0; n < 128; n = n + 1) begin
-            access (1, 'h10 + (n / 32) * 4, 32'b1 << (n % 32));
-            access (1, 'h40 + (n / 32) * 4, 32'b1 << (n % 32));
+            access (1, 'h10 + (n / 32) * 4, 32'd1 << (n % 32));
+            access (1, 'h40 + (n / 32) * 4, 32'd1 << (n % 32));
             for (sig = 1; sig <= 3; sig = sig + 1) begin
                 access (1, 'h200 + 4 * n, sig);
                 read_check('h200 + 4 * n, n < IO_N ? sig : 0);
@@ -167,8 +167,8 @@ module gpio_matrix_case #(
             end
             access (1, 'h200 + 4 * n, 0);
             check(out_pins[n] === (n < IO_N) && oe[n] === (n < IO_N), "restored GPIO registers");
-            access (1, 'h20 + (n / 32) * 4, 32'b1 << (n % 32));
-            access (1, 'h50 + (n / 32) * 4, 32'b1 << (n % 32));
+            access (1, 'h20 + (n / 32) * 4, 32'd1 << (n % 32));
+            access (1, 'h50 + (n / 32) * 4, 32'd1 << (n % 32));
             access (1, 'h400, n);
             access (1, 'h404, n);
             check(rx === (n < IO_N ? pins[n] : 1'b1), "UART input selection");

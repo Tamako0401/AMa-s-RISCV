@@ -176,7 +176,8 @@ module cpu_tb;
     always @(posedge clk)
         if (rst_n) begin
             if (commit_log_fd != 0) begin
-                if (dut.ie_inst_o != 32'h00000000 && dut.ie_inst_o != 32'h00000013 && dut.ctrl_stall_o[`STALL_EX] == 0) begin
+                if (dut.ie_inst_o != 32'h00000000 && dut.ie_inst_o != 32'h00000013 &&
+                    dut.ctrl_stall_o[`STALL_EX] == 0) begin
                     // 没有真指令的时候不打印, 在等数据的时候不打印
                     // 会跳过真的nop, 需要时后续加一个valid?
                     $fwrite(commit_log_fd, "core   0: 3 0x%h (0x%h)", dut.ie_dec_pc_o,

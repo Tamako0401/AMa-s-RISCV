@@ -49,7 +49,7 @@ module boot_tb;
             count = count + 1;
         end
 
-    task send_byte(input [7:0] value);
+    task static send_byte(input logic [7:0] value);
         integer bit_n;
         begin
             uart_rx = 0;
@@ -62,13 +62,13 @@ module boot_tb;
             #BIT_NS;
         end
     endtask
-    task send_word(input [31:0] value);
+    task static send_word(input logic [31:0] value);
         integer n;
         begin
             for (n = 0; n < 4; n = n + 1) send_byte(value[n*8+:8]);
         end
     endtask
-    task expect_byte(input [7:0] value);
+    task static expect_byte(input logic [7:0] value);
         begin
             wait (count > cursor);
             if (received[cursor] !== value)
@@ -78,19 +78,19 @@ module boot_tb;
             cursor = cursor + 1;
         end
     endtask
-    task expect_word(input [31:0] value);
+    task static expect_word(input logic [31:0] value);
         integer n;
         begin
             for (n = 0; n < 4; n = n + 1) expect_byte(value[n*8+:8]);
         end
     endtask
-    task expect_text(input string value);
+    task static expect_text(input string value);
         integer n;
         begin
             for (n = 0; n < value.len(); n = n + 1) expect_byte(value[n]);
         end
     endtask
-    task handshake;
+    task static handshake;
         begin
             send_byte(8'h7f);
             expect_text("AMB");
@@ -99,7 +99,7 @@ module boot_tb;
             expect_word(32'hf800);
         end
     endtask
-    task enter_boot;
+    task static enter_boot;
         begin
             uart_rx = 0;
             #160000;
@@ -109,7 +109,7 @@ module boot_tb;
             handshake();
         end
     endtask
-    task download(input [31:0] crc);
+    task static download(input logic [31:0] crc);
         integer n;
         begin
             send_byte("W");

@@ -38,7 +38,7 @@ module lcd_tb;
 
     `include "boards/mes50hp/pins_top.vh"
     wire [127:0] io_o, io_oe;
-    wire [127:0] io_i = (128'b1 << `PIN_UART_RX);
+    wire [127:0] io_i = (128'd1 << `PIN_UART_RX);
     assign {spi_clk, spi_mosi, spi_ss, lcd_dc, lcd_rst_n} = {
         io_o[`PIN_J8_27], io_o[`PIN_J8_28], io_o[`PIN_J8_23], io_o[`PIN_J8_26], io_o[`PIN_J8_25]
     };
@@ -72,7 +72,8 @@ module lcd_tb;
     // 检查: 读 GRAM 的某个像素
     reg [15:0] px;
     integer bad = 0;
-    task expect_pixel(input integer x, input integer y, input [15:0] want, input [127:0] name);
+    task static expect_pixel(input integer x, input integer y, input logic [15:0] want,
+                             input logic [127:0] name);
         begin
             px = u_panel.gram[y*W+x];
             if (px !== want) begin
@@ -83,7 +84,7 @@ module lcd_tb;
     endtask
 
     // 对角线是 Bresenham 画出来的, 精确 x 依赖算法; 在附近几列里找一个绿点
-    task expect_diagonal(input integer y);
+    task static expect_diagonal(input integer y);
         integer x, hit;
         begin
             hit = 0;

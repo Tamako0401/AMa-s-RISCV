@@ -61,6 +61,8 @@ static snake_dir_t read_input(snake_dir_t dir, int *start, int *moved)
         case ' ':
             *start = 1;
             break;
+        default:
+            break;
         }
         *moved |= c != 'p' && c != ' ';
     }

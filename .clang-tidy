@@ -1,5 +1,6 @@
 # clang-tidy 规则: VS Code 的 clangd 插件会自动读这个文件, 在编辑器里直接标出来
 # 关掉的几条: 寄存器位操作 (1 << n) 到处都是有符号常量; __I/__O/__IO 是 CMSIS 惯例; 引脚号 uint32_t 转 int 是故意的
+# BSP 和驱动头文件统一导出设备类型及寄存器宏, 因此关闭 misc-include-cleaner。
 Checks: >
   bugprone-*,
   -bugprone-easily-swappable-parameters,
@@ -7,7 +8,7 @@ Checks: >
   -bugprone-reserved-identifier,
   -bugprone-narrowing-conversions,
   -bugprone-unhandled-code-paths,
-  misc-include-cleaner,
+  -misc-include-cleaner,
   readability-misleading-indentation,
   readability-redundant-declaration
 HeaderFilterRegex: '^sw/'

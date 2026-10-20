@@ -159,7 +159,12 @@ def compile_app(app, board, defines, out, **kw):
     database = ROOT / 'build/compile_commands.json'
     entries = {e['file']: e for e in json.loads(database.read_text())} if database.exists() else {}
     for src in sources:
-        entries[src] = {'directory': str(ROOT), 'file': src, 'arguments': [*cmd, *options, '-c', src]}
+        # 编译数据库只描述编译步骤, 链接器参数在 clang-tidy 中会报未使用。
+        entries[src] = {
+            'directory': str(ROOT),
+            'file': src,
+            'arguments': [*cmd, *[flag for flag in options if not flag.startswith('-Wl,')], '-c', src],
+        }
     database.write_text(json.dumps(list(entries.values()), ensure_ascii=False, indent=1))
     return elf
 

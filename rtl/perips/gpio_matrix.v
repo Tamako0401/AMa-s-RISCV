@@ -79,6 +79,8 @@ module gpio_matrix #(
                     3: gpio_enable[{word, 5'b0}+:32] <= data_i & valid_w;
                     4: gpio_enable[{word, 5'b0}+:32] <= (enable_w | data_i) & valid_w;
                     5: gpio_enable[{word, 5'b0}+:32] <= enable_w & ~data_i;
+                    default: begin
+                    end
                 endcase
             if (is_in_sel) func_in_sel[addr_i[2]] <= data_i[7:0];
         end
@@ -151,6 +153,8 @@ module gpio_matrix #(
                         0: data_r <= out_w;
                         3: data_r <= enable_w;
                         6: data_r <= io_q1[{word, 5'b0}+:32] & valid_w;
+                        default: begin
+                        end
                     endcase
                 if (is_out_sel && pin < IO_N) data_r <= {24'h0, func_out_sel[pin]};
                 if (is_in_sel) data_r <= {24'h0, func_in_sel[addr_i[2]]};

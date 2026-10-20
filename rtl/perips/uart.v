@@ -63,7 +63,6 @@ module uart #(
     reg         rx_start;  // RX使能
     reg  [ 3:0] rx_clk_edge_cnt;  // clk沿的个数
     reg         rx_clk_edge_level;  // clk沿电平
-    reg         rx_done;
     reg  [15:0] rx_clk_cnt;
     reg  [15:0] rx_div_cnt;
     reg  [ 7:0] rx_data;
@@ -288,6 +287,8 @@ module uart #(
                         bit_cnt <= bit_cnt + 4'h1;
                     end
                 end
+                default: begin
+                end
             endcase
         end
     end
@@ -305,7 +306,9 @@ module uart #(
                     tx_bit <= 1'b0;
                 end
                 S_SEND_BYTE: begin
-                    tx_bit <= uart_tx[bit_cnt];
+                    tx_bit <= uart_tx[{1'b0, bit_cnt}];
+                end
+                default: begin
                 end
             endcase
         end
@@ -428,6 +431,8 @@ module uart #(
                             if (rx_clk_edge_cnt == 4'h9) begin
                                 rx_over <= 1'b1;
                             end
+                        end
+                        default: begin
                         end
                     endcase
                 end

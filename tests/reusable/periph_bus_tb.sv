@@ -89,8 +89,8 @@ module periph_bus_tb;
         end
 
     // 一次完整访问: 请求保持到握手, 响应在 hold 拍后才取走
-    task access (input [31:0] a, input w, input [31:0] d, input [3:0] s, input integer hold,
-                 output [31:0] result);
+    task static access (input logic [31:0] a, input logic w, input logic [31:0] d,
+                        input logic [3:0] s, input integer hold, output logic [31:0] result);
         integer guard;
         @(negedge clk);
         addr = a;

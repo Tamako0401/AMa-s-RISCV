@@ -47,19 +47,19 @@ module vld_rdy #(
     assign vld_nxt = vld_set | (~vld_clr);
 
     gen_en_dff #(1) vld_dff (
-        clk,
-        rst_n,
-        vld_ena,
-        vld_nxt,
-        vld_r
+        .clk(clk),
+        .rst_n(rst_n),
+        .en(vld_ena),
+        .din(vld_nxt),
+        .qout(vld_r)
     );
 
     assign vld_o = vld_r;
 
-    if (CUT_READY == 1) begin
+    if (CUT_READY == 1) begin : g_cut_ready
         // If cut ready, then only accept when stage is not full
         assign rdy_o = (~vld_r);
-    end else begin
+    end else begin : g_pass_ready
         // If not cut ready, then can accept when stage is not full or it is popping
         assign rdy_o = (~vld_r) | vld_clr;
     end

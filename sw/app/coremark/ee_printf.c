@@ -129,6 +129,7 @@ static char *number(char *str, long num, int base, int size, int precision, int 
 
 static char *eaddr(char *str, unsigned char *addr, int size, int precision, int type)
 {
+    (void)precision;
     char tmp[24];
     char *dig = digits;
     int i, len;
@@ -156,6 +157,7 @@ static char *eaddr(char *str, unsigned char *addr, int size, int precision, int 
 
 static char *iaddr(char *str, unsigned char *addr, int size, int precision, int type)
 {
+    (void)precision;
     char tmp[24];
     int i, n, len;
 
@@ -441,6 +443,8 @@ static int ee_vsprintf(char *buf, const char *fmt, va_list args)
         case '0':
             flags |= ZEROPAD;
             goto repeat;
+        default:
+            break;
         }
 
         // Get field width
@@ -561,8 +565,9 @@ static int ee_vsprintf(char *buf, const char *fmt, va_list args)
 
         if (qualifier == 'l')
             num = va_arg(args, unsigned long);
+        // va_arg 的类型区分有符号与无符号实参, 即使目标平台展开成相同表达式。
         else if (flags & SIGN)
-            num = va_arg(args, int);
+            num = va_arg(args, int); // NOLINT(bugprone-branch-clone)
         else
             num = va_arg(args, unsigned int);
 

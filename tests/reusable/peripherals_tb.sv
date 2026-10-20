@@ -13,22 +13,22 @@ module peripherals_tb;
     uart #(
         .CPU_CLOCK_HZ(1843200)
     ) u (
-        clk,
-        rst_n,
-        addr,
-        data,
-        sel,
-        we,
-        ud,
-        uv,
-        ur,
-        uresp,
-        uart_rsp_ready,
-        tx,
-        rx
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(addr),
+        .data_i(data),
+        .sel_i(sel),
+        .we_i(we),
+        .data_o(ud),
+        .req_valid_i(uv),
+        .req_ready_o(ur),
+        .rsp_valid_o(uresp),
+        .rsp_ready_i(uart_rsp_ready),
+        .tx_pin(tx),
+        .rx_pin(rx)
     );
-    task access (input bit write_en, input [31:0] offset, input [31:0] value, input [3:0] lanes,
-                 output [31:0] result);
+    task static access (input bit write_en, input logic [31:0] offset, input logic [31:0] value,
+                        input logic [3:0] lanes, output logic [31:0] result);
         @(negedge clk);
         addr = offset;
         data = value;
@@ -52,7 +52,7 @@ module peripherals_tb;
     integer i;
     integer test_pass = 0;
     reg [7:0] received;
-    task send_rx(input [7:0] value);
+    task static send_rx(input logic [7:0] value);
         @(negedge clk);
         rx = 0;
         repeat (17) @(negedge clk);

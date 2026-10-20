@@ -131,7 +131,9 @@ def pds_build(data, out):
         cells = line.split('|')[1:-1]
         if len(cells) > 2 and cells[1].strip().isdigit():
             name = cells[0].rstrip()
-            rows.append(((len(name) - len(name.lstrip(' +'))) // 2, name.strip(' +'), cells[1].strip(), cells[2].strip()))
+            rows.append(
+                ((len(name) - len(name.lstrip(' +'))) // 2, name.strip(' +'), cells[1].strip(), cells[2].strip())
+            )
     print_modules(rows)
 
 

@@ -245,8 +245,8 @@ module axi_bridge_tb;
     // ================= 访问任务 =================
     // 全部在 negedge 驱动与采样, 避开 posedge 上 valid/ready 的竞争
 
-    task access32(input wr, input [31:0] a, input [31:0] wd, input [3:0] be, input integer hold,
-                  output [31:0] rd);
+    task static access32(input logic wr, input logic [31:0] a, input logic [31:0] wd,
+                         input logic [3:0] be, input integer hold, output logic [31:0] rd);
         begin
             @(negedge clk);
             r32_addr = a;
@@ -293,7 +293,8 @@ module axi_bridge_tb;
         end
     endtask
 
-    task access64(input [31:0] a, input [31:0] wd, input [3:0] be, output [31:0] rd);
+    task static access64(input logic [31:0] a, input logic [31:0] wd, input logic [3:0] be,
+                         output logic [31:0] rd);
         begin
             @(negedge clk);
             r64_addr = a;
@@ -331,7 +332,7 @@ module axi_bridge_tb;
         end
     endtask
 
-    task read64(input [31:0] a, output [31:0] rd);
+    task static read64(input logic [31:0] a, output logic [31:0] rd);
         begin
             @(negedge clk);
             r64_addr = a;

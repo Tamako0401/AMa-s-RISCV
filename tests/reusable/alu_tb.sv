@@ -80,7 +80,7 @@ module alu_tb;
         .bjp_res_o(bjp_res_o),
         .bjp_cmp_res_o(bjp_cmp_res_o)
     );
-    task clear_ops;
+    task static clear_ops;
         begin
             alu_op_add_i  = 0;
             alu_op_sub_i  = 0;
@@ -151,6 +151,8 @@ module alu_tb;
                     9: begin
                         alu_op_and_i = 1;
                         expected = alu_op1_i & alu_op2_i;
+                    end
+                    default: begin
                     end
                 endcase
                 #1;

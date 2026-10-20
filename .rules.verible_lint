@@ -1,0 +1,8 @@
+# .v 由 PDS 按 Verilog 解析, 保留隐式参数类型、传统数组范围和 always @* 写法。
+-explicit-parameter-storage-type
+-unpacked-dimensions-range-ordering
+-always-comb
+# 常量普遍使用大写下划线命名。
+parameter-name-style=localparam_style:ALL_CAPS;parameter_style:ALL_CAPS
+# 与 Python/C 的行宽一致, 避免拆散寄存器及测试断言表达式。
+line-length=length:120

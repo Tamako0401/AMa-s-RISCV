@@ -42,7 +42,7 @@ module snake_tb;
         .mosi(spi_mosi)
     );
 
-    task send_key(input [7:0] c);
+    task static send_key(input logic [7:0] c);
         integer b;
         begin
             // 在下降沿改变输入, 避开 UART 的采样沿。
@@ -58,7 +58,7 @@ module snake_tb;
         end
     endtask
 
-    task expect_cell(input integer x, input integer y, input [15:0] color);
+    task static expect_cell(input integer x, input integer y, input logic [15:0] color);
         integer wrong, dx, dy;
         begin
             wrong = 0;

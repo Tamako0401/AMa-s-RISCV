@@ -65,7 +65,7 @@ module rom #(
     reg [AW-1:0] addr_r;
 
     // 字节地址 -> 字地址
-    wire [31:0] word_addr = addr_i[31:2];
+    wire [31:0] word_addr = {2'b0, addr_i[31:2]};
 
     // 程序初值
     initial begin
@@ -83,7 +83,7 @@ module rom #(
 
     // 存储体不复位, 保留块 RAM 推断; 引导区即使开锁也不能覆盖。
     generate
-        if (WRITABLE) begin : writable
+        if (WRITABLE) begin : g_writable
             integer b;
             always @(posedge clk) begin
                 if (we_i && we_en_i && req_valid_i && req_ready_o && addr_i < 32'hf800)

@@ -83,6 +83,8 @@ module spi (
                         CR2: response_data <= 0;
                         SR:  response_data <= status;
                         DR:  response_data <= {24'b0, rx_buffer};
+                        default: begin
+                        end
                     endcase
                 end
                 if (write_cr1) cr1 <= data_i[6:0] | 7'h04;

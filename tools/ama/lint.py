@@ -1,5 +1,7 @@
 """源码规范检查和格式化。"""
 
+from pathlib import Path
+
 from .boards import ROOT
 from .firmware import run
 from .local import tool
@@ -27,8 +29,26 @@ def lint(fix):
     python, c, verilog = sources()
     commands = [
         ('ruff', ['check', *(['--fix'] if fix else []), *python]),
-        *[('clang-tidy', ['-p', 'build', '--warnings-as-errors=*', *(['--fix'] if fix else []), path]) for path in c],
-        *[('verible-verilog-lint', [*(['--autofix=inplace'] if fix else []), path]) for path in verilog],
+        *[
+            (
+                'clang-tidy',
+                [
+                    '--warnings-as-errors=*',
+                    *(['--fix'] if fix else []),
+                    path,
+                    # 主机测试按 testing.host 的编译选项解析, 不能借用固件的 RISC-V 配置。
+                    *(['--', f'-I{Path(path).parent.parent}'] if Path(path).parent.name == 'test' else ['-p', 'build']),
+                ],
+            )
+            for path in c
+        ],
+        *[
+            (
+                'verible-verilog-lint',
+                ['--rules_config=.rules.verible_lint', *(['--autofix=inplace'] if fix else []), path],
+            )
+            for path in verilog
+        ],
         ('verilator', ['--lint-only', '-Wall', '-f', 'rtl/soc.f', '--top-module', 'soc_top']),
     ]
     passed = True
