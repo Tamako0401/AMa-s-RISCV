@@ -45,18 +45,22 @@ module uart_status_tb;
     endtask
 
     // 在接下来第 n 个上升沿写 STATUS = 0 (清 RX 标志), 只握手一拍
+    // CI 的 Verilator 5.020 不支持 fork 调用栈里的 repeat。
     task write_status_at(input integer n);
-        repeat (n - 1) @(negedge clk);
+        for (integer i = 0; i < n - 1; i = i + 1) @(negedge clk);
         @(negedge clk); addr = 4; wdata = 0; we = 1; valid = 1;
         @(negedge clk); valid = 0; we = 0; addr = 0;
     endtask
 
     task send_rx(input [7:0] value);
-        rx = 0; repeat (BIT_CLKS) @(negedge clk);
+        rx = 0;
+        for (integer i = 0; i < BIT_CLKS; i = i + 1) @(negedge clk);
         for (integer b = 0; b < 8; b = b + 1) begin
-            rx = value[b]; repeat (BIT_CLKS) @(negedge clk);
+            rx = value[b];
+            for (integer i = 0; i < BIT_CLKS; i = i + 1) @(negedge clk);
         end
-        rx = 1; repeat (BIT_CLKS) @(negedge clk);
+        rx = 1;
+        for (integer i = 0; i < BIT_CLKS; i = i + 1) @(negedge clk);
     endtask
 
     task restart;

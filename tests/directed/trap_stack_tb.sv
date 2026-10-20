@@ -29,8 +29,7 @@ module trap_stack_tb;
     integer snapshots = 0;
     string rom_path;
     task fail(input string why);
-        $display("CHECK 2 FAIL: %s", why);
-        $finish;
+        $fatal(1, "CHECK 2 FAIL: %s", why);
     endtask
     initial begin
         if (!$value$plusargs("rom=%s", rom_path)) fail("missing +rom=hex");
@@ -69,7 +68,7 @@ module trap_stack_tb;
                     fail($sformatf("setup/cause/PC mismatch snapshots=%0d", snapshots));
                 if (result === 0 && (ram[2] & 32'h88) === 32'h80 &&
                     (ram[3] & 32'h88) === 32'h88) $display("CHECK 2 PASS");
-                else $display("CHECK 2 FAIL: entry MIE=%b MPIE=%b; return MIE=%b MPIE=%b (expected 0/1;1/1)",
+                else $fatal(1, "CHECK 2 FAIL: entry MIE=%b MPIE=%b; return MIE=%b MPIE=%b (expected 0/1;1/1)",
                               ram[2][3], ram[2][7], ram[3][3], ram[3][7]);
                 $finish;
             end

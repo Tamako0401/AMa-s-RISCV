@@ -3,7 +3,6 @@
 // 时钟周期数与实机相同 (同一份 RTL, 存储都在片内), 所以这里算出的 CoreMark/MHz 就是实机值;
 // 上板只是用真实主频跑满 CoreMark 规定的 10 秒。
 // 结束判定: 程序在 portable_fini 里写 tohost (0x1000_0000) = 1。
-// 运行: python3 scripts/coremark.py
 `timescale 1ns/1ps
 module coremark_tb;
     parameter [31:0] TOHOST_ADDR = 32'h10000000;
@@ -31,7 +30,10 @@ module coremark_tb;
     integer cycles = 0;
     always @(posedge clk) begin
         cycles <= cycles + 1;
-        if (rst_n && dv && dr && dwe && da == TOHOST_ADDR) done <= 1;
+        if (rst_n && dv && dr && dwe && da == TOHOST_ADDR) begin
+            if (u_soc.u_core.dbus_data_o != 1) $fatal(1, "coremark: CRC or score failed");
+            done <= 1;
+        end
         if (cycles == MAX_CYCLES) $fatal(1, "coremark: timeout after %0d cycles", cycles);
     end
 

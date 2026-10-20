@@ -1,0 +1,10 @@
+[[test]]
+tb = "response_hold_tb.sv"
+rtl = "rtl/reusable.f"
+expect = "fail"
+
+[[test]]
+tb = "trap_stack_tb.sv"
+rtl = "rtl/cpu.f"
+expect = "fail"
+runs = [{ program = ["tests/directed/trap_stack.S"] }]

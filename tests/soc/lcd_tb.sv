@@ -4,7 +4,6 @@
 // 与 tests/soc/soc_tb.sv 的分工: soc_tb 用汇编小程序验总线互连, 这里跑真正的
 // 屏幕驱动软件, 验的是"能不能点亮一块屏"。
 //
-// 程序镜像: +rom= (由 scripts/test-lcd.py 经 scripts/elf2hex.py 生成); +ram= 可选, sw/ 程序不用。
 // 结束判定: 向 RAM 窗口第 0 个字 0x1000_0000 写 1 —— sw/link.ld 把 .tohost 放在
 // 那里, 程序结束前写 tohost = 1。
 `timescale 1ns/1ps
@@ -145,7 +144,7 @@ module lcd_tb;
             bad = bad + 1;
         end
 
-        // lcd_demo: 黑底 + 白边框 + 绿对角线 + 红/绿/蓝三个色块
+        // selftest: 黑底 + 白边框 + 绿对角线 + 红/绿/蓝三个色块
         expect_pixel(120,   0, 16'hFFFF, "上边框");
         expect_pixel(120, 319, 16'hFFFF, "下边框");
         expect_pixel(  0, 160, 16'hFFFF, "左边框");

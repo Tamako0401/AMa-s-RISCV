@@ -1,0 +1,36 @@
+[[test]]
+tb = "alu_tb.sv"
+rtl = "rtl/reusable.f"
+
+[[test]]
+tb = "axi_bridge_tb.sv"
+rtl = "rtl/reusable.f"
+extra = ["tests/reusable/axi_slave_model.sv"]
+
+[[test]]
+tb = "gpio_matrix_tb.sv"
+rtl = "rtl/reusable.f"
+
+[[test]]
+tb = "memory_tb.sv"
+rtl = "rtl/reusable.f"
+
+[[test]]
+tb = "periph_bus_tb.sv"
+rtl = "rtl/reusable.f"
+
+[[test]]
+tb = "peripherals_tb.sv"
+rtl = "rtl/reusable.f"
+
+[[test]]
+tb = "spi_tb.sv"
+rtl = "rtl/perips/spi.v"
+
+[[test]]
+tb = "storage_tb.sv"
+rtl = "rtl/reusable.f"
+
+[[test]]
+tb = "uart_status_tb.sv"
+rtl = "rtl/reusable.f"

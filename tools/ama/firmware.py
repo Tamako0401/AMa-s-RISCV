@@ -78,7 +78,7 @@ def compiler(cc):
 
 def run(*cmd, **kw):
     cmd = [str(c) for c in cmd]
-    print('  $ ' + shlex.join(cmd), flush=True)
+    print('  $ ' + shlex.join(cmd), file=kw.get('stdout'), flush=True)
     if subprocess.run(cmd, **kw).returncode:
         raise SystemExit('上面的命令失败了')
 
@@ -101,7 +101,7 @@ def firmware_dir(app, board, cc):
     return ROOT / 'build/fw' / board / variant(app, cc)
 
 
-def compile_app(app, board, cc, defines, out):
+def compile_app(app, board, cc, defines, out, **kw):
     check_app(app)
     out.mkdir(parents=True, exist_ok=True)
     app_dir = ROOT / 'sw/app' / app
@@ -117,7 +117,7 @@ def compile_app(app, board, cc, defines, out):
                f'-DBOARD_{board.upper()}', *defines]
     cmd = compiler(cc)
     elf = out / 'app.elf'
-    run(cmd, *options, '-T', 'sw/link.ld', *sources, *(['-lgcc'] if cc == 'gcc' else []), '-o', elf, cwd=ROOT)
+    run(cmd, *options, '-T', 'sw/link.ld', *sources, *(['-lgcc'] if cc == 'gcc' else []), '-o', elf, cwd=ROOT, **kw)
     # clangd 需要与实际编译一致的宏和头文件路径。
     (ROOT / 'build/compile_commands.json').write_text(json.dumps([
         {'directory': str(ROOT), 'file': src, 'arguments': [cmd, *[f for f in options if not f.startswith('-fuse-ld')], '-c', src]}
@@ -125,17 +125,16 @@ def compile_app(app, board, cc, defines, out):
     return elf
 
 
-def build_firmware(app, board, cc):
-    out = firmware_dir(app, board, cc)
-    elf = compile_app(app, board, cc, [], out)
+def build_firmware(app, board, cc, defines, boot_defines, out, **kw):
+    """app + bootloader -> out/rom.hex (app 在 0..0xF800, bootloader 在 0xF800..0x10000)"""
+    elf = compile_app(app, board, cc, defines, out, **kw)
     boot = out / 'boot.elf'
     options = [f for f in flags(cc) if f != '-O2']
-    run(compiler(cc), *options, '-Os', '-fno-delete-null-pointer-checks',
+    run(compiler(cc), *options, '-Os', '-fno-delete-null-pointer-checks', *boot_defines,
         *[f'-I{d}' for d in SW_INC], '-T', 'sw/boot/link.ld',
-        'sw/boot/startup.S', 'sw/boot/main.c', *(['-lgcc'] if cc == 'gcc' else []), '-o', boot, cwd=ROOT)
+        'sw/boot/startup.S', 'sw/boot/main.c', *(['-lgcc'] if cc == 'gcc' else []), '-o', boot, cwd=ROOT, **kw)
     size = max(addr + len(data) - 0xf800 for addr, data in load_segments(boot.read_bytes()) if addr < 0x10000)
     if size > 2048:
         raise SystemExit(f'bootloader too large: {size} bytes')
-    print(f'Bootloader: {size} bytes', flush=True)
     write_hex(elf_to_rom(elf, size=0xf800) + elf_to_rom(boot, base=0xf800, size=2048), out / 'rom.hex')
     return elf

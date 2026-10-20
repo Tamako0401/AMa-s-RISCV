@@ -1,7 +1,6 @@
-// 复位测试: soc_top 跑 sw/app/reset_check, 程序改掉自己的变量后复位 CPU,
-// 只在仿真开始时装一次 ROM 镜像 (和 FPGA 配置一样), RAM 不预装, 复位也不重装。
+// 复位测试: soc_top 跑 tests/soc/reset_check.c, 程序改掉自己的变量后复位 CPU,
+// 复位时不重装 ROM/RAM, 才能验证是 startup 恢复了变量。
 // 两次运行都写 tohost = 1 才算通过: 说明 startup.S 每次复位都把 .data 初值从 ROM 拷回 RAM。
-// 运行: python3 scripts/test-lcd.py reset_check --tb reset_tb
 `timescale 1ns/1ps
 module reset_tb;
     parameter [31:0] TOHOST_ADDR = 32'h10000000;

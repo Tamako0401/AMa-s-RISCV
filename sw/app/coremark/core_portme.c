@@ -33,6 +33,7 @@ volatile ee_s32 seed5_volatile = 0;
 /* 仿真测试台 (tests/soc/coremark_tb.sv) 看到这里被写入就结束仿真; 实机上没人看, 无害 */
 volatile uint64_t tohost __attribute__((section(".tohost")));
 
+int coremark_errors;
 static CORETIMETYPE start_time_val, stop_time_val;
 
 static inline ee_u32 read_cycle(void)
@@ -88,8 +89,23 @@ void
 portable_fini(core_portable *p)
 {
     p->portable_id = 0;
+    core_results *result = (core_results *)((char *)p - offsetof(core_results, port));
+    uint64_t scaled = (uint64_t)result->iterations * 1000000000u;
+    ee_u32 ticks = get_time(), score = 0;
+    /* 裸机 clang 没有 64 位除法库; 这里只求千分位, 减法次数很少。 */
+    if (ticks) {
+        while (scaled >= ticks) {
+            scaled -= ticks;
+            score++;
+        }
+    }
+    ee_printf("CoreMark/MHz: %lu.%03lu\n", (unsigned long)(score / 1000),
+              (unsigned long)(score % 1000));
+#ifdef MIN_SCORE
+    if (score < MIN_SCORE) coremark_errors++;
+#endif
     ee_printf("CoreMark done.\n");
-    tohost = 1;
+    tohost = ticks && !coremark_errors ? 1 : 2;
 }
 
 /* -nostdlib 没有 C 库, 但编译器会为结构体赋值/清零自动生成 memcpy/memset 调用 */

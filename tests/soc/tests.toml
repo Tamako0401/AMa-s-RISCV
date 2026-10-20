@@ -1,0 +1,34 @@
+[[test]]
+tb = "soc_tb.sv"
+rtl = "rtl/soc.f"
+runs = [
+  { program = ["tests/soc/soc_smoke.S"], plusargs = ["+stores=19"] },
+  { program = ["tests/soc/soc_data.S"], plusargs = ["+stores=1"] },
+  { program = ["tests/soc/soc_spi.S"], plusargs = ["+stores=13", "+check_spi"] },
+  { program = ["tests/soc/soc_uart.S"], plusargs = ["+stores=7", "+check_uart"] },
+]
+
+[[test]]
+tb = "lcd_tb.sv"
+rtl = "rtl/soc.f"
+extra = ["tests/soc/st7789_model.sv"]
+runs = [{ app = "selftest" }]
+
+[[test]]
+tb = "reset_tb.sv"
+rtl = "rtl/soc.f"
+runs = [{ program = ["sw/startup.S", "tests/soc/reset_check.c"], link = "sw/link.ld" }]
+
+[[test]]
+tb = "snake_tb.sv"
+rtl = "rtl/soc.f"
+extra = ["tests/soc/st7789_model.sv"]
+runs = [{ app = "snake", defines = ["-DSNAKE_STEP_CYCLES=1000000"] }]
+
+[[test]]
+tb = "coremark_tb.sv"
+rtl = "rtl/soc.f"
+runs = [
+  { app = "coremark", cc = "clang", defines = ["-DITERATIONS=3", "-DMIN_SCORE=550"] },
+  { app = "coremark", cc = "gcc", defines = ["-DITERATIONS=3", "-DMIN_SCORE=650"] },
+]

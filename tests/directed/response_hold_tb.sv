@@ -32,8 +32,7 @@ module response_hold_tb;
         @(negedge clk); addr = 12; valid = 1; rsp_ready = 0;
         @(posedge clk);
         if (rom_ready !== 1'b1 || ram_ready !== 1'b1) begin
-            $display("CHECK 1 FAIL: read request not accepted ROM=%b RAM=%b", rom_ready, ram_ready);
-            $finish;
+            $fatal(1, "CHECK 1 FAIL: read request not accepted ROM=%b RAM=%b", rom_ready, ram_ready);
         end
         #1;
         rom_held = rom_data; ram_held = ram_data;
@@ -66,9 +65,9 @@ module response_hold_tb;
             if (ram_valid !== 1'b0) ram_bad = 1;
         end
         if (!rom_bad && !ram_bad) $display("CHECK 1 PASS");
-        else $display("CHECK 1 FAIL: ROM bad=%b held=%h expected=%h; RAM/gen_ram bad=%b held=%h expected=%h",
+        else $fatal(1, "CHECK 1 FAIL: ROM bad=%b held=%h expected=%h; RAM/gen_ram bad=%b held=%h expected=%h",
                       rom_bad, rom_held, ROM_WORD, ram_bad, ram_held, RAM_WORD);
         $finish;
     end
-    initial begin #10000; $display("CHECK 1 FAIL: timeout"); $finish; end
+    initial begin #10000; $fatal(1, "CHECK 1 FAIL: timeout"); end
 endmodule

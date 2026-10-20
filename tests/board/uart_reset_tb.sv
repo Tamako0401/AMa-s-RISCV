@@ -1,8 +1,12 @@
-// board_check 的首字节: 从上电开始监视引脚, 不跳过复位期间的低电平。
+// selftest 的首字节: 从上电开始监视引脚, 不跳过复位期间的低电平。
 // EGO1 的 key1_n = S6 & locked; 暂停 50 MHz 时钟模拟 MMCM 尚未输出时钟。
-// 运行: python3 scripts/build-board.py --board ego1 --harvard --simulate
 `timescale 1ns/1ps
 module uart_reset_tb;
+    string rom_path;
+    initial begin
+        if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
+        $readmemh(rom_path, dut.soc.u_rom.mem);
+    end
     localparam BIT_NS = 1_000_000_000.0 / 115200;
     localparam [111:0] EXPECTED = {"AMA CPU PASS", 8'h0d, 8'h0a};
     reg clk = 0, clock_running = 0;
@@ -14,7 +18,7 @@ module uart_reset_tb;
     wire [`IO_N-1:0] io;
     assign io[`UART_RX_PIN] = 1'b1;
     assign uart_tx = io[`UART_TX_PIN];
-    mes50hp_top #(.MEM_FILE("sim.hex")) dut(.clk(clk), .key1_n(key1_n), .io(io));
+    mes50hp_top #(.MEM_FILE("")) dut(.clk(clk), .key1_n(key1_n), .io(io));
 
     integer boot = 0, count = 0, writes = 0;
     reg first_write = 0;
@@ -85,5 +89,5 @@ module uart_reset_tb;
         $display("PASS uart_reset: power-on, stopped-clock and running-clock reset");
         $finish;
     end
-    initial begin #10000000; $fatal(1, "uart_reset timeout"); end
+    initial begin #2000000000; $fatal(1, "uart_reset timeout"); end
 endmodule

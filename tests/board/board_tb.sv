@@ -15,7 +15,12 @@ module board_tb;
     assign {lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl} =
         {io[24], io[25], io[20], io[23], io[22], io[21]};
     assign led = io[56:49];
-    mes50hp_top #(.MEM_FILE("sim.hex")) dut(.clk(clk), .key1_n(key1_n), .io(io));
+    mes50hp_top #(.MEM_FILE("")) dut(.clk(clk), .key1_n(key1_n), .io(io));
+    string rom_path;
+    initial begin
+        if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
+        $readmemh(rom_path, dut.soc.u_rom.mem);
+    end
     localparam BIT_NS=8680;
     integer count=0;
     integer boots=0;
@@ -79,5 +84,5 @@ module board_tb;
     always @(posedge clk) begin
         if(led==2) saw_led2<=1;
     end
-    initial begin #10000000; $fatal(1,"Board test timeout"); end
+    initial begin #2000000000; $fatal(1,"Board test timeout"); end
 endmodule

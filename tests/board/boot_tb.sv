@@ -1,7 +1,13 @@
 `timescale 1ns/1ps
 module boot_tb;
     `include "boards/mes50hp/pins_top.vh"
-    `include "boot-app.vh"
+    integer APP_LENGTH;
+    reg [31:0] APP_CRC;
+    string rom_path;
+    initial begin
+        if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
+        $readmemh(rom_path, dut.soc.u_rom.mem);
+    end
     localparam BIT_NS = 8680;
     localparam [31:0] ID = 32'h12345678;
     reg clk = 0;
@@ -10,10 +16,13 @@ module boot_tb;
     wire [`IO_N-1:0] io;
     wire uart_tx = io[`UART_TX_PIN];
     assign io[`UART_RX_PIN] = uart_rx;
-    mes50hp_top #(.MEM_FILE("boot-test.hex"), .HW_ID(ID),
+    mes50hp_top #(.MEM_FILE(""), .HW_ID(ID),
         .BREAK_CYCLES(6000)) dut(.clk(clk), .key1_n(key1_n), .io(io));
 
-    reg [7:0] app[0:APP_LENGTH-1];
+    reg [7:0] app[0:65535];
+    reg [31:0] program_rom[0:16383];
+    string program_path;
+    integer length, bit_n;
     reg [7:0] received[0:4095];
     integer count = 0, cursor = 0;
     reg [7:0] byte_rx;
@@ -93,11 +102,27 @@ module boot_tb;
     reg [31:0] first_word, boot_word;
     integer n;
     initial begin
-        $readmemh("boot-app.hex", app);
+        if (!$value$plusargs("program_rom=%s", program_path)) $fatal(1, "Missing program ROM");
+        $readmemh(program_path, program_rom);
+        length = 16'hf800;
+        while (program_rom[(length-1) >> 2][((length-1) & 3)*8 +: 8] == 8'ha5)
+            length = length - 1;
+        for (n = 0; n < length; n = n + 1) app[n] = program_rom[n >> 2][(n & 3)*8 +: 8];
+        // 下载尾部刻意不对齐, 覆盖协议的补零。
+        while ((length & 3) != 0) begin app[length] = 0; length = length + 1; end
+        app[length] = 8'h12; app[length+1] = 8'h34; app[length+2] = 8'h56;
+        APP_LENGTH = length + 3;
+        APP_CRC = 32'hffffffff;
+        for (n = 0; n < APP_LENGTH; n = n + 1) begin
+            APP_CRC = APP_CRC ^ app[n];
+            for (bit_n = 0; bit_n < 8; bit_n = bit_n + 1)
+                APP_CRC = (APP_CRC >> 1) ^ (APP_CRC[0] ? 32'hedb88320 : 0);
+        end
+        APP_CRC = ~APP_CRC;
         #1;
         first_word = dut.soc.u_rom.mem[0];
         boot_word = dut.soc.u_rom.mem[15872];
-        expect_text("DEFAULT APP\n");
+        expect_text("AMA CPU PASS\r\n");
         if (dut.soc.u_rom.mem[0] !== first_word || dut.soc.u_rom.mem[15872] !== boot_word)
             $fatal(1, "FAIL default app ROM protection");
         $display("PASS boot: silent window, default app, ROM_WE=0 and boot protection");
@@ -137,7 +162,7 @@ module boot_tb;
         $display("PASS boot_tb"); $finish;
     end
     initial begin
-        #200000000;
+        #2000000000;
         $fatal(1, "FAIL boot_tb timeout (received=%0d cursor=%0d)", count, cursor);
     end
 endmodule

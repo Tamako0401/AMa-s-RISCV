@@ -20,7 +20,7 @@ import typer
 
 from . import load, fpga as projects
 from .boards import ROOT, boards, gen_pins
-from .firmware import build_firmware, check_app, compile_app, elf_to_rom, write_hex, hwid, variant
+from .firmware import build_firmware, check_app, firmware_dir, compile_app, elf_to_rom, write_hex, hwid, variant
 
 LOCAL = ROOT / 'ama.local.toml'
 CONFIG = tomllib.loads(LOCAL.read_text(encoding='utf8')) if LOCAL.exists() else {}
@@ -30,7 +30,6 @@ BOARDS = boards()
 # 有测试台的程序: 测试台 (tests/soc/<名>.sv) 和仿真专用的编译宏。仿真用盘古的接线
 SIMS = {
     'selftest': ('lcd_tb', []),
-    'reset_check': ('reset_tb', []),
     'snake': ('snake_tb', ['-DSNAKE_STEP_CYCLES=1000000']),     # 走一步的间隔要够发一个串口字符
 }
 
@@ -111,7 +110,7 @@ def terminal(ser):
 
 def do_upload(app, board, port, force):
     board, port = pick_board(board, port)
-    image = load.app_image(build_firmware(app, board, 'clang'))
+    image = load.app_image(build_firmware(app, board, 'clang', [], [], firmware_dir(app, board, 'clang')))
     ser = open_port(port, board)
     step(f'下载到 {board} ({port})')
     hw = load.enter_bootloader(ser)
@@ -125,6 +124,14 @@ def do_upload(app, board, port, force):
     return ser
 
 
+@cli.command('test')
+def test_cmd(paths: Optional[list[str]] = typer.Argument(None, help='测试目录或测试台文件; 不写跑全部')):
+    """编译并运行 tests/ 和 sw/app/*/test/ 下的测试。"""
+    from .testing import test
+    if not test(paths):
+        raise typer.Exit(1)
+
+
 @cli.command('run')
 def run_cmd(app: str = App, board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt, force: bool = ForceOpt):
     """编译, 下载, 然后显示串口输出 (最常用)。"""
@@ -135,7 +142,8 @@ def run_cmd(app: str = App, board: Optional[str] = BoardOpt, port: Optional[str]
 def build(app: str = App, board: Optional[str] = BoardOpt, cc: Optional[Compiler] = CCOpt):
     """只编译程序 (几秒), 不碰板子。"""
     board, _ = pick_board(board)
-    elf = build_firmware(app, board, cc or 'clang')
+    cc = cc or 'clang'
+    elf = build_firmware(app, board, cc, [], [], firmware_dir(app, board, cc))
     typer.secho(f'✓ {elf.relative_to(ROOT)}', fg='green')
 
 
@@ -185,7 +193,7 @@ def fpga_build(app: str = App, board: Optional[str] = BoardOpt, cc: Optional[Com
     """编译固件并综合出位流。"""
     board, _ = pick_board(board)
     cc = cc or 'clang'
-    elf = build_firmware(app, board, cc)
+    elf = build_firmware(app, board, cc, [], [], firmware_dir(app, board, cc))
     out = projects.generate(board, variant(app, cc), elf.parent / 'rom.hex')
     projects.build(board, out, CONFIG)
     bit = out / BOARDS[board]['bitstream']

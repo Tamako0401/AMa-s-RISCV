@@ -14,7 +14,11 @@
 #include <stdint.h>
 
 /* 没有浮点单元也没有软浮点库 (-nostdlib): 用整数秒。
- * 精确的 CoreMark/MHz 由 Total ticks (= 时钟周期数) 和 Iterations 算, 见 scripts/coremark.py */
+ * 精确的 CoreMark/MHz 由 Total ticks (= 时钟周期数) 和 Iterations 算, 由移植层计算 */
+#ifndef ITERATIONS
+#define ITERATIONS 0
+#endif
+
 #define HAS_FLOAT  0
 #define HAS_TIME_H 0
 #define USE_CLOCK  0

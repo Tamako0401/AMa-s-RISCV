@@ -1,0 +1,15 @@
+[[test]]
+tb = "cpu_tb.sv"
+rtl = "rtl/cpu.f"
+params = [
+  { I_DELAY = 0, D_DELAY = 0, SEED = 1 },
+  { I_DELAY = 4, D_DELAY = 7, SEED = 12345 },
+  { I_DELAY = 11, D_DELAY = 13, SEED = 987654321 },
+]
+runs = [
+  { program = ["tests/cpu/smoke.S"], plusargs = ["+stores=3"] },
+  { program = ["tests/cpu/alu.S"], plusargs = ["+stores=0"] },
+  { program = ["tests/cpu/start.S", "tests/cpu/boot.c"], plusargs = ["+stores=-1"] },
+  { program = ["tests/cpu/memory.S"], plusargs = ["+stores=8"] },
+  { program = ["tests/cpu/extensions.S"], plusargs = ["+stores=0"] },
+]
