@@ -165,7 +165,7 @@ def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt):
 
 def sim_binary(out):
     obj = out / 'obj'
-    sources = ['boards/mes50hp/mes50hp_top.v', 'tests/soc/st7789_model.sv', 'sim/uart_rx.sv', 'sim/sim_top.sv']
+    sources = ['boards/mes50hp/mes50hp_top.v', 'tests/soc/st7789_model.sv', 'sim/uart_rx.sv', 'sim/uart_tx.sv', 'sim/sim_top.sv']
     inputs = [ROOT / p for p in sources + ['rtl/soc.f', 'boards/mes50hp/pins_top.vh']]
     inputs += [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().split() if not p.startswith('+')]
     inputs += list((ROOT / 'rtl').rglob('*.vh'))
@@ -207,10 +207,12 @@ def sim(app: str = App):
     binary = sim_binary(out)
     frame = out / f'{app}.frame'
     frame.write_bytes(bytes(W * H * 2))
-    step(f'仿真 {app}, 关窗口或 Ctrl+C 结束')
-    process = subprocess.Popen([str(binary), f'+rom={rom}', f'+frame={frame}'], cwd=ROOT, start_new_session=True)
+    keys = out / f'{app}.keys'
+    keys.write_bytes(b'')
+    step(f'仿真 {app}: 在窗口里打字 = 串口输入; 关窗口或 Ctrl+C 结束')
+    process = subprocess.Popen([str(binary), f'+rom={rom}', f'+frame={frame}', f'+keys={keys}'], cwd=ROOT, start_new_session=True)
     try:
-        show(frame, process)
+        show(frame, keys, process)
     except KeyboardInterrupt:
         pass
     finally:

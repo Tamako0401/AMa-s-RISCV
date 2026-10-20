@@ -30,11 +30,19 @@ def save_png(frame, path):
     )
 
 
-def show(frame, process):
+def send(keys, char):
+    if char:
+        with keys.open('ab') as f:
+            f.write(char.encode())
+
+
+def show(frame, keys, process):
     root = tk.Tk()
     root.title(f'AMa sim — {frame.stem}')
     label = tk.Label(root)
     label.pack()
+    # 按下的字符交给仿真里的 uart_tx, 相当于在串口终端里打字
+    root.bind('<Key>', lambda e: send(keys, e.char))
 
     def refresh():
         if process.poll() is not None:

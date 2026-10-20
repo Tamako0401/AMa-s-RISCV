@@ -21,7 +21,7 @@ flowchart LR
 | --- | --- | --- |
 | `build <程序>` | `sw/` 各层 + `sw/app/<程序>/` + `sw/boot/` | `build/fw/<板>/<程序>/` 下 app.elf、boot.elf、rom.hex |
 | `run` / `upload <程序>` | 同上 | 板子上跑起来 |
-| `sim <程序>` | 同上 (按盘古编译, 不带 bootloader) + `sim/` 外壳 | 窗口; 结束时截图 `build/sim/<程序>.png` |
+| `sim <程序>` | 同上 (按盘古编译, 不带 bootloader) + `sim/` 外壳 | 窗口显示屏幕, 终端显示串口; 在窗口里打字 = 往串口发字符; 结束时截图 `build/sim/<程序>.png` |
 | `test [路径]` | `tests.toml`、`sw/app/*/test/` | 每个测试一行 PASS/FAIL, 日志在 `build/test/` |
 | `fpga build <程序>` | rom.hex + `rtl/` + `boards/<板>/` | `build/fpga/<板>-<程序>/` 下的位流 |
 | `fpga program <程序>` | 上面的位流 | EGO1 直接烧; 盘古打印 PDS 里的操作步骤 |

@@ -7,7 +7,6 @@ module sim_top;
 
     `include "boards/mes50hp/pins_top.vh"
     wire [`IO_N-1:0] io;
-    assign io[`PIN_UART_RX] = 1'b1;
     // 按键是低有效输入, 没人按时板上是高电平
     localparam [127:0] IN_N = `IO_IN_N_MASK;
     for (genvar i = 0; i < `IO_N; i++) begin : g_key
@@ -30,6 +29,10 @@ module sim_top;
     uart_rx u_uart_rx (
         .clk(clk),
         .tx (io[`PIN_UART_TX])
+    );
+    uart_tx u_uart_tx (
+        .clk(clk),
+        .tx (io[`PIN_UART_RX])
     );
 
     initial begin
