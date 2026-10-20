@@ -2,10 +2,11 @@
 
 适用随板资料中的 **MES50HP / PGL50H-6IFBG484**，工具实测 PDS 2022.2-SP1-Lite。使用 50 MHz 时钟、片上 RAM、LED、板载 USB-UART 和 GMT024-8p10p-SPI 屏幕（ST7789V，240×320，只写）。
 
-## HDMI 输出
+## HDMI
 
-MS7210 的视频口由 `mes50hp_top` 直连 (`mes50hp.fdc`, 硬件手册表 3-7), I2C 和复位经 GPIO 矩阵 (`pins.csv` 的 HDMI_*)。
-见 [docs/video.md](../../docs/video.md)。
+发送芯片 MS7210 和接收芯片 MS7200 的视频口由 `mes50hp_top` 直连 (`mes50hp.fdc`, 硬件手册表 3-7、3-6),
+I2C 和复位经 GPIO 矩阵 (`pins.csv` 的 HDMI_*; 两颗芯片共用复位脚 R17)。
+见 [docs/video.md](../../docs/video.md)、[docs/vision.md](../../docs/vision.md)。
 
 ## 下载
 

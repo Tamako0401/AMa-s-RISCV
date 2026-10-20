@@ -1,5 +1,5 @@
-/* video_demo: HDMI 出图演示。蓝底白框的背景, 左上角一个静止的球 (精灵 0), 下半屏 8 个球来回弹。
- * 仿真测试 tests/soc/video_tb.sv 核对静止部分。 */
+/* video_demo: HDMI 出图演示。蓝底白框的背景, 左上角一个静止的球 (精灵 0), 下半屏 8 个球来回弹;
+ * 右上角的小窗显示 HDMI 输入 (电脑) 的画面。仿真测试 tests/soc/video_tb.sv 核对静止部分和小窗。 */
 #include "bsp.h"
 #include "uart.h"
 #include "video.h"
@@ -38,7 +38,9 @@ static void load_ball(void)
 int main(void)
 {
     uart_init(CONSOLE_UART, SYSCLK_HZ, 115200);
-    uart_puts(CONSOLE_UART, board_hdmi_init() ? "HDMI chip: no answer\r\n" : "HDMI chip: ok\r\n");
+    int hdmi = board_hdmi_init();
+    uart_puts(CONSOLE_UART, hdmi & 1 ? "HDMI out: no answer\r\n" : "HDMI out: ok\r\n");
+    uart_puts(CONSOLE_UART, hdmi & 2 ? "HDMI in: no answer\r\n" : "HDMI in: ok\r\n");
 
     video_palette(PAL_BG, 0, 0x0010 /* 深蓝 */);
     video_palette(PAL_BG, 1, 0xFFFF);
@@ -71,10 +73,13 @@ int main(void)
         dy[i] = i & 2 ? 1 : -1;
     }
     VIDEO->CTRL = VIDEO_CTRL_EN;
+    video_window(VIDEO_W - 8 - 160, 8);
     tohost = 1;
 
-    for (;;) {
+    for (uint32_t frame = 0;; frame++) {
         video_wait_frame();
+        if (frame % 30 == 0) /* 每半秒查一次 HDMI 输入 */
+            board_hdmi_poll();
         for (int i = 0; i < BALLS; i++) {
             x[i] += dx[i];
             y[i] += dy[i];

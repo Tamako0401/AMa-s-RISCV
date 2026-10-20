@@ -1,4 +1,5 @@
-// 视频测试台: sw/app/video_demo 跑在 SoC 上, video_sink 从视频输出端口收画面, 核对背景、精灵、放大和时序。
+// 视频测试台: sw/app/video_demo 跑在 SoC 上, video_sink 从视频输出端口收画面, 核对背景、精灵、放大和时序;
+// video_source 往视觉输入送测试图, 核对小窗里是 4x4 均值缩小后的图。
 // 结束判定同 lcd_tb: 程序准备好后写 tohost (RAM 0x1000_0000) = 1; 之后再收一整帧来核对。
 `timescale 1ns / 1ps
 module video_tb;
@@ -16,6 +17,13 @@ module video_tb;
     wire [127:0] io_i = (128'd1 << `PIN_UART_RX);
     wire pclk, hsync_n, vsync_n, de;
     wire [23:0] rgb;
+    wire vin_pclk, vin_de;
+    wire [23:0] vin_rgb;
+    video_source u_src (
+        .pclk(vin_pclk),
+        .de  (vin_de),
+        .rgb (vin_rgb)
+    );
     soc_top #(
         .IO_N(`IO_N),
         .UART_TX_PIN(`PIN_UART_TX),
@@ -30,7 +38,10 @@ module video_tb;
         .video_hsync_n(hsync_n),
         .video_vsync_n(vsync_n),
         .video_de(de),
-        .video_rgb(rgb)
+        .video_rgb(rgb),
+        .vin_pclk(vin_pclk),
+        .vin_de(vin_de),
+        .vin_rgb(vin_rgb)
     );
     video_sink #(
         .W(W),
@@ -58,18 +69,45 @@ module video_tb;
 
     // 逻辑坐标 (x, y) 对应的 2x2 个物理像素都应该是 want
     integer bad = 0;
-    task static expect_pixel(input integer x, input integer y, input logic [23:0] want, input logic [127:0] name);
+    task static expect_pixel(input integer x, input integer y, input logic [23:0] want,
+                             input logic [127:0] name);
         integer i;
         reg [23:0] got;
         begin
             for (i = 0; i < 4; i = i + 1) begin
                 got = u_sink.fb[(2*y+i/2)*W+2*x+i%2];
                 if (got !== want) begin
-                    $display("    FAIL %0s: (%0d,%0d) 第 %0d 个物理像素 = %06h, 期望 %06h", name, x, y, i, got, want);
+                    $display("    FAIL %0s: (%0d,%0d) 第 %0d 个物理像素 = %06h, 期望 %06h",
+                             name, x, y, i, got, want);
                     bad = bad + 1;
-                    i = 4;
+                    i   = 4;
                 end
             end
+        end
+    endtask
+
+    // 小窗 (wx, wy) 应是输入图 4x4 块的均值, 存成 RGB332 再按 video.v 的方式扩回 RGB888
+    localparam WIN_X = 152, WIN_Y = 8;
+    task static expect_window(input integer wx, input integer wy);
+        integer i, r, g, b;
+        reg [23:0] p;
+        reg [ 7:0] q;
+        begin
+            r = 0;
+            g = 0;
+            b = 0;
+            for (i = 0; i < 16; i = i + 1) begin
+                p = u_src.pattern(wx * 4 + i % 4, wy * 4 + i / 4);
+                r = r + p[23:16];
+                g = g + p[15:8];
+                b = b + p[7:0];
+            end
+            r = r / 16;
+            g = g / 16;
+            b = b / 16;
+            q = {r[7:5], g[7:5], b[7:6]};
+            expect_pixel(WIN_X + wx, WIN_Y + wy, {
+                         {2{q[7:5]}}, q[7:6], {2{q[4:2]}}, q[4:3], {4{q[1:0]}}}, "小窗");
         end
     endtask
 
@@ -89,15 +127,21 @@ module video_tb;
         expect_pixel(319, 239, WALL, "右下角白框");
         expect_pixel(7, 100, WALL, "左框最内一列");
         expect_pixel(8, 100, SKY, "左框里面");
-        expect_pixel(200, 60, SKY, "蓝底");
+        expect_pixel(100, 60, SKY, "蓝底");
         // 静止的球在 (16,16)~(31,31): 中心里圈黄色, 外圈红色, 四角透明露出蓝底
         expect_pixel(24, 24, YELLOW, "球心");
         expect_pixel(24, 17, RED, "球上沿");
         expect_pixel(16, 16, SKY, "球的透明角");
+        expect_window(0, 0);
+        expect_window(159, 119);
+        expect_window(37, 85);
+        expect_window(100, 7);
+        expect_window(8, 60);
+        expect_pixel(WIN_X - 1, WIN_Y + 10, SKY, "小窗左边");
         $display("[result] frames %0d", u_sink.frames);
 
         if (bad != 0) $fatal(1, "视频画面核对失败: %0d 项", bad);
-        $display("PASS video: 640x480 输出, 背景 + 精灵核对通过");
+        $display("PASS video: 640x480 输出, 背景 + 精灵 + 小窗核对通过");
         $finish;
     end
 

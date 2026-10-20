@@ -8,7 +8,7 @@
 //       译码, 与 tests/cpu/link.ld、sw/link.ld 一致:
 //   s0 = ROM   0x0000_0000, 64 KiB, 可选 app 区写入 -- 后 2 KiB 为引导区
 //   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
-//   s2 = 视频  0x2000_0000, 寄存器和显存, 见 docs/video.md
+//   s2 = 视频  0x2000_0000, 寄存器和显存, 见 docs/video.md; 小窗读视觉输入 (u_vision, docs/vision.md)
 //   s3 = 保留(未接入)
 //   s4 = 外设子总线 0x4000_0000, 按 addr[15:12] 再分, 每个外设 4 KiB (rtl/core/periph_bus.v):
 //          0x4000_0000: 空, 读返回 0, 写被丢弃
@@ -43,7 +43,12 @@ module soc_top #(
     output wire video_hsync_n,
     output wire video_vsync_n,
     output wire video_de,
-    output wire [23:0] video_rgb
+    output wire [23:0] video_rgb,
+
+    // 视觉输入 (HDMI 接收芯片的并行口), 板子不接就接 0
+    input wire vin_pclk,
+    input wire vin_de,
+    input wire [23:0] vin_rgb
 
 );
 
@@ -261,6 +266,8 @@ module soc_top #(
     );
 
 
+    wire [14:0] win_raddr;
+    wire [ 7:0] win_rdata;
     video u_video (
         .clk(clk),
         .rst_n(rst_n),
@@ -277,7 +284,19 @@ module soc_top #(
         .hsync_n(video_hsync_n),
         .vsync_n(video_vsync_n),
         .de(video_de),
-        .rgb(video_rgb)
+        .rgb(video_rgb),
+        .win_raddr(win_raddr),
+        .win_rdata(win_rdata)
+    );
+
+    vision u_vision (
+        .clk(clk),
+        .rst_n(rst_n),
+        .vin_pclk(vin_pclk),
+        .vin_de(vin_de),
+        .vin_rgb(vin_rgb),
+        .win_raddr(win_raddr),
+        .win_rdata(win_rdata)
     );
 
 

@@ -61,3 +61,5 @@
 #define PIN_HDMI_RSTN 59
 #define PIN_HDMI_SCL 60
 #define PIN_HDMI_SDA 61
+#define PIN_HDMI_RX_SCL 62
+#define PIN_HDMI_RX_SDA 63

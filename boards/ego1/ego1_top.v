@@ -76,10 +76,19 @@ module ego1_top #(
         .UART_TX_PIN(`UART_TX_PIN),
         .UART_RX_PIN(`UART_RX_PIN)
     ) soc (
-        .clk  (clk50),
+        .clk(clk50),
         .rst_n(reset_pipe[15]),
-        .io_o (io_o),
+        .io_o(io_o),
         .io_oe(io_oe),
-        .io_i (io_i)
+        .io_i(io_i),
+        // 没有 HDMI: 视频输出不接, 视觉输入接 0
+        .video_pclk(),
+        .video_hsync_n(),
+        .video_vsync_n(),
+        .video_de(),
+        .video_rgb(),
+        .vin_pclk(1'b0),
+        .vin_de(1'b0),
+        .vin_rgb(24'h0)
     );
 endmodule

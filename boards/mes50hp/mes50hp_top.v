@@ -13,7 +13,11 @@ module mes50hp_top #(
     output wire hdmi_hs,
     output wire hdmi_vs,
     output wire hdmi_de,
-    output wire [23:0] hdmi_d  // {R, G, B}
+    output wire [23:0] hdmi_d,  // {R, G, B}
+    // HDMI 接收芯片 MS7200 的视频口 (配置口同上)
+    input wire hdmi_rx_pclk,
+    input wire hdmi_rx_de,
+    input wire [23:0] hdmi_rx_d  // {R, G, B}
 );
     // 不用系统复位清计数器, 否则 break 会被自身复位打断。
     reg [1:0] rx_sync = 2'b11;
@@ -65,6 +69,9 @@ module mes50hp_top #(
         .video_hsync_n(hdmi_hs),
         .video_vsync_n(hdmi_vs),
         .video_de(hdmi_de),
-        .video_rgb(hdmi_d)
+        .video_rgb(hdmi_d),
+        .vin_pclk(hdmi_rx_pclk),
+        .vin_de(hdmi_rx_de),
+        .vin_rgb(hdmi_rx_d)
     );
 endmodule

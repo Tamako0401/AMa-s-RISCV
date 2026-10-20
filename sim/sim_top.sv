@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 // 虚拟盘古板: 真实的 mes50hp_top, 屏幕模型和串口接在板子的 io 脚上 (接线同 sw/bsp/shield_lcd.h),
-// HDMI 视频口接 video_sink
+// HDMI 输出接 video_sink, HDMI 输入接 video_source (测试图)
 module sim_top;
     reg clk = 0;
     always #10 clk = ~clk;
@@ -14,7 +14,8 @@ module sim_top;
         if (IN_N[i]) assign io[i] = 1'b1;
     end
     wire hdmi_pclk, hdmi_hs, hdmi_vs, hdmi_de;
-    wire [23:0] hdmi_d;
+    wire [23:0] hdmi_d, hdmi_rx_d;
+    wire hdmi_rx_pclk, hdmi_rx_de;
     mes50hp_top #(
         .MEM_FILE("")
     ) board (
@@ -25,7 +26,15 @@ module sim_top;
         .hdmi_hs(hdmi_hs),
         .hdmi_vs(hdmi_vs),
         .hdmi_de(hdmi_de),
-        .hdmi_d(hdmi_d)
+        .hdmi_d(hdmi_d),
+        .hdmi_rx_pclk(hdmi_rx_pclk),
+        .hdmi_rx_de(hdmi_rx_de),
+        .hdmi_rx_d(hdmi_rx_d)
+    );
+    video_source u_hdmi_rx (
+        .pclk(hdmi_rx_pclk),
+        .de  (hdmi_rx_de),
+        .rgb (hdmi_rx_d)
     );
     video_sink u_hdmi (
         .pclk(hdmi_pclk),

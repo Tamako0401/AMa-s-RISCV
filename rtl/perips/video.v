@@ -1,5 +1,6 @@
 // 视频输出 (rib 从设备 2, 0x2000_0000): 640x480@60, 像素时钟 25 MHz = clk/2。
-// 画面按 320x240 画, 每个点放大成 2x2: 背景图块层 + 16x16 精灵层, 颜色经 256 项 RGB565 调色板。
+// 画面按 320x240 画, 每个点放大成 2x2: 背景图块层 + 16x16 精灵层, 颜色经 256 项 RGB565 调色板;
+// 最上面可以开一个 160x120 的小窗, 显示视觉输入 (rtl/vision/) 存下的图。
 // 寄存器、显存布局和用法见 docs/video.md; 渲染细节见 video_render.v。
 //
 // 显存只能整字写, 读回 0 (渲染端独占读口); 寄存器可读。
@@ -21,7 +22,11 @@ module video (
     output reg hsync_n,
     output reg vsync_n,
     output reg de,
-    output reg [23:0] rgb
+    output reg [23:0] rgb,
+
+    // 小窗: 读视觉输入的小图 (RGB332), 地址 y * 160 + x, 数据下一拍有效
+    output wire [14:0] win_raddr,
+    input  wire [ 7:0] win_rdata
 );
     // 640x480@60 (VESA)
     localparam H_ACT = 640, H_FP = 16, H_SYNC = 96, H_TOTAL = 800;
@@ -37,9 +42,10 @@ module video (
     wire wen = fire && we_i;
     wire [3:0] page = addr_i[15:12];
 
-    reg enable;
-    reg [8:0] scroll_x;
-    reg [7:0] scroll_y;
+    reg enable, show_window;
+    reg [8:0] scroll_x, win_x;
+    reg [ 7:0] win_y;
+    reg [ 7:0] scroll_y;
     reg [31:0] frame;
     reg [9:0] h, v;
 
@@ -48,6 +54,9 @@ module video (
             response_valid <= 0;
             data_r <= 0;
             enable <= 0;
+            show_window <= 0;
+            win_x <= 0;
+            win_y <= 0;
             scroll_x <= 0;
             scroll_y <= 0;
         end else begin
@@ -58,16 +67,18 @@ module video (
             end
             if (fire && !we_i && page == 0)
                 case (addr_i[11:2])
-                    0: data_r <= {31'b0, enable};
+                    0: data_r <= {30'b0, show_window, enable};
                     1: data_r <= {8'b0, scroll_y, 7'b0, scroll_x};
                     2: data_r <= {31'b0, v >= V_ACT};
                     3: data_r <= frame;
+                    4: data_r <= {8'b0, win_y, 7'b0, win_x};
                     default: data_r <= 0;
                 endcase
             if (wen && page == 0)
                 case (addr_i[11:2])
-                    0: enable <= data_i[0];
+                    0: {show_window, enable} <= data_i[1:0];
                     1: {scroll_y, scroll_x} <= {data_i[23:16], data_i[8:0]};
+                    4: {win_y, win_x} <= {data_i[23:16], data_i[8:0]};
                     default: ;
                 endcase
         end
@@ -168,9 +179,21 @@ module video (
 
     // 像素 (h, v) 的颜色在下一个 tick 才从调色板出来, 同步信号跟着晚一个 tick:
     // tick 时行缓存锁存 (h, v) 的地址 -> 下一拍调色板锁存色号 -> 再下一拍 (下一个 tick) 出颜色。
+    // 小窗: 逻辑坐标落在 (win_x, win_y) 起的 160x120 里就显示小图; 读数在非 tick 那拍锁存, 和调色板输出对齐
+    wire [8:0] wx = h[9:1] - win_x;
+    wire [8:0] wy = v[9:1] - {1'b0, win_y};
+    assign win_raddr = wy[6:0] * 15'd160 + {6'b0, wx};
+    reg [7:0] win_q;
+    reg in_win_d;
+    wire [23:0] win888 = {
+        {2{win_q[7:5]}}, win_q[7:6], {2{win_q[4:2]}}, win_q[4:3], {4{win_q[1:0]}}
+    };
+
     reg de_d, hsync_d, vsync_d;
     // RGB565 -> RGB888: 高位补到低位
-    wire [23:0] rgb888 = {color[15:11], color[15:13], color[10:5], color[10:9], color[4:0], color[4:2]};
+    wire [23:0] rgb888 = {
+        color[15:11], color[15:13], color[10:5], color[10:9], color[4:0], color[4:2]
+    };
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             pclk <= 0;
@@ -182,7 +205,9 @@ module video (
             rgb <= 0;
         end else begin
             pclk <= !pclk;
+            if (!tick) win_q <= win_rdata;
             if (tick) begin
+                in_win_d <= show_window && wx < 160 && wy < 120;
                 h <= h == H_TOTAL - 1 ? 10'd0 : h + 1'b1;
                 if (h == H_TOTAL - 1) v <= v == V_TOTAL - 1 ? 10'd0 : v + 1'b1;
                 if (h == H_TOTAL - 1 && v == V_ACT - 1) frame <= frame + 1;
@@ -192,7 +217,7 @@ module video (
                 de <= de_d;
                 hsync_n <= hsync_d;
                 vsync_n <= vsync_d;
-                rgb <= de_d && enable ? rgb888 : 24'h0;
+                rgb <= !(de_d && enable) ? 24'h0 : in_win_d ? win888 : rgb888;
             end
         end
     end

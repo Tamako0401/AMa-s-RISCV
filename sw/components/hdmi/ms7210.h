@@ -5,12 +5,7 @@
 
 #include "i2c.h"
 
-typedef struct {
-    i2c_pins_t i2c;
-    uint32_t rst; /* 复位, 低有效 */
-} ms7210_pins_t;
-
-/* 复位并配置芯片; 成功返回 0, 芯片没应答返回 -1 */
-int ms7210_init(const ms7210_pins_t *pins);
+/* 配置芯片 (复位由调用方做); 成功返回 0, 芯片没应答返回 -1 */
+int ms7210_init(const i2c_pins_t *i2c);
 
 #endif

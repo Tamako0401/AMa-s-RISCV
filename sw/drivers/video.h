@@ -44,6 +44,13 @@ static inline void video_scroll(uint32_t x, uint32_t y)
     VIDEO->SCROLL = (y & 255) << 16 | (x & 511);
 }
 
+/* 小窗: 160x120, 显示视觉输入 (摄像头 / HDMI 输入) 缩小后的画面, 盖在最上面; 左上角放在 (x, y) */
+static inline void video_window(uint32_t x, uint32_t y)
+{
+    VIDEO->WINDOW = (y & 255) << 16 | (x & 511);
+    VIDEO->CTRL |= VIDEO_CTRL_WINDOW;
+}
+
 /* 等到下一帧画完 (进入场消隐), 之后改显存不会撕裂 */
 static inline void video_wait_frame(void)
 {

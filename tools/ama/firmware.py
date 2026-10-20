@@ -20,6 +20,7 @@ SW_LIB = [
     'sw/bsp/bsp.c',
     'sw/components/key/key.c',
     'sw/components/hdmi/ms7210.c',
+    'sw/components/hdmi/ms7200.c',
     'sw/components/lcd/lcd_io.c',
     'sw/components/lcd/lcd.c',
     'sw/components/lcd/st7789.c',

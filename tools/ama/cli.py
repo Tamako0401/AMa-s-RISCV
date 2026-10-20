@@ -184,6 +184,7 @@ def sim_binary(out):
         'boards/mes50hp/mes50hp_top.v',
         'tests/soc/st7789_model.sv',
         'tests/soc/video_sink.sv',
+        'tests/soc/video_source.sv',
         'sim/uart_rx.sv',
         'sim/uart_tx.sv',
         'sim/sim_top.sv',
@@ -275,6 +276,21 @@ def fpga_build(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
     bit = out / BOARDS[board]['bitstream']
     bit.with_suffix('.hwid').write_text(f'0x{hwid(board):08x}\n')
     typer.secho(f'✓ {bit.relative_to(ROOT)}; 下一步 ama fpga program{app_arg(app)}', fg='green')
+
+
+@fpga.command('report')
+def fpga_report(
+    board: str = typer.Option(..., '--board', '-b', help='ego1 或 mes50hp'),
+    app: Optional[str] = AppOpt,
+):
+    """打印上次 fpga build 的资源 (每个模块 + 全片) 和时序, 不重新综合。
+    读的是工具自己的报告: PDS 的 synthesize/*.snr、report_timing/*.rtr, Vivado 的 utilization*.rpt、timing_summary.rpt。"""
+    if board not in BOARDS:
+        fail(f'没有板子 {board} (有: {", ".join(BOARDS)})')
+    out = projects.project_dir(board, app)
+    if not out.exists():
+        fail(f'还没有构建过, 先 ama fpga build{app_arg(app)} --board {board}')
+    projects.report(board, out)
 
 
 @fpga.command('program')

@@ -78,13 +78,15 @@ typedef struct {
 
 /* ---------------- 视频: 640x480 输出, 画面 320x240 (每点 2x2), 见 docs/video.md ---------------- */
 typedef struct {
-    __IO uint32_t CTRL;   /* 0x00 bit0 开显示 (关时输出黑屏) */
+    __IO uint32_t CTRL;   /* 0x00 bit0 开显示 (关时输出黑屏), bit1 开小窗 */
     __IO uint32_t SCROLL; /* 0x04 背景偏移: [8:0] x, [23:16] y */
     __I uint32_t STATUS;  /* 0x08 bit0 场消隐期 */
     __I uint32_t FRAME;   /* 0x0C 帧计数, 每帧最后一行显示完加 1 */
+    __IO uint32_t WINDOW; /* 0x10 小窗 (160x120, 显示视觉输入) 左上角: [8:0] x, [23:16] y */
 } VIDEO_TypeDef;
 
 #define VIDEO_CTRL_EN (0x1UL << 0)
+#define VIDEO_CTRL_WINDOW (0x1UL << 1)
 #define VIDEO_STATUS_VBLANK (0x1UL << 0)
 
 /* 显存只能整字写, 读回 0 */

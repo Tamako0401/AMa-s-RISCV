@@ -24,6 +24,7 @@ flowchart LR
 | `sim <程序>` | 同上 (按盘古编译, 不带 bootloader) + `sim/` 外壳 | 窗口显示屏幕和 HDMI, 终端显示串口; 在窗口里打字 = 往串口发字符; 结束时截图 `build/sim/<程序>-lcd.png`、`-hdmi.png` |
 | `test [路径]` | `tests.toml`、`sw/app/*/test/` | 每个测试一行 PASS/FAIL, 日志在 `build/test/` |
 | `fpga build [--app <程序>]` | bootloader + `rtl/` + `boards/<板>/` | `build/fpga/<板>/` 下的位流, 上电等下载; 加 `--app` 把程序固化进去 (`build/fpga/<板>-<程序>/`), 上电直接运行 |
+| `fpga report --board <板> [--app <程序>]` | 上次 `fpga build` 的工具报告 | 每个模块和全片的 LUT / FF / 块 RAM / DSP / IO, 各时钟的要求频率、能跑到的频率和余量 (`fpga build` 结束时也打印) |
 | `fpga program [--app <程序>] [--once]` | 上面的位流 | 写进板上 flash (上电自动加载) 并马上运行; `--once` 只下载到 FPGA, 断电就丢 |
 | `new <程序>` | 模板 `sw/app/hello/` | `sw/app/<程序>/`: main.c + 两块板的 `boards/<板>/app_board.h`, 直接能编 |
 | `gen pins <板>` | `boards/<板>/pins.csv` | 引脚约束、`pins_top.vh`、`sw/bsp/<板>_pins.h` |

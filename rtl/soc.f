@@ -4,6 +4,7 @@ rtl/utils/gen_buf.v
 rtl/utils/gen_ram.v
 rtl/utils/vld_rdy.v
 rtl/utils/dpram.v
+rtl/utils/dpram2c.v
 rtl/core/clint.v
 rtl/core/csr_reg.v
 rtl/core/divider.v
@@ -30,4 +31,8 @@ rtl/perips/gpio_matrix.v
 rtl/perips/uart.v
 rtl/perips/video_render.v
 rtl/perips/video.v
+rtl/vision/hdmi_rx_adapter.v
+rtl/vision/box4.v
+rtl/vision/window_store.v
+rtl/vision/vision.v
 rtl/soc_top/soc_top.v

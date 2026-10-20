@@ -5,9 +5,9 @@
 ```
 app/<程序>/       应用程序: main.c 等; boards/<板>/ 放本板接线 (LED 表、按键表…); test/ 放电脑上跑的测试
 components/       外部器件, 不碰寄存器: lcd/ (ST7789 / ST7735 / ILI9341, 画点线矩形)、key/ (按键消抖)、
-                  hdmi/ (MS7210 HDMI 发送芯片)
+                  hdmi/ (MS7210 HDMI 发送芯片、MS7200 HDMI 接收芯片)
 bsp/              板级: 主频、delay_ms、cycle 计数; <板>_pins.h (ama gen pins 生成); shield_lcd.h (屏插在哪);
-                  board_hdmi.h (板上 HDMI 芯片)
+                  board_hdmi.h (板上 HDMI 收发芯片: 复位和初始化, 主循环调 board_hdmi_poll)
 drivers/          片上外设: io.h (GPIO 矩阵)、uart、spi、video.h (图块 + 精灵, 见 docs/video.md)、
                   i2c (软件 I2C, 引脚经 GPIO 矩阵; 不依赖 bsp, 速度由调用方传入)
 device/           amarisc.h: 寄存器定义和基址
@@ -23,7 +23,7 @@ boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), �
 | [selftest](app/selftest/README.md) | 板级自检: CPU、内存、屏幕、按键、LED、串口 |
 | [snake](app/snake/README.md) | 贪吃蛇, 按键或串口 wasd 控制 |
 | [coremark](app/coremark/README.md) | CoreMark 跑分 |
-| video_demo | HDMI 出图: 背景 + 弹跳的球 (精灵) |
+| video_demo | HDMI 出图: 背景 + 弹跳的球 (精灵), 右上角小窗显示 HDMI 输入 |
 
 **引脚功能只在 components / bsp 里选。** `io_connect_out` / `io_connect_in` (把引脚接到 SPI、UART) 只允许出现在
 components 和 bsp 里 (现在只有 `components/lcd/lcd_io.c`), 程序里只用 `io_dir` / `io_write` / `io_read`。

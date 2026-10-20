@@ -1,6 +1,5 @@
 #include "ms7210.h"
 #include "bsp.h"
-#include "io.h"
 
 #define DEV 0xB2 /* SA 脚上拉 (MES50HP 硬件手册 3.3.2) */
 
@@ -27,21 +26,14 @@ static int write_all(const i2c_pins_t *i2c, const uint16_t (*seq)[2], uint32_t n
     return 0;
 }
 
-int ms7210_init(const ms7210_pins_t *pins)
+int ms7210_init(const i2c_pins_t *i2c)
 {
-    io_write(pins->rst, 0);
-    io_dir(pins->rst, IO_OUTPUT);
-    i2c_init(&pins->i2c);
-    delay_ms(1);
-    io_write(pins->rst, 1);
-    delay_ms(1);
-
     /* 先写一个寄存器再读回, 确认芯片在 */
     uint8_t id = 0;
-    if (i2c_write_reg16(&pins->i2c, DEV, 0x0003, 0x5A) || i2c_read_reg16(&pins->i2c, DEV, 0x0003, &id) || id != 0x5A)
+    if (i2c_write_reg16(i2c, DEV, 0x0003, 0x5A) || i2c_read_reg16(i2c, DEV, 0x0003, &id) || id != 0x5A)
         return -1;
-    if (write_all(&pins->i2c, init_seq, sizeof init_seq / sizeof init_seq[0]))
+    if (write_all(i2c, init_seq, sizeof init_seq / sizeof init_seq[0]))
         return -1;
     delay_ms(300);
-    return write_all(&pins->i2c, setting_seq, sizeof setting_seq / sizeof setting_seq[0]);
+    return write_all(i2c, setting_seq, sizeof setting_seq / sizeof setting_seq[0]);
 }
