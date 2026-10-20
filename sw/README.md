@@ -3,18 +3,30 @@
 分层, 上层仅依赖下层:
 
 ```
-app/          应用程序, 每个子目录一个程序 (app/<程序>/main.c)
-components/   外部芯片驱动, 不碰寄存器. 已有 lcd/: ST7789 / ILI9341, 画点/线/矩形/清屏
-bsp/          板级: 主频, delay_ms
-drivers/      外设驱动: spi
-device/       寄存器定义和基址
-startup.S     设栈, 把 .data 初值从 ROM 拷到 RAM, 清 BSS, 调 main
-link.ld       ROM 0x0000_0000 放代码和 .data 初值, RAM 0x1000_0000 放数据和栈
+app/<程序>/       应用程序: main.c 等; boards/<板>/ 放本板接线 (LED 表、按键表…); test/ 放电脑上跑的测试
+components/       外部器件, 不碰寄存器: lcd/ (ST7789 / ST7735 / ILI9341, 画点线矩形)、key/ (按键消抖)
+bsp/              板级: 主频、delay_ms、cycle 计数; <板>_pins.h (ama gen pins 生成); shield_lcd.h (屏插在哪)
+drivers/          片上外设: io.h (GPIO 矩阵)、uart、spi
+device/           amarisc.h: 寄存器定义和基址
+startup.S         设栈, 把 .data 初值从 ROM 拷到 RAM, 清 BSS, 调 main
+link.ld           app 的链接脚本; 分区见 memory.ld
+memory.ld         ROM 分区: app 在前, bootloader 占最后 2K (唯一定义处)
+boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), 固化在位流里
 ```
+
+| 程序 | 说明 |
+| --- | --- |
+| [selftest](app/selftest/README.md) | 板级自检, 烧进位流的默认程序 |
+| snake | 贪吃蛇, 按键或串口 wasd 控制 |
+| coremark | CoreMark 跑分 (见下) |
+
+**引脚功能只在 components / bsp 里选。** `io_connect_out` / `io_connect_in` (把引脚接到 SPI、UART) 只允许出现在
+components 和 bsp 里 (现在只有 `components/lcd/lcd_io.c`), 程序里只用 `io_dir` / `io_write` / `io_read`。
+提交比赛前 GPIO 矩阵会换成固定接线, 守住这条, 到时只改这一处。
 
 ## 编译
 
-新程序: 建 `sw/app/<程序>/main.c` (目录下所有 .c 一起编译; `test/` 子目录放电脑上跑的逻辑测试)。
+新程序: 建 `sw/app/<程序>/main.c`, 目录下所有 .c 和 `boards/<板>/` 下的 .c 一起编译。
 
 上板和仿真用仓库根目录的 `./ama` (`./ama --help`), 如 `./ama run snake`、`./ama sim snake`, 见根目录 README。
 
