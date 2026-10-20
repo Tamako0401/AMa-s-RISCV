@@ -21,7 +21,11 @@ jobs:
       # 赛题指定 riscv32-unknown-elf-gcc; Ubuntu 只有 riscv64 的包 (带 rv32 库), 按 ama.local.toml 的规则起别名
       - run: echo 'riscv32-unknown-elf-gcc = ["riscv64-unknown-elf-gcc"]' > ama.local.toml
       - uses: astral-sh/setup-uv@v6
-      - run: ./ama test
+      # 测得的数值 (测试台打印的 [result], 如 CoreMark/MHz) 写进运行摘要, 打开 Actions 页面就能看到
+      - run: |
+          mkdir -p build && ./ama test | tee build/test-output.txt
+          grep -E '^(PASS|FAIL) .*\) .+' build/test-output.txt | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
       - run: cd third_party/coremark && sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@v4
         if: failure()
