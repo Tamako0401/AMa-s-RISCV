@@ -11,7 +11,7 @@ from .firmware import hwid, run
 
 
 def project_dir(board, app):
-    return ROOT / 'build/fpga' / f'{board}-{app}'
+    return ROOT / 'build/fpga' / (f'{board}-{app}' if app else board)
 
 
 def backend(board):

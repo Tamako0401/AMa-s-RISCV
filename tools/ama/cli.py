@@ -18,7 +18,18 @@ import typer
 
 from . import load, fpga as projects
 from .boards import ROOT, boards, gen_pins
-from .firmware import build_firmware, check_app, firmware_dir, compile_app, elf_to_rom, run, write_hex, hwid
+from .firmware import (
+    APP_SIZE,
+    build_boot,
+    build_firmware,
+    check_app,
+    firmware_dir,
+    compile_app,
+    elf_to_rom,
+    run,
+    write_hex,
+    hwid,
+)
 from .local import CONFIG, TOOLS, tool
 
 BOARDS = boards()
@@ -33,6 +44,9 @@ cli.add_typer(fpga, name='fpga')
 App = typer.Argument(..., help='sw/app/ 下的程序名')
 BoardOpt = typer.Option(None, '--board', '-b', help='ego1 或 mes50hp; 不写就按插着的串口芯片识别')
 PortOpt = typer.Option(None, '--port', '-p', help='串口; 不写就自动找')
+AppOpt = typer.Option(
+    None, '--app', help='把这个程序固化进位流, 上电直接运行; 不写则位流只带 bootloader, 程序用 ama run 下载'
+)
 ForceOpt = typer.Option(False, '--force', help='板上位流和本地源码版本不一致时也照样下载')
 
 
@@ -237,30 +251,39 @@ def fpga_bit(board, app):
     return projects.project_dir(board, app) / BOARDS[board]['bitstream']
 
 
+def app_arg(app):
+    return f' --app {app}' if app else ''
+
+
 @fpga.command('build')
-def fpga_build(app: str = App, board: Optional[str] = BoardOpt):
-    """编译固件并综合出位流。"""
+def fpga_build(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
+    """综合出位流。"""
     board, _ = pick_board(board)
-    elf = build_firmware(app, board, [], [], firmware_dir(app, board))
-    out = projects.generate(board, app, elf.parent / 'rom.hex')
+    if app:
+        rom = build_firmware(app, board, [], [], firmware_dir(app, board)).parent / 'rom.hex'
+    else:
+        out = ROOT / 'build/fw' / board / 'boot'
+        rom = out / 'rom.hex'
+        write_hex(bytes(APP_SIZE) + build_boot([], out), rom)
+    out = projects.generate(board, app, rom)
     projects.build(board, out)
     bit = out / BOARDS[board]['bitstream']
     bit.with_suffix('.hwid').write_text(f'0x{hwid(board):08x}\n')
-    typer.secho(f'✓ {bit.relative_to(ROOT)}; 下一步 ama fpga program {app}', fg='green')
+    typer.secho(f'✓ {bit.relative_to(ROOT)}; 下一步 ama fpga program{app_arg(app)}', fg='green')
 
 
 @fpga.command('program')
-def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
-    """把固化了 <程序> 的位流烧进 FPGA (断电会丢, 重新上电要再烧)。"""
+def fpga_program(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
+    """把位流烧进 FPGA (断电会丢, 重新上电要再烧)。"""
     board, _ = pick_board(board)
     data, _ = projects.backend(board)
     bit = fpga_bit(board, app)
     if not bit.exists():
-        fail(f'还没有位流, 先 ama fpga build {app} --board {board}')
+        fail(f'还没有位流, 先 ama fpga build{app_arg(app)} --board {board}')
     stamp = bit.with_suffix('.hwid')
     if not stamp.exists() or int(stamp.read_text(), 0) != hwid(board):
         fail(
-            f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build {app} --board {board}'
+            f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build{app_arg(app)} --board {board}'
         )
     if data['tool'] == 'pds':
         # 紫光的下载器没有命令行入口, 只能在 PDS 图形界面里下载

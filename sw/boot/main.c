@@ -68,8 +68,13 @@ void main(void)
         if (c == 0x7f)
             break;
         elapsed = cycles() - start;
-        if (elapsed >= 200 * DELAY_CYCLES_PER_MS)
-            go();
+        if (elapsed >= 200 * DELAY_CYCLES_PER_MS) {
+            // 程序区第一个字是 0 = 位流没带程序, 接着等下载
+            if (*(volatile uint32_t *)0)
+                go();
+            start = cycles();
+            elapsed = 0;
+        }
     }
     for (;;) {
         send('A');

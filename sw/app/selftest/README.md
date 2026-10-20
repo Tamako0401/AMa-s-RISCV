@@ -1,6 +1,6 @@
 # selftest: 板级自检
 
-烧进位流的默认程序 (`ama fpga build selftest`)。上电一次看全 CPU、内存、屏幕、按键、LED、串口是否正常;
+`ama run selftest`。一次看全 CPU、内存、屏幕、按键、LED、串口是否正常;
 两块板通用, 板子差异在 `boards/<板>/`。
 
 ## 上电后依次做什么

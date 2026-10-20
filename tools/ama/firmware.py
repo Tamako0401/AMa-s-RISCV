@@ -169,9 +169,9 @@ def compile_app(app, board, defines, out, **kw):
     return elf
 
 
-def build_firmware(app, board, defines, boot_defines, out, **kw):
-    """app + bootloader -> out/rom.hex, 分区见 sw/memory.ld。"""
-    elf = compile_app(app, board, defines, out, **kw)
+def build_boot(boot_defines, out, **kw):
+    """bootloader -> 分区末尾 BOOT_SIZE 字节的 ROM 镜像。"""
+    out.mkdir(parents=True, exist_ok=True)
     boot = out / 'boot.elf'
     options = [f for f in CFLAGS if f != '-O2']
     run(
@@ -194,5 +194,11 @@ def build_firmware(app, board, defines, boot_defines, out, **kw):
     size = max(addr + len(data) - APP_SIZE for addr, data in load_segments(boot.read_bytes()) if addr < ROM_SIZE)
     if size > BOOT_SIZE:
         raise SystemExit(f'bootloader too large: {size} bytes')
-    write_hex(elf_to_rom(elf, size=APP_SIZE) + elf_to_rom(boot, base=APP_SIZE, size=BOOT_SIZE), out / 'rom.hex')
+    return elf_to_rom(boot, base=APP_SIZE, size=BOOT_SIZE)
+
+
+def build_firmware(app, board, defines, boot_defines, out, **kw):
+    """app + bootloader -> out/rom.hex, 分区见 sw/memory.ld。"""
+    elf = compile_app(app, board, defines, out, **kw)
+    write_hex(elf_to_rom(elf, size=APP_SIZE) + build_boot(boot_defines, out, **kw), out / 'rom.hex')
     return elf
