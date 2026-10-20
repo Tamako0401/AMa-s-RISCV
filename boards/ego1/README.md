@@ -19,9 +19,8 @@ UART、按键和 LED 没有同步外部接口时序约束, WNS 用来验收内�
 
 ## 下载与串口验收
 
-1. USB 接 J6 (UART/JTAG), 打开电源。Vivado Hardware Manager → Open Target → Auto Connect,
-   确认器件为 xc7a35t → Program Device, 选择对应目录的 `ego1_top.bit`。成功后 D24 亮;
-   首轮只下载 SRAM, 断电后配置丢失。
+1. USB 接 J6 (UART/JTAG), 打开电源, `ama fpga program`: 位流写进板上 SPI flash (N25Q32), 上电自动加载;
+   `--once` 只下载到 FPGA, 断电丢失。成功后 D24 亮。
 2. 串口助手选择 FT2232 的 UART 口 (Linux 通常为 `/dev/ttyUSB1`, 以实际枚举为准),
    设置 **115200、8N1、无流控**, 关闭本地回显。先打开串口, 再按下并释放 **S6 (RST)**。
 

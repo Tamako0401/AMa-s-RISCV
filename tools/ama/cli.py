@@ -273,8 +273,12 @@ def fpga_build(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
 
 
 @fpga.command('program')
-def fpga_program(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
-    """把位流烧进 FPGA (断电会丢, 重新上电要再烧)。"""
+def fpga_program(
+    app: Optional[str] = AppOpt,
+    board: Optional[str] = BoardOpt,
+    once: bool = typer.Option(False, '--once', help='只下载到 FPGA, 断电就丢; 不写则同时写进板上 flash, 上电自动加载'),
+):
+    """把位流烧进板子: 写进 flash (上电自动加载) 并马上运行。"""
     board, _ = pick_board(board)
     data, _ = projects.backend(board)
     bit = fpga_bit(board, app)
@@ -285,32 +289,27 @@ def fpga_program(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
         fail(
             f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build{app_arg(app)} --board {board}'
         )
+    step(f'烧写 {bit.relative_to(ROOT)}' + ('' if once else ' (写进 flash)'))
     if data['tool'] == 'pds':
-        # 紫光的下载器没有命令行入口, 只能在 PDS 图形界面里下载
-        print(f'打开 PDS → Tools → Fabric Configuration → 选择位流:\n  {bit}')
-        return
-    step(f'烧写 {bit.relative_to(ROOT)}')
-    result = subprocess.run(
-        [
-            *tool('vivado'),
-            '-mode',
-            'batch',
-            '-nojournal',
-            '-nolog',
-            '-source',
-            str(ROOT / 'boards' / board / 'program.tcl'),
-            '-tclargs',
-            str(bit),
-            data['part'],
-        ],
-        cwd=bit.parent,
-        capture_output=True,
-        text=True,
-    )
-    # 返回码不可靠 (Vivado 没真正启动时也是 0), 以 program.tcl 打印的 DONE 位为准
-    if result.returncode or 'DONE PROGRAMMED: 1' not in result.stdout:
+        # cdt_cfg_shell 用 -args 依次替换脚本里的 %s, 替换结果写在脚本旁边, 所以先把脚本拷进构建目录;
+        # 它不认相对路径, 一律给绝对路径
+        sfc = bit.with_suffix('.sfc')
+        name, args = ('program.tcl', [bit]) if once else ('flash.tcl', [bit, sfc, data['flash'], sfc, bit])
+        script = shutil.copy(ROOT / 'boards' / board / name, bit.parent)
+        command = [*tool('cdt_cfg_shell'), '-file', str(script), '-args', '{' + ' '.join(map(str, args)) + '}']
+    else:
+        flash = [] if once else [data['flash']]
+        command = [*tool('vivado'), '-mode', 'batch', '-nojournal', '-nolog', '-source']
+        command += [str(ROOT / 'boards' / board / 'program.tcl'), '-tclargs', str(bit), data['part'], *flash]
+    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, errors='replace')
+    # 返回码不可靠: Vivado 没真正启动时是 0, 以 program.tcl 打印的 DONE 位为准; cdt_cfg_shell 出错也是 0, 看 E: 开头的行
+    if data['tool'] == 'vivado':
+        failed = 'DONE PROGRAMMED: 1' not in result.stdout
+    else:
+        failed = any(line.startswith('E:') for line in result.stdout.splitlines())
+    if result.returncode or failed:
         print(result.stdout[-2000:] + result.stderr[-2000:])
-        fail('烧写失败: 检查 USB 线、板子电源, 以及有没有别的 Vivado 占着下载器')
+        fail('烧写失败: 检查 USB 线、板子电源, 以及有没有别的程序占着下载器')
     typer.secho('✓ 已烧写; 之后改 C 用 ama run 就行', fg='green')
 
 
@@ -318,7 +317,7 @@ def fpga_program(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
 def doctor():
     """列出 ama 用到的工具: 实际调用的命令和版本。三台机器对一下版本就知道结果该不该一样。"""
     # pds_shell 没有查版本的参数, 只显示命令
-    flag = {'vivado': '-version', 'pds_shell': None}
+    flag = {'vivado': '-version', 'pds_shell': None, 'cdt_cfg_shell': '-version'}
     for name in TOOLS:
         cmd = tool(name)
         version = '-'

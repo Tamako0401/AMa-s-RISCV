@@ -2,6 +2,14 @@
 
 适用随板资料中的 **MES50HP / PGL50H-6IFBG484**，工具实测 PDS 2022.2-SP1-Lite。使用 50 MHz 时钟、片上 RAM、LED、板载 USB-UART 和 GMT024-8p10p-SPI 屏幕（ST7789V，240×320，只写）。
 
+## 下载
+
+`ama fpga program` 调用 PDS 的 `cdt_cfg_shell` 执行 `flash.tcl`: 位流转成 sfc 写进板上 QSPI flash (上电自动加载),
+再下载到 FPGA 马上运行; `--once` 执行 `program.tcl`, 只下载到 FPGA。
+
+手册说板上 flash 是 W25Q128JV / GD25Q128 / XT25BF128 之一, `board.toml` 按 W25Q128JV 写 (PDS 里叫 `W25Q128Q`);
+是 GD 的改成 `GD25Q128C`; XT25 不在 PDS 的型号表里, 要先在 Fabric Configuration 的 Flash Operator 里添加。
+
 ## 引脚依据
 
 参考位置：`E:/2026FPGA创新设计竞赛紫光同创杯资料包/盘古50K开发板资料/盘古50K开发板`。

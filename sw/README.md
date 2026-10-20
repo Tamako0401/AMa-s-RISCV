@@ -17,7 +17,7 @@ boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), �
 | 程序 | 说明 |
 | --- | --- |
 | hello | 新程序的模板: `ama new <程序>` 复制它 (串口打招呼、画色块、LED 闪) |
-| [selftest](app/selftest/README.md) | 板级自检, 烧进位流的默认程序 |
+| [selftest](app/selftest/README.md) | 板级自检: CPU、内存、屏幕、按键、LED、串口 |
 | [snake](app/snake/README.md) | 贪吃蛇, 按键或串口 wasd 控制 |
 | [coremark](app/coremark/README.md) | CoreMark 跑分 |
 

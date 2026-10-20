@@ -16,12 +16,13 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 | --- | --- | --- |
 | 平时改了 C | `./ama run snake` | 编译, 经串口 bootloader 下载到板子运行, 再显示串口输出 (Ctrl+] 退出)。几秒 |
 | 只编译 / 只下载 / 只看串口 | `./ama build snake` / `./ama upload snake` / `./ama monitor` | |
+| 改了 `rtl/`、`boards/`、`sw/boot/` | `./ama fpga build` 然后 `./ama fpga program` | 出只带 bootloader 的位流, 写进板上 flash, 上电自动加载。几分钟; `--once` 只下载一次 (断电丢) |
 | 没有板子 | `./ama sim snake` | sw/app 下的程序跑在 soc_top 上, 窗口显示屏幕, 终端显示串口; 关窗口或 Ctrl+C 结束, 截图在 build/sim/<程序>.png |
 
 - 程序就是 `sw/app/<名字>/`, 目录下的 .c 一起编译。
 - 板子按插着的 USB 串口芯片识别 (FT2232 = EGO1, CP2102 = 盘古), 认不出时加 `--board ego1` 或 `--board mes50hp`。
 - 下载时会核对板上位流和本地源码的硬件版本号, 对不上会提示先 `fpga build`、`fpga program`。原理见 [bootloader](docs/bootloader.md)。
-- 工具不在 PATH 或名字不同时, 参考 `ama.local.toml.example` 写本机配置, `./ama doctor` 核对。盘古的下载器只能在 PDS 图形界面里用, `fpga program` 会告诉你选哪个文件。
+- 工具不在 PATH 或名字不同时, 参考 `ama.local.toml.example` 写本机配置, `./ama doctor` 核对。盘古的下载用 PDS 的 `cdt_cfg_shell` (Fabric Configuration 的命令行版)。
 - 接线见 [boards/ego1/README.md](boards/ego1/README.md)、[boards/mes50hp/README.md](boards/mes50hp/README.md); 引脚怎么分配见 [GPIO 矩阵](docs/gpio-matrix.md)。
 
 ## 仓库导航
@@ -38,6 +39,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - [SPI 寄存器](docs/spi.md)
 - [离线 Difftest 与已知限制](docs/difftest.md)
 - [RTL 来源、授权与接入条件](docs/third-party.md)
+- [参考项目: 手势控制游戏、FPGA 手势识别、sprite 引擎](docs/references.md)
 - [飞书项目知识库](https://njupt-sast.feishu.cn/wiki/TUxXwMAh3iIraCkTDjxcWd0Tnmh)
 
 ## 来源与复用

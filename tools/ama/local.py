@@ -12,6 +12,7 @@ TOOLS = [
     'verilator',
     'vivado',
     'pds_shell',
+    'cdt_cfg_shell',
     'ruff',
     'clang-tidy',
     'clang-format',

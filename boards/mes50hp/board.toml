@@ -7,3 +7,4 @@ family = "Logos"
 device = "PGL50H"
 speedgrade = "-6"
 package = "FBG484"
+flash = "W25Q128Q"                      # 板上 QSPI flash W25Q128JV (硬件手册 2.2.4); PDS 里 ID 0xEF4018 叫这个名字
