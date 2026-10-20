@@ -8,7 +8,6 @@ module board_tb;
     wire lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl;
     // Parameter override at instantiation: Verilator rejects hierarchical
     // defparam (dut.soc.MEM_FILE), Icarus accepts both forms.
-`ifdef HARVARD
     `include "boards/mes50hp/pins_top.vh"
     wire [`IO_N-1:0] io;
     assign io[`UART_RX_PIN] = uart_rx;
@@ -16,10 +15,7 @@ module board_tb;
     assign {lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl} =
         {io[24], io[25], io[20], io[23], io[22], io[21]};
     assign led = io[56:49];
-    mes50hp_top_matrix #(.MEM_FILE("sim.hex")) dut(.clk(clk), .key1_n(key1_n), .io(io));
-`else
-    mes50hp_top #(.MEM_FILE("sim.hex")) dut(.*);
-`endif
+    mes50hp_top #(.MEM_FILE("sim.hex")) dut(.clk(clk), .key1_n(key1_n), .io(io));
     localparam BIT_NS=8680;
     integer count=0;
     integer boots=0;
@@ -81,9 +77,6 @@ module board_tb;
         end
     end
     always @(posedge clk) begin
-`ifndef HARVARD
-        if(dut.fault) $fatal(1,"SoC bus fault");
-`endif
         if(led==2) saw_led2<=1;
     end
     initial begin #10000000; $fatal(1,"Board test timeout"); end

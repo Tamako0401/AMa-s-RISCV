@@ -43,7 +43,7 @@ BOARDS = {
     },
     'mes50hp': {
         'usb': (0x10C4, 0xEA60),                # 板载 CP2102
-        'bit': 'build/mes50hp-harvard-{app}/generate_bitstream/mes50hp_top_matrix.sbit',
+        'bit': 'build/mes50hp-harvard-{app}/generate_bitstream/mes50hp_top.sbit',
     },
 }
 

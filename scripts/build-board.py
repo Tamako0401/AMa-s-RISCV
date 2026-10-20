@@ -38,25 +38,17 @@ def main():
     parser.add_argument('--board',choices=['mes50hp','ego1'],default='mes50hp')
     parser.add_argument('--cc',choices=['clang','gcc'],default='clang',help='Compiler (default clang; gcc needs --harvard)')
     parser.add_argument('--simulate',action='store_true',help='Also test UART and CPU-driven LEDs')
-    parser.add_argument('--lcd',action='store_true',help='Build the SPI LCD demo firmware instead of the bring-up app')
     parser.add_argument('--pds',action='store_true',help='Run installed PDS in the isolated output directory')
     parser.add_argument('--vivado',action='store_true',help='Run Vivado batch for EGO1')
-    parser.add_argument('--harvard',action='store_true',
-                        help='Use the Harvard soc_top (ROM 0x0 + RAM 0x10000000) and sw/ firmware')
+    parser.add_argument('--harvard',action='store_true',help='兼容旧调用, 无作用 (minimal_soc 已移到 legacy/)')
     parser.add_argument('--app',
                         help='With --harvard: build sw/app/<APP>/*.c instead of board_check (coremark: '
                              'ITERATIONS=0, CoreMark picks a count that runs >= 10 s; simulate with scripts/coremark.py)')
     args=parser.parse_args()
-    if args.cc=='gcc' and not args.harvard:
-        parser.error('--cc gcc needs --harvard')
-    if args.board=='ego1' and (not args.harvard or args.lcd or args.pds):
-        parser.error('ego1 needs --harvard and does not support --lcd or --pds')
+    if args.board=='ego1' and args.pds:
+        parser.error('ego1 does not support --pds')
     if args.vivado and args.board!='ego1':
         parser.error('--vivado needs --board ego1')
-    if args.app and not args.harvard:
-        parser.error('--app needs --harvard')
-    if args.app and args.lcd:
-        parser.error('--app and --lcd are exclusive')
     if args.app=='coremark' and args.simulate:
         parser.error('simulate CoreMark with: python3 scripts/coremark.py'
                      +(' --cc gcc' if args.cc=='gcc' else ''))
@@ -66,106 +58,10 @@ def main():
         parser.error(f'no such app: sw/app/{args.app}')
     # Keep every variant in its own directory so each becomes its own PDS
     # project (PDS picks the project directory at process launch).
-    OUT=ROOT/('build/'+args.board+('-harvard' if args.harvard else '')+('-lcd' if args.lcd else '')
+    OUT=ROOT/('build/'+args.board+'-harvard'
               +(f'-{args.app}' if args.app else '')+('-gcc' if args.cc=='gcc' else ''))
     OUT.mkdir(parents=True,exist_ok=True)
-    if args.harvard:
-        return harvard(args)
-    cflags=['--target=riscv32-unknown-elf','-march=rv32i_zicsr','-mabi=ilp32',
-            '-O2','-ffreestanding','-fno-builtin','-fno-stack-protector','-msmall-data-limit=0',
-            '-mno-relax']
-    inc=[f'-I{ROOT/d}' for d in ['sw/device','sw/drivers','sw/bsp','sw/components/lcd']] if args.lcd else []
-    app=[ROOT/'sw/board/start.S']
-    if args.lcd:
-        app+=[ROOT/'sw/board/lcd_main.c',ROOT/'sw/drivers/spi.c',ROOT/'sw/bsp/bsp.c',
-              ROOT/'sw/board/lcd_io.c',ROOT/'sw/components/lcd/lcd.c',
-              ROOT/'sw/components/lcd/st7789.c']
-    else:
-        app+=[ROOT/'sw/board/main.c']
-    objs=[]
-    for source in app:
-        obj=OUT/(source.name+'.o')
-        run('clang',*cflags,*inc,'-c',source,'-o',obj)
-        objs.append(obj)
-    run('ld.lld','-m','elf32lriscv','--no-relax','-T',ROOT/'sw/board/link.ld',
-        *objs,'-o',OUT/'firmware.elf')
-    run('llvm-objcopy','-O','binary',OUT/'firmware.elf',OUT/'firmware.bin')
-    data=(OUT/'firmware.bin').read_bytes()
-    if len(data)>65536:
-        raise ValueError('Firmware exceeds 64 KiB RAM')
-    size=len(data)
-    data+=b'\xa5'*(65536-size)
-    (OUT/'firmware.hex').write_text(''.join(f'{int.from_bytes(data[i:i+4],"little"):08x}\n'
-                                         for i in range(0,65536,4)),encoding='ascii')
-    sources=[ROOT/p for p in (ROOT/'rtl/cpu.f').read_text().splitlines() if p and not p.startswith('+')]
-    sources += [ROOT/p for p in ['rtl/utils/vld_rdy.v','rtl/perips/gpio.v','rtl/perips/uart.v',
-                                'rtl/perips/spi.v',
-                                'rtl/soc/minimal_soc.v','boards/mes50hp/mes50hp_top.v']]
-    # Tcl paths are brace-quoted, so Windows spaces are preserved.
-    tcl=['cd {'+OUT.as_posix()+'}',
-         'set_arch -family Logos -device PGL50H -speedgrade -6 -package FBG484']
-    tcl += ['add_design {'+p.as_posix()+'}' for p in sources]
-    tcl += ['add_constraint {'+(ROOT/'boards/mes50hp/mes50hp.fdc').as_posix()+'}',
-            'compile -top_module mes50hp_top -include_path {'+(ROOT/'rtl/core').as_posix()+'}',
-            'synthesize -ads -selected_syn_tool_opt 2', 'dev_map', 'pnr', 'report_timing', 'gen_bit_stream']
-    (OUT/'build.tcl').write_text('\n'.join(tcl)+'\n',encoding='utf8')
-    print(f'Firmware: {size} bytes; output: {OUT}',flush=True)
-    if args.simulate:
-        # Keep the deliverable image unchanged; only shorten software waits
-        # (LED heartbeat or LCD init delays) in a separate simulation image.
-        # UART stays at real baud.
-        sim_defines=['-DSIM_CYCLE_DIV=1000'] if args.lcd else ['-DHEARTBEAT_CYCLES=100000']
-        sim_objs=[OUT/'start.S.o']
-        for source in app[1:]:
-            obj=OUT/('sim-'+source.name+'.o')
-            run('clang',*cflags,*inc,*sim_defines,'-c',source,'-o',obj)
-            sim_objs.append(obj)
-        run('ld.lld','-m','elf32lriscv','--no-relax','-T',ROOT/'sw/board/link.ld',
-            *sim_objs,'-o',OUT/'sim.elf')
-        run('llvm-objcopy','-O','binary',OUT/'sim.elf',OUT/'sim.bin')
-        simdata=(OUT/'sim.bin').read_bytes()
-        simdata+=b'\xa5'*(65536-len(simdata))
-        (OUT/'sim.hex').write_text(''.join(f'{int.from_bytes(simdata[i:i+4],"little"):08x}\n'
-                                         for i in range(0,65536,4)),encoding='ascii')
-        tb='board_lcd_tb' if args.lcd else 'board_tb'
-        tb_sources=[*sources,ROOT/'tests/board'/(tb+'.sv')]
-        if args.lcd:
-            tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
-        # A full 240x320 frame is ~150k SPI bytes; Verilator is much faster
-        # than Icarus for this, so prefer it when available.
-        if shutil.which('verilator'):
-            objdir=OUT/'obj'
-            run('verilator','--binary','--timing','-Wno-fatal','--top-module',tb,
-                '+incdir+'+(ROOT/'rtl/core').as_posix(),*tb_sources,
-                '--Mdir',objdir.as_posix(),'-o',tb+'_sim')
-            run(str(objdir/(tb+'_sim')))
-        else:
-            run('iverilog','-g2012','-s',tb,'-I',ROOT/'rtl/core','-o',OUT/'board.vvp',
-                *tb_sources)
-            run('vvp',OUT/'board.vvp')
-    if args.pds:
-        pds=os.environ.get('PDS_SHELL',r'C:\pango\PDS_2022.2-SP1-Lite\bin\pds_shell.exe')
-        # PDS chooses its project directory at process launch. Tcl cd alone
-        # does not relocate that directory or its readmemh search path.
-        with (OUT/'pds-build.log').open('w',encoding='utf8') as log:
-            result=subprocess.run([pds,'-file','build.tcl'],cwd=OUT,stdout=log,stderr=subprocess.STDOUT)
-        if result.returncode:
-            raise RuntimeError(f'PDS failed; inspect {OUT}/pds-build.log')
-        log=(OUT/'pds-build.log').read_text(encoding='utf8',errors='replace')
-        if 'Cannot open specified data file' in log:
-            raise RuntimeError('PDS did not load firmware initialization')
-        timing=OUT/'report_timing/mes50hp_top.rtr'
-        bitstream=OUT/'generate_bitstream/mes50hp_top.sbit'
-        if 'Executing : gen_bit_stream successfully.' not in log or not bitstream.exists():
-            raise RuntimeError('PDS did not confirm bitstream generation')
-        if not timing.exists() or 'All Constraints Met.' not in timing.read_text(errors='replace'):
-            raise RuntimeError('Timing failed; do not use this bitstream as a validated build')
-        files=sources+[ROOT/'rtl/core/defines.v',ROOT/'boards/mes50hp/mes50hp.fdc',
-                       *app,ROOT/'sw/board/link.ld',
-                       OUT/'firmware.elf',OUT/'firmware.hex',bitstream,timing]
-        manifest={str(p.relative_to(ROOT)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
-        (OUT/'build-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf8')
-        print('PASS PDS: initialized firmware, bitstream generated, all timing constraints met.',flush=True)
+    return harvard(args)
 
 def harvard(args):
     """soc_top on the board: sw/ firmware -> ROM image, soc.f + matrix board top."""
@@ -178,7 +74,7 @@ def harvard(args):
                 '-nostdlib','-ffreestanding','-fno-builtin','-Wall','-Wextra',
                 '-msmall-data-limit=0','-mno-relax']
         libs=['-lgcc']
-    app=ROOT/'sw/app'/(args.app or ('lcd_demo' if args.lcd else 'board_check'))
+    app=ROOT/'sw/app'/(args.app or 'selftest')
     board=['-DBOARD_EGO1' if args.board=='ego1' else '-DBOARD_MES50HP']
     sources_c=[ROOT/p for p in SW_LIB]+sorted(app.glob('*.c'))
     inc=[f'-I{ROOT/d}' for d in SW_INC]
@@ -214,20 +110,20 @@ def harvard(args):
         elf=build('firmware',[])
     print(f'Firmware: {app.relative_to(ROOT)}; output: {OUT}',flush=True)
     sources=[ROOT/p for p in (ROOT/'rtl/soc.f').read_text().splitlines() if p and not p.startswith('+')]
-    sources.append(ROOT/('boards/mes50hp/mes50hp_top_matrix.v' if args.board=='mes50hp' else 'boards/ego1/ego1_top.v'))
+    sources.append(ROOT/('boards/mes50hp/mes50hp_top.v' if args.board=='mes50hp' else 'boards/ego1/ego1_top.v'))
     hardware_id=hwid(args.board)
     if args.board=='mes50hp':
         # PDS 参数覆盖依赖工具版本, 生成同名顶层并固化 HW_ID。
-        top=OUT/'mes50hp_top_matrix.v'
+        top=OUT/'mes50hp_top.v'
         top.write_text(sources[-1].read_text(encoding='utf8').replace('parameter [31:0] HW_ID = 0,',
                        f"parameter [31:0] HW_ID = 32'h{hardware_id:08x},"),encoding='utf8')
         sources[-1]=top
         tcl=['cd {'+OUT.as_posix()+'}',
              'set_arch -family Logos -device PGL50H -speedgrade -6 -package FBG484']
         tcl += ['add_design {'+p.as_posix()+'}' for p in sources]
-        tcl += ['add_constraint {'+(ROOT/'boards/mes50hp/matrix.fdc').as_posix()+'}',
+        tcl += ['add_constraint {'+(ROOT/'boards/mes50hp/mes50hp.fdc').as_posix()+'}',
                 'add_constraint {'+(ROOT/'boards/mes50hp/pins.fdc').as_posix()+'}',
-                'compile -top_module mes50hp_top_matrix -include_path {{'+ROOT.as_posix()+'} {'+(ROOT/'rtl/core').as_posix()+'}}',
+                'compile -top_module mes50hp_top -include_path {{'+ROOT.as_posix()+'} {'+(ROOT/'rtl/core').as_posix()+'}}',
                 'synthesize -ads -selected_syn_tool_opt 2', 'dev_map', 'pnr', 'report_timing', 'gen_bit_stream']
     else:
         tcl=['cd {'+OUT.as_posix()+'}']
@@ -249,7 +145,7 @@ def harvard(args):
         sim_boot=build_boot('boot-sim',['-DSIM_CYCLE_DIV=200'])
         sim_elf=build('sim',['-DSIM_CYCLE_DIV=1000'])
         combined(sim_elf,'sim',sim_boot)
-        if not args.lcd:
+        if True:
             for name,define in [('boot-default',[]),('boot-app',['-DNEW_APP'])]:
                 app_elf=OUT/(name+'.elf')
                 run(coremark.compiler(args.cc),*cflags,*inc,*define,'-T',ROOT/'sw/link.ld',
@@ -263,12 +159,10 @@ def harvard(args):
                     (OUT/'boot-app.hex').write_text(''.join(f'{b:02x}\n' for b in data))
                     (OUT/'boot-app.vh').write_text(f"localparam APP_LENGTH = {len(data)};\n"
                         +f"localparam [31:0] APP_CRC = 32'h{zlib.crc32(data):08x};\n")
-        for tb in (['board_lcd_tb'] if args.lcd else ['board_tb','uart_reset_tb','boot_tb']):
-            tb_sources=[*[p for p in sources if p.name not in ['ego1_top.v', 'mes50hp_top_matrix.v']],
-                        ROOT/'boards/mes50hp/mes50hp_top_matrix.v',ROOT/'tests/board'/(tb+'.sv')]
-            if args.lcd:
-                tb_sources.append(ROOT/'tests/soc/st7789_model.sv')
-            params=["-GTOHOST_ADDR=32'h10000000"] if args.lcd else []   # sw/link.ld .tohost
+        for tb in ['board_tb','uart_reset_tb','boot_tb']:
+            tb_sources=[*[p for p in sources if p.name not in ['ego1_top.v', 'mes50hp_top.v']],
+                        ROOT/'boards/mes50hp/mes50hp_top.v',ROOT/'tests/board'/(tb+'.sv')]
+            params=[]
             if shutil.which('verilator'):
                 objdir=OUT/'obj'
                 run('verilator','--binary','--timing','-Wno-fatal','--top-module',tb,'-DHARVARD',*params,
@@ -277,14 +171,13 @@ def harvard(args):
                 run(str(objdir/(tb+'_sim')))
             else:
                 run('iverilog','-g2012','-s',tb,'-DHARVARD',
-                    *(['-P',f"{tb}.TOHOST_ADDR=32'h10000000"] if args.lcd else []),
                     '-I',OUT,'-I',ROOT,'-I',ROOT/'rtl/core','-o',OUT/'board.vvp',*tb_sources)
                 run('vvp',OUT/'board.vvp')
     if args.pds:
-        pds_build(sources+[ROOT/'rtl/core/defines.v',ROOT/'boards/mes50hp/matrix.fdc',
+        pds_build(sources+[ROOT/'rtl/core/defines.v',ROOT/'boards/mes50hp/mes50hp.fdc',
                            ROOT/'boards/mes50hp/pins.fdc',ROOT/'boards/mes50hp/pins_top.vh',
                            *sources_c,*sorted((ROOT/'sw/boot').glob('*')),OUT/'boot.elf',
-                           ROOT/'boards/mes50hp/mes50hp_top_matrix.v',
+                           ROOT/'boards/mes50hp/mes50hp_top.v',
                            ROOT/'sw/link.ld',elf,OUT/'firmware.hex'])
     if args.vivado:
         vivado_build(sources+[ROOT/'rtl/core/defines.v',ROOT/'boards/ego1/ego1_top.v',
@@ -326,8 +219,8 @@ def pds_build(files):
     log=(OUT/'pds-build.log').read_text(encoding='utf8',errors='replace')
     if 'Cannot open specified data file' in log:
         raise RuntimeError('PDS did not load firmware initialization')
-    timing=OUT/'report_timing/mes50hp_top_matrix.rtr'
-    bitstream=OUT/'generate_bitstream/mes50hp_top_matrix.sbit'
+    timing=OUT/'report_timing/mes50hp_top.rtr'
+    bitstream=OUT/'generate_bitstream/mes50hp_top.sbit'
     if 'Executing : gen_bit_stream successfully.' not in log or not bitstream.exists():
         raise RuntimeError('PDS did not confirm bitstream generation')
     if not timing.exists() or 'All Constraints Met.' not in timing.read_text(errors='replace'):

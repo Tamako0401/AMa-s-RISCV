@@ -10,7 +10,7 @@ module boot_tb;
     wire [`IO_N-1:0] io;
     wire uart_tx = io[`UART_TX_PIN];
     assign io[`UART_RX_PIN] = uart_rx;
-    mes50hp_top_matrix #(.MEM_FILE("boot-test.hex"), .HW_ID(ID),
+    mes50hp_top #(.MEM_FILE("boot-test.hex"), .HW_ID(ID),
         .BREAK_CYCLES(6000)) dut(.clk(clk), .key1_n(key1_n), .io(io));
 
     reg [7:0] app[0:APP_LENGTH-1];
