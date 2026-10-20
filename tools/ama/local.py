@@ -7,7 +7,6 @@ from .boards import ROOT
 
 # ama 调用的外部程序; 键名就是程序名, 没配置就在 PATH 里找同名程序
 TOOLS = [
-    'clang',
     'riscv64-unknown-elf-gcc',
     'cc',
     'verilator',

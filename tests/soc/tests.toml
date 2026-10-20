@@ -28,7 +28,4 @@ runs = [{ app = "snake", defines = ["-DSNAKE_STEP_CYCLES=1000000"] }]
 [[test]]
 tb = "coremark_tb.sv"
 rtl = "rtl/soc.f"
-runs = [
-  { app = "coremark", cc = "clang", defines = ["-DITERATIONS=3", "-DMIN_SCORE=550"] },
-  { app = "coremark", cc = "gcc", defines = ["-DITERATIONS=3", "-DMIN_SCORE=650"] },
-]
+runs = [{ app = "coremark", defines = ["-DITERATIONS=3", "-DMIN_SCORE=650"] }]

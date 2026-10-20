@@ -25,7 +25,6 @@ SW_LIB = [
 ]
 SW_INC = ['sw/device', 'sw/drivers', 'sw/bsp', 'sw/components/key', 'sw/components/lcd']
 CFLAGS = [
-    '--target=riscv32-unknown-elf',
     '-march=rv32i_zicsr',
     '-mabi=ilp32',
     '-O2',
@@ -36,7 +35,6 @@ CFLAGS = [
     '-Wextra',
     '-msmall-data-limit=0',
     '-mno-relax',
-    '-fuse-ld=lld',
 ]
 
 PT_LOAD = 1
@@ -89,8 +87,8 @@ def hwid(board):
     return crc
 
 
-def compiler(cc):
-    return tool('clang' if cc == 'clang' else 'riscv64-unknown-elf-gcc')
+def compiler():
+    return tool('riscv64-unknown-elf-gcc')
 
 
 def run(*cmd, check=True, **kw):
@@ -112,19 +110,11 @@ def check_app(app):
         raise SystemExit(f'没有这个程序: sw/app/{app}\n  现有: {" ".join(apps)}')
 
 
-def flags(cc):
-    return [f for f in CFLAGS if cc == 'clang' or not f.startswith(('--target=', '-fuse-ld='))]
+def firmware_dir(app, board):
+    return ROOT / 'build/fw' / board / app
 
 
-def variant(app, cc):
-    return app + ('-gcc' if cc == 'gcc' else '')
-
-
-def firmware_dir(app, board, cc):
-    return ROOT / 'build/fw' / board / variant(app, cc)
-
-
-def compile_app(app, board, cc, defines, out, **kw):
+def compile_app(app, board, defines, out, **kw):
     check_app(app)
     out.mkdir(parents=True, exist_ok=True)
     app_dir = ROOT / 'sw/app' / app
@@ -137,15 +127,15 @@ def compile_app(app, board, cc, defines, out, **kw):
     if board_dir.is_dir():
         include.append(str(board_dir.relative_to(ROOT)))
     options = [
-        *flags(cc),
+        *CFLAGS,
         *config.get('cflags', []),
         *[f'-I{d}' for d in include],
         f'-DBOARD_{board.upper()}',
         *defines,
     ]
-    cmd = compiler(cc)
+    cmd = compiler()
     elf = out / 'app.elf'
-    run(*cmd, *options, '-T', 'sw/link.ld', *sources, *(['-lgcc'] if cc == 'gcc' else []), '-o', elf, cwd=ROOT, **kw)
+    run(*cmd, *options, '-T', 'sw/link.ld', *sources, '-lgcc', '-o', elf, cwd=ROOT, **kw)
     # clangd 需要与实际编译一致的宏和头文件路径。
     (ROOT / 'build/compile_commands.json').write_text(
         json.dumps(
@@ -153,7 +143,7 @@ def compile_app(app, board, cc, defines, out, **kw):
                 {
                     'directory': str(ROOT),
                     'file': src,
-                    'arguments': [*cmd, *[f for f in options if not f.startswith('-fuse-ld')], '-c', src],
+                    'arguments': [*cmd, *options, '-c', src],
                 }
                 for src in sources
             ],
@@ -164,13 +154,13 @@ def compile_app(app, board, cc, defines, out, **kw):
     return elf
 
 
-def build_firmware(app, board, cc, defines, boot_defines, out, **kw):
+def build_firmware(app, board, defines, boot_defines, out, **kw):
     """app + bootloader -> out/rom.hex (app 在 0..0xF800, bootloader 在 0xF800..0x10000)"""
-    elf = compile_app(app, board, cc, defines, out, **kw)
+    elf = compile_app(app, board, defines, out, **kw)
     boot = out / 'boot.elf'
-    options = [f for f in flags(cc) if f != '-O2']
+    options = [f for f in CFLAGS if f != '-O2']
     run(
-        *compiler(cc),
+        *compiler(),
         *options,
         '-Os',
         '-fno-delete-null-pointer-checks',
@@ -180,7 +170,7 @@ def build_firmware(app, board, cc, defines, boot_defines, out, **kw):
         'sw/boot/link.ld',
         'sw/boot/startup.S',
         'sw/boot/main.c',
-        *(['-lgcc'] if cc == 'gcc' else []),
+        '-lgcc',
         '-o',
         boot,
         cwd=ROOT,

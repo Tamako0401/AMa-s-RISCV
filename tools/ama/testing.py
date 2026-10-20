@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .boards import ROOT
 from .local import tool
-from .firmware import SW_INC, build_firmware, compiler, elf_to_rom, flags, write_hex
+from .firmware import SW_INC, build_firmware, CFLAGS, compiler, elf_to_rom, write_hex
 
 OUT = ROOT / 'build/test'
 
@@ -22,8 +22,8 @@ def command(args, log):
 def program(run, out, log):
     elf = out / 'program.elf'
     args = [
-        *compiler('clang'),
-        *flags('clang'),
+        *compiler(),
+        *CFLAGS,
         '-march=rv32im_zicsr_zifencei',
         '-fno-stack-protector',
         *[f'-I{d}' for d in SW_INC],
@@ -56,7 +56,6 @@ def images(run, out, log):
             build_firmware(
                 run['app'],
                 'mes50hp',
-                run.get('cc', 'clang'),
                 ['-DSIM_CYCLE_DIV=1000', *run.get('defines', [])],
                 ['-DSIM_CYCLE_DIV=200'],
                 out,
@@ -139,7 +138,6 @@ def bench(test, tb):
                         str(tb.relative_to(ROOT)),
                         detail,
                         label,
-                        run.get('cc', ''),
                         '(预期失败)' if test.get('expect') == 'fail' else '',
                     ],
                 )

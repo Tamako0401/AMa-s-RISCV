@@ -1,7 +1,7 @@
 # 复制成 ama.local.toml 再改 (不提交)。全部可省, 整个文件也可以没有。
 #
 # 工具: 键名是 ama 调用的程序名, 值是替代它的命令 (字符串列表)。没写的就在 PATH 里找同名程序。
-#   可写的键: clang, riscv64-unknown-elf-gcc, cc, verilator, vivado, pds_shell
+#   可写的键: riscv64-unknown-elf-gcc, cc, verilator, vivado, pds_shell
 #             ruff, clang-tidy, clang-format, verible-verilog-lint, verible-verilog-format
 # 替代命令必须表现得和原程序一样:
 #   - ama 在值后面追加原程序自己的参数, 替代命令要原样接受;

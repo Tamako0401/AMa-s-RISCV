@@ -10,14 +10,14 @@
 
 import subprocess
 import time
-from typing import Literal, Optional
+from typing import Optional
 
 import typer
 
 
 from . import load, fpga as projects
 from .boards import ROOT, boards, gen_pins
-from .firmware import build_firmware, check_app, firmware_dir, compile_app, elf_to_rom, run, write_hex, hwid, variant
+from .firmware import build_firmware, check_app, firmware_dir, compile_app, elf_to_rom, run, write_hex, hwid
 from .local import CONFIG, TOOLS, tool
 
 BOARDS = boards()
@@ -28,10 +28,8 @@ cli = typer.Typer(
 fpga = typer.Typer(help='位流: 只有改了 rtl/、boards/、sw/boot/ 才需要 (几分钟)', no_args_is_help=True)
 cli.add_typer(fpga, name='fpga')
 
-Compiler = Literal['clang', 'gcc']
 
 
-CCOpt = typer.Option(None, '--cc', help='编译器; 不写用 clang')
 App = typer.Argument(..., help='sw/app/ 下的程序名')
 BoardOpt = typer.Option(None, '--board', '-b', help='ego1 或 mes50hp; 不写就按插着的串口芯片识别')
 PortOpt = typer.Option(None, '--port', '-p', help='串口; 不写就自动找')
@@ -96,7 +94,7 @@ def terminal(ser):
 
 def do_upload(app, board, port, force):
     board, port = pick_board(board, port)
-    image = load.app_image(build_firmware(app, board, 'clang', [], [], firmware_dir(app, board, 'clang')))
+    image = load.app_image(build_firmware(app, board, [], [], firmware_dir(app, board)))
     ser = open_port(port, board)
     step(f'下载到 {board} ({port})')
     hw = load.enter_bootloader(ser)
@@ -146,11 +144,10 @@ def run_cmd(app: str = App, board: Optional[str] = BoardOpt, port: Optional[str]
 
 
 @cli.command()
-def build(app: str = App, board: Optional[str] = BoardOpt, cc: Optional[Compiler] = CCOpt):
+def build(app: str = App, board: Optional[str] = BoardOpt):
     """只编译程序 (几秒), 不碰板子。"""
     board, _ = pick_board(board)
-    cc = cc or 'clang'
-    elf = build_firmware(app, board, cc, [], [], firmware_dir(app, board, cc))
+    elf = build_firmware(app, board, [], [], firmware_dir(app, board))
     typer.secho(f'✓ {elf.relative_to(ROOT)}', fg='green')
 
 
@@ -203,7 +200,7 @@ def sim(app: str = App):
 
     check_app(app)
     out = ROOT / 'build/sim'
-    elf = compile_app(app, 'mes50hp', 'clang', ['-DSIM_CYCLE_DIV=1000'], out / app)
+    elf = compile_app(app, 'mes50hp', ['-DSIM_CYCLE_DIV=1000'], out / app)
     rom = out / f'{app}.hex'
     write_hex(elf_to_rom(elf), rom)
     binary = sim_binary(out)
@@ -229,12 +226,11 @@ def fpga_bit(board, app):
 
 
 @fpga.command('build')
-def fpga_build(app: str = App, board: Optional[str] = BoardOpt, cc: Optional[Compiler] = CCOpt):
+def fpga_build(app: str = App, board: Optional[str] = BoardOpt):
     """编译固件并综合出位流。"""
     board, _ = pick_board(board)
-    cc = cc or 'clang'
-    elf = build_firmware(app, board, cc, [], [], firmware_dir(app, board, cc))
-    out = projects.generate(board, variant(app, cc), elf.parent / 'rom.hex')
+    elf = build_firmware(app, board, [], [], firmware_dir(app, board))
+    out = projects.generate(board, app, elf.parent / 'rom.hex')
     projects.build(board, out)
     bit = out / BOARDS[board]['bitstream']
     bit.with_suffix('.hwid').write_text(f'0x{hwid(board):08x}\n')
