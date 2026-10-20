@@ -35,7 +35,7 @@ flowchart LR
 ## 规则
 
 - **ROM 分区**: 只在 `sw/memory.ld` 定义; 两份链接脚本和 ama 都从它读; RTL (rom.v 写保护、板级顶层 RESET_PC) 另有同值常量。
-- **一个编译器**: 固件只用 `riscv64-unknown-elf-gcc`。电脑端测试 (`sw/app/*/test/`) 在电脑上运行, 用电脑的 `cc`。
+- **一个编译器**: 固件只用 `riscv32-unknown-elf-gcc`。电脑端测试 (`sw/app/*/test/`) 在电脑上运行, 用电脑的 `cc`。
 - **本机工具**: ama 调用的外部程序都按名字找, 本机名字或位置不同时在 `ama.local.toml` 里写替代命令,
   规则见 [`ama.local.toml.example`](../../ama.local.toml.example)。
 - **程序**: `sw/app/<程序>/` 下的 .c 一起编译; `boards/<板>/` 子目录放该板的接线; 要额外源文件或选项时写

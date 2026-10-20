@@ -107,7 +107,7 @@ def hwid(board):
 
 
 def compiler():
-    return tool('riscv64-unknown-elf-gcc')
+    return tool('riscv32-unknown-elf-gcc')
 
 
 def run(*cmd, check=True, **kw):

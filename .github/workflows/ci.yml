@@ -18,6 +18,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y verilator gcc-riscv64-unknown-elf python3
+      # 赛题指定 riscv32-unknown-elf-gcc; Ubuntu 只有 riscv64 的包 (带 rv32 库), 按 ama.local.toml 的规则起别名
+      - run: echo 'riscv32-unknown-elf-gcc = ["riscv64-unknown-elf-gcc"]' > ama.local.toml
       - uses: astral-sh/setup-uv@v6
       - run: ./ama test
       - run: cd third_party/coremark && sha256sum -c SHA256SUMS
