@@ -20,82 +20,82 @@ module soc_top #(
     parameter [31:0] HW_ID = 0,
     parameter ROM_WRITABLE = 0,
     parameter [31:0] RESET_PC = 32'h00000000,
-    parameter ROM_INIT_FILE = "",           // ROM 初值 hex 文件, 相对仿真工作目录
-    parameter RAM_INIT_FILE = "",           // RAM 初值 hex 文件, 相对仿真工作目录
-    parameter CPU_CLOCK_HZ = 50000000,      // 供 UART 计算默认波特率分频
+    parameter ROM_INIT_FILE = "",  // ROM 初值 hex 文件, 相对仿真工作目录
+    parameter RAM_INIT_FILE = "",  // RAM 初值 hex 文件, 相对仿真工作目录
+    parameter CPU_CLOCK_HZ = 50000000,  // 供 UART 计算默认波特率分频
     parameter IO_N = 0,
     parameter UART_TX_PIN = 255,
     parameter UART_RX_PIN = 255
-)(
+) (
 
     input wire clk,
     input wire rst_n,
 
-    input wire uart_rx,                     // 空闲为高
-    output wire uart_tx,
+    input  wire       uart_rx,  // 空闲为高
+    output wire       uart_tx,
     output wire [7:0] led,
 
     // SPI data/clock; LCD control pins are driven by GPIO below.
-    output wire spi_mosi,                   // 控制器输出、设备输入
-    input wire spi_miso,                    // 控制器输入、设备输出
-    output wire spi_ss,                     // 片选, 低有效
-    output wire spi_clk,
-    output wire lcd_dc,                     // LCD 命令/数据选择: 0=命令, 1=数据
-    output wire lcd_rst_n,                  // LCD 复位, 低有效
-    output wire[127:0] io_o,
-    output wire[127:0] io_oe,
-    input wire[127:0] io_i
+    output wire         spi_mosi,   // 控制器输出、设备输入
+    input  wire         spi_miso,   // 控制器输入、设备输出
+    output wire         spi_ss,     // 片选, 低有效
+    output wire         spi_clk,
+    output wire         lcd_dc,     // LCD 命令/数据选择: 0=命令, 1=数据
+    output wire         lcd_rst_n,  // LCD 复位, 低有效
+    output wire [127:0] io_o,
+    output wire [127:0] io_oe,
+    input  wire [127:0] io_i
 
-    );
+);
 
     // 核 <-> rib: 主设备 0 = ibus(取指), 主设备 1 = dbus(访存)
-    wire[31:0] ibus_addr, ibus_data_i, ibus_data_o;
-    wire[3:0] ibus_sel;
+    wire [31:0] ibus_addr, ibus_data_i, ibus_data_o;
+    wire [3:0] ibus_sel;
     wire ibus_we, ibus_req_valid, ibus_req_ready, ibus_rsp_valid, ibus_rsp_ready;
 
-    wire[31:0] dbus_addr, dbus_data_i, dbus_data_o;
-    wire[3:0] dbus_sel;
+    wire [31:0] dbus_addr, dbus_data_i, dbus_data_o;
+    wire [3:0] dbus_sel;
     wire dbus_we, dbus_req_valid, dbus_req_ready, dbus_rsp_valid, dbus_rsp_ready;
 
     // rib 从设备 0: ROM
-    wire[31:0] s0_addr, s0_wdata, s0_rdata;
-    wire[3:0] s0_sel;
+    wire [31:0] s0_addr, s0_wdata, s0_rdata;
+    wire [3:0] s0_sel;
     wire s0_we, s0_req_valid, s0_req_ready, s0_rsp_valid, s0_rsp_ready;
 
     // rib 从设备 1: RAM
-    wire[31:0] s1_addr, s1_wdata, s1_rdata;
-    wire[3:0] s1_sel;
+    wire [31:0] s1_addr, s1_wdata, s1_rdata;
+    wire [3:0] s1_sel;
     wire s1_we, s1_req_valid, s1_req_ready, s1_rsp_valid, s1_rsp_ready;
 
     // rib 从设备 2、3: 保留
-    wire[31:0] s2_addr, s2_wdata, s3_addr, s3_wdata;
-    wire[3:0] s2_sel, s3_sel;
+    wire [31:0] s2_addr, s2_wdata, s3_addr, s3_wdata;
+    wire [3:0] s2_sel, s3_sel;
     wire s2_we, s2_req_valid, s3_we, s3_req_valid;
 
     // rib 从设备 4: 外设子总线 (0x4000_0000)
-    wire[31:0] s4_addr, s4_wdata, s4_rdata;
-    wire[3:0] s4_sel;
+    wire [31:0] s4_addr, s4_wdata, s4_rdata;
+    wire [3:0] s4_sel;
     wire s4_we, s4_req_valid, s4_req_ready, s4_rsp_valid, s4_rsp_ready;
 
     // 子总线各口, 口号见文件头; 第 k 口占 [k*32 +: 32] / [k*4 +: 4] / [k]
     localparam PERIPH_N = 5;
-    localparam P_GPIO = 0, P_UART = 1, P_SPI = 2, P_MATRIX = 3, P_SYSCTL = 4;
-    wire[PERIPH_N*32-1:0] p_addr, p_wdata, p_rdata;
-    wire[PERIPH_N*4-1:0] p_sel;
-    wire[PERIPH_N-1:0] p_we, p_req_valid, p_req_ready, p_rsp_valid, p_rsp_ready;
+    localparam P_GPIO   = 0, P_UART = 1, P_SPI = 2, P_MATRIX = 3, P_SYSCTL = 4;
+    wire [PERIPH_N*32-1:0] p_addr, p_wdata, p_rdata;
+    wire [PERIPH_N*4-1:0] p_sel;
+    wire [PERIPH_N-1:0] p_we, p_req_valid, p_req_ready, p_rsp_valid, p_rsp_ready;
 
-    wire[31:0] gpio_ctrl, gpio_data;
+    wire [31:0] gpio_ctrl, gpio_data;
     wire matrix_uart_rx, matrix_spi_miso;
     wire rom_we;
 
 
     tinyriscv_core #(
         .RESET_PC(RESET_PC)
-    ) u_core(
-        .clk(clk),
-        .rst_n(rst_n),
-        .jtag_halt_i(1'b0),                 // 本版本没有 JTAG
-        .int_i(8'h0),                       // 本版本没有中断源
+    ) u_core (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .jtag_halt_i(1'b0),   // 本版本没有 JTAG
+        .int_i      (8'h0),   // 本版本没有中断源
 
         .ibus_addr_o(ibus_addr),
         .ibus_data_i(ibus_data_i),
@@ -119,8 +119,8 @@ module soc_top #(
     );
 
 
-    rib u_rib(
-        .clk(clk),
+    rib u_rib (
+        .clk  (clk),
         .rst_n(rst_n),
 
         // 主设备 0 = ibus
@@ -207,7 +207,7 @@ module soc_top #(
         .WRITABLE(ROM_WRITABLE),
         .DP(16384),
         .ROM_INIT_FILE(ROM_INIT_FILE)
-    ) u_rom(
+    ) u_rom (
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(s0_addr),
@@ -227,7 +227,7 @@ module soc_top #(
     ram #(
         .DP(16384),
         .RAM_INIT_FILE(RAM_INIT_FILE)
-    ) u_ram(
+    ) u_ram (
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(s1_addr),
@@ -245,7 +245,7 @@ module soc_top #(
     // 外设子总线 (rib 从设备 4)
     periph_bus #(
         .N(PERIPH_N)
-    ) u_periph_bus(
+    ) u_periph_bus (
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(s4_addr),
@@ -269,14 +269,14 @@ module soc_top #(
     );
 
     // SPI master (0x4000_2000)
-    spi u_spi(
+    spi u_spi (
         .clk(clk),
         .rst_n(rst_n),
-        .addr_i(p_addr[P_SPI*32 +: 32]),
-        .data_i(p_wdata[P_SPI*32 +: 32]),
-        .sel_i(p_sel[P_SPI*4 +: 4]),
+        .addr_i(p_addr[P_SPI*32+:32]),
+        .data_i(p_wdata[P_SPI*32+:32]),
+        .sel_i(p_sel[P_SPI*4+:4]),
         .we_i(p_we[P_SPI]),
-        .data_o(p_rdata[P_SPI*32 +: 32]),
+        .data_o(p_rdata[P_SPI*32+:32]),
         .req_valid_i(p_req_valid[P_SPI]),
         .req_ready_o(p_req_ready[P_SPI]),
         .rsp_valid_o(p_rsp_valid[P_SPI]),
@@ -289,14 +289,14 @@ module soc_top #(
     // UART (0x4000_1000)
     uart #(
         .CPU_CLOCK_HZ(CPU_CLOCK_HZ)
-    ) u_uart(
+    ) u_uart (
         .clk(clk),
         .rst_n(rst_n),
-        .addr_i(p_addr[P_UART*32 +: 32]),
-        .data_i(p_wdata[P_UART*32 +: 32]),
-        .sel_i(p_sel[P_UART*4 +: 4]),
+        .addr_i(p_addr[P_UART*32+:32]),
+        .data_i(p_wdata[P_UART*32+:32]),
+        .sel_i(p_sel[P_UART*4+:4]),
         .we_i(p_we[P_UART]),
-        .data_o(p_rdata[P_UART*32 +: 32]),
+        .data_o(p_rdata[P_UART*32+:32]),
         .req_valid_i(p_req_valid[P_UART]),
         .req_ready_o(p_req_ready[P_UART]),
         .rsp_valid_o(p_rsp_valid[P_UART]),
@@ -309,36 +309,61 @@ module soc_top #(
         .IO_N(IO_N),
         .UART_TX_PIN(UART_TX_PIN),
         .UART_RX_PIN(UART_RX_PIN)
-    ) u_gpio_matrix(
-        .clk(clk), .rst_n(rst_n),
-        .addr_i(p_addr[P_MATRIX*32 +: 32]), .data_i(p_wdata[P_MATRIX*32 +: 32]),
-        .sel_i(p_sel[P_MATRIX*4 +: 4]), .we_i(p_we[P_MATRIX]),
-        .data_o(p_rdata[P_MATRIX*32 +: 32]),
-        .req_valid_i(p_req_valid[P_MATRIX]), .req_ready_o(p_req_ready[P_MATRIX]),
-        .rsp_valid_o(p_rsp_valid[P_MATRIX]), .rsp_ready_i(p_rsp_ready[P_MATRIX]),
-        .io_o(io_o), .io_oe(io_oe), .io_i(io_i),
-        .uart_tx_i(uart_tx), .uart_rx_o(matrix_uart_rx),
-        .spi_sck_i(spi_clk), .spi_mosi_i(spi_mosi), .spi_miso_o(matrix_spi_miso)
+    ) u_gpio_matrix (
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(p_addr[P_MATRIX*32+:32]),
+        .data_i(p_wdata[P_MATRIX*32+:32]),
+        .sel_i(p_sel[P_MATRIX*4+:4]),
+        .we_i(p_we[P_MATRIX]),
+        .data_o(p_rdata[P_MATRIX*32+:32]),
+        .req_valid_i(p_req_valid[P_MATRIX]),
+        .req_ready_o(p_req_ready[P_MATRIX]),
+        .rsp_valid_o(p_rsp_valid[P_MATRIX]),
+        .rsp_ready_i(p_rsp_ready[P_MATRIX]),
+        .io_o(io_o),
+        .io_oe(io_oe),
+        .io_i(io_i),
+        .uart_tx_i(uart_tx),
+        .uart_rx_o(matrix_uart_rx),
+        .spi_sck_i(spi_clk),
+        .spi_mosi_i(spi_mosi),
+        .spi_miso_o(matrix_spi_miso)
     );
 
-    sysctl #(.HW_ID(HW_ID)) u_sysctl(
-        .clk(clk), .rst_n(rst_n),
-        .addr_i(p_addr[P_SYSCTL*32 +: 32]), .data_i(p_wdata[P_SYSCTL*32 +: 32]),
-        .sel_i(p_sel[P_SYSCTL*4 +: 4]), .we_i(p_we[P_SYSCTL]),
-        .data_o(p_rdata[P_SYSCTL*32 +: 32]),
-        .req_valid_i(p_req_valid[P_SYSCTL]), .req_ready_o(p_req_ready[P_SYSCTL]),
-        .rsp_valid_o(p_rsp_valid[P_SYSCTL]), .rsp_ready_i(p_rsp_ready[P_SYSCTL]),
+    sysctl #(
+        .HW_ID(HW_ID)
+    ) u_sysctl (
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(p_addr[P_SYSCTL*32+:32]),
+        .data_i(p_wdata[P_SYSCTL*32+:32]),
+        .sel_i(p_sel[P_SYSCTL*4+:4]),
+        .we_i(p_we[P_SYSCTL]),
+        .data_o(p_rdata[P_SYSCTL*32+:32]),
+        .req_valid_i(p_req_valid[P_SYSCTL]),
+        .req_ready_o(p_req_ready[P_SYSCTL]),
+        .rsp_valid_o(p_rsp_valid[P_SYSCTL]),
+        .rsp_ready_i(p_rsp_ready[P_SYSCTL]),
         .rom_we(rom_we)
     );
 
     // GPIO (0x4000_0000)
-    gpio u_gpio(
-        .clk(clk), .rst_n(rst_n),
-        .addr_i(p_addr[P_GPIO*32 +: 32]), .data_i(p_wdata[P_GPIO*32 +: 32]),
-        .sel_i(p_sel[P_GPIO*4 +: 4]), .we_i(p_we[P_GPIO]), .data_o(p_rdata[P_GPIO*32 +: 32]),
-        .req_valid_i(p_req_valid[P_GPIO]), .req_ready_o(p_req_ready[P_GPIO]),
-        .rsp_valid_o(p_rsp_valid[P_GPIO]), .rsp_ready_i(p_rsp_ready[P_GPIO]),
-        .io_pin_i(2'b00), .reg_ctrl(gpio_ctrl), .reg_data(gpio_data)
+    gpio u_gpio (
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(p_addr[P_GPIO*32+:32]),
+        .data_i(p_wdata[P_GPIO*32+:32]),
+        .sel_i(p_sel[P_GPIO*4+:4]),
+        .we_i(p_we[P_GPIO]),
+        .data_o(p_rdata[P_GPIO*32+:32]),
+        .req_valid_i(p_req_valid[P_GPIO]),
+        .req_ready_o(p_req_ready[P_GPIO]),
+        .rsp_valid_o(p_rsp_valid[P_GPIO]),
+        .rsp_ready_i(p_rsp_ready[P_GPIO]),
+        .io_pin_i(2'b00),
+        .reg_ctrl(gpio_ctrl),
+        .reg_data(gpio_data)
     );
     // Initialize DATA/BSRR before enabling output directions. GPIO retains its
     // existing mode encoding: 0 high-Z, 1 output, 2 input (not STM32 MODER).
@@ -347,8 +372,10 @@ module soc_top #(
     assign lcd_rst_n = gpio_ctrl[5:4] == 2'b01 ? gpio_data[2] : 1'b1;
 
     genvar i;
-    generate for (i = 0; i < 8; i = i + 1) begin: g_led
-        assign led[i] = gpio_ctrl[(8 + i) * 2 +: 2] == 2'b01 && gpio_data[8 + i];
-    end endgenerate
+    generate
+        for (i = 0; i < 8; i = i + 1) begin : g_led
+            assign led[i] = gpio_ctrl[(8+i)*2+:2] == 2'b01 && gpio_data[8+i];
+        end
+    endgenerate
 
 endmodule

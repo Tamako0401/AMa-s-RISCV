@@ -5,7 +5,7 @@
 #include "lcd.h"
 #include "shield_lcd.h"
 #include "key.h"
-#include "app_board.h"          /* 本板的 LED 表、按键表、按键方块位置: boards/<板>/ */
+#include "app_board.h" /* 本板的 LED 表、按键表、按键方块位置: boards/<板>/ */
 
 #include "cpu_test.h"
 
@@ -54,7 +54,7 @@ int main(void)
     /* 1. CPU 和内存 */
     uint32_t error = cpu_test();
     if (error) {
-        show_leds(0x80 | error);                     /* 最高位亮 + 低位是 FAIL 码 */
+        show_leds(0x80 | error); /* 最高位亮 + 低位是 FAIL 码 */
         uart_puts(CONSOLE_UART, "AMA CPU FAIL ");
         uart_putc(CONSOLE_UART, '0' + error);
         uart_puts(CONSOLE_UART, "\r\n");
@@ -80,7 +80,7 @@ int main(void)
             show_leds(pattern);
         }
         char c;
-        if (uart_getc(CONSOLE_UART, &c))             /* 收到什么就回什么 */
+        if (uart_getc(CONSOLE_UART, &c)) /* 收到什么就回什么 */
             uart_putc(CONSOLE_UART, c);
         key_ticks(keys, KEY_N);
         for (uint32_t i = 0; i < KEY_N; i++) {

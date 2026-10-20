@@ -1,7 +1,7 @@
 // Imported from JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G
 // Source commit: 00a3334d7c98f57a6d429a5e18910a7e2e88390b
 // Local changes: see third_party/tinyriscv-manifest.json and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2019 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,115 +23,115 @@
 // RESET_PC 默认 = 哈佛式指令存储器(ROM)基址 0x0000_0000, 见 docs/cpu-baseline.md。
 module tinyriscv_core #(
     parameter [31:0] RESET_PC = 32'h00000000
-)(
+) (
 
     input wire clk,
     input wire rst_n,
 
-    output wire[31:0] dbus_addr_o,
-    input wire[31:0] dbus_data_i,
-    output wire[31:0] dbus_data_o,
-    output wire[3:0] dbus_sel_o,
+    output wire [31:0] dbus_addr_o,
+    input wire [31:0] dbus_data_i,
+    output wire [31:0] dbus_data_o,
+    output wire [3:0] dbus_sel_o,
     output wire dbus_we_o,
     output wire dbus_req_valid_o,
     input wire dbus_req_ready_i,
     input wire dbus_rsp_valid_i,
     output wire dbus_rsp_ready_o,
 
-    output wire[31:0] ibus_addr_o,          // 取指地址
-    input wire[31:0] ibus_data_i,           // 取到的指令内容
-    output wire[31:0] ibus_data_o,
-    output wire[3:0] ibus_sel_o,
-    output wire ibus_we_o,
-    output wire ibus_req_valid_o,
-    input wire ibus_req_ready_i,
-    input wire ibus_rsp_valid_i,
-    output wire ibus_rsp_ready_o,
+    output wire [31:0] ibus_addr_o,       // 取指地址
+    input  wire [31:0] ibus_data_i,       // 取到的指令内容
+    output wire [31:0] ibus_data_o,
+    output wire [ 3:0] ibus_sel_o,
+    output wire        ibus_we_o,
+    output wire        ibus_req_valid_o,
+    input  wire        ibus_req_ready_i,
+    input  wire        ibus_rsp_valid_i,
+    output wire        ibus_rsp_ready_o,
 
-    input wire jtag_halt_i,
-    input wire[`INT_WIDTH-1:0] int_i        // 中断输入信号
+    input wire                  jtag_halt_i,
+    input wire [`INT_WIDTH-1:0] int_i         // 中断输入信号
 
-    );
+);
 
     // ifu模块输出信号
-    wire[31:0] ifetch_inst_o;
-    wire[31:0] ifetch_pc_o;
+    wire [31:0] ifetch_inst_o;
+    wire [31:0] ifetch_pc_o;
     wire ifetch_inst_valid_o;
 
     // ifu_idu模块输出信号
-	wire[31:0] if_inst_o;
-    wire[31:0] if_inst_addr_o;
-    wire[`INT_WIDTH-1:0] if_int_flag_o;
+    wire [31:0] if_inst_o;
+    wire [31:0] if_inst_addr_o;
+    wire [`INT_WIDTH-1:0] if_int_flag_o;
 
     // idu模块输出信号
-    wire[31:0] id_inst_o;
-    wire[31:0] id_inst_addr_o;
-    wire[`DECINFO_WIDTH-1:0] id_dec_info_bus_o;
-    wire[31:0] id_dec_imm_o;
-    wire[31:0] id_dec_pc_o;
-    wire[4:0] id_rs1_raddr_o;
-    wire[4:0] id_rs2_raddr_o;
-    wire[4:0] id_rd_waddr_o;
+    wire [31:0] id_inst_o;
+    wire [31:0] id_inst_addr_o;
+    wire [`DECINFO_WIDTH-1:0] id_dec_info_bus_o;
+    wire [31:0] id_dec_imm_o;
+    wire [31:0] id_dec_pc_o;
+    wire [4:0] id_rs1_raddr_o;
+    wire [4:0] id_rs2_raddr_o;
+    wire [4:0] id_rd_waddr_o;
     wire id_rd_we_o;
     wire id_stall_o;
-    wire[31:0] id_rs1_rdata_o;
-    wire[31:0] id_rs2_rdata_o;
+    wire [31:0] id_rs1_rdata_o;
+    wire [31:0] id_rs2_rdata_o;
 
     // idu_exu模块输出信号
-    wire[31:0] ie_inst_o;
-    wire[31:0] ie_inst_addr_o;
-    wire[`DECINFO_WIDTH-1:0] ie_dec_info_bus_o;
-    wire[31:0] ie_dec_imm_o;
-    wire[31:0] ie_dec_pc_o;
-    wire[31:0] ie_rs1_rdata_o;
-    wire[31:0] ie_rs2_rdata_o;
-    wire[4:0] ie_rd_waddr_o;
+    wire [31:0] ie_inst_o;
+    wire [31:0] ie_inst_addr_o;
+    wire [`DECINFO_WIDTH-1:0] ie_dec_info_bus_o;
+    wire [31:0] ie_dec_imm_o;
+    wire [31:0] ie_dec_pc_o;
+    wire [31:0] ie_rs1_rdata_o;
+    wire [31:0] ie_rs2_rdata_o;
+    wire [4:0] ie_rd_waddr_o;
     wire ie_rd_we_o;
 
     // exu模块输出信号
-    wire[31:0] ex_mem_wdata_o;
-    wire[31:0] ex_mem_addr_o;
+    wire [31:0] ex_mem_wdata_o;
+    wire [31:0] ex_mem_addr_o;
     wire ex_mem_we_o;
-    wire[3:0] ex_mem_sel_o;
+    wire [3:0] ex_mem_sel_o;
     wire ex_mem_req_valid_o;
     wire ex_mem_rsp_ready_o;
     wire ex_mem_access_misaligned_o;
-    wire[31:0] ex_reg_wdata_o;
+    wire [31:0] ex_reg_wdata_o;
     wire ex_reg_we_o;
-    wire[4:0] ex_reg_waddr_o;
+    wire [4:0] ex_reg_waddr_o;
     wire ex_hold_flag_o;
     wire ex_jump_flag_o;
-    wire[31:0] ex_jump_addr_o;
-    wire[31:0] ex_csr_wdata_o;
+    wire [31:0] ex_jump_addr_o;
+    wire [31:0] ex_csr_wdata_o;
     wire ex_csr_we_o;
-    wire[31:0] ex_csr_waddr_o;
-    wire[31:0] ex_csr_raddr_o;
+    wire [31:0] ex_csr_waddr_o;
+    wire [31:0] ex_csr_raddr_o;
     wire ex_inst_ecall_o;
     wire ex_inst_ebreak_o;
     wire ex_inst_mret_o;
 
     // gpr_reg模块输出信号
-    wire[31:0] regs_rdata1_o;
-    wire[31:0] regs_rdata2_o;
+    wire [31:0] regs_rdata1_o;
+    wire [31:0] regs_rdata2_o;
 
     // csr_reg模块输出信号
-    wire[31:0] csr_ex_data_o;
-    wire[31:0] csr_clint_data_o;
-    wire[31:0] csr_mtvec_o;
-    wire[31:0] csr_mepc_o;
-    wire[31:0] csr_mstatus_o;
+    wire [31:0] csr_ex_data_o;
+    wire [31:0] csr_clint_data_o;
+    wire [31:0] csr_mtvec_o;
+    wire [31:0] csr_mepc_o;
+    wire [31:0] csr_mstatus_o;
 
     // pipe_ctrl模块输出信号
-    wire[31:0] ctrl_flush_addr_o;
+    wire [31:0] ctrl_flush_addr_o;
     wire ctrl_flush_o;
-    wire[`STALL_WIDTH-1:0] ctrl_stall_o;
+    wire [`STALL_WIDTH-1:0] ctrl_stall_o;
 
     // clint模块输出信号
     wire clint_csr_we_o;
-    wire[31:0] clint_csr_waddr_o;
-    wire[31:0] clint_csr_wdata_o;
+    wire [31:0] clint_csr_waddr_o;
+    wire [31:0] clint_csr_wdata_o;
     wire clint_stall_flag_o;
-    wire[31:0] clint_int_addr_o;
+    wire [31:0] clint_int_addr_o;
     wire clint_int_assert_o;
 
     assign dbus_addr_o = ex_mem_addr_o;
@@ -142,7 +142,9 @@ module tinyriscv_core #(
     assign dbus_rsp_ready_o = ex_mem_rsp_ready_o;
 
 
-    ifu #(.RESET_PC(RESET_PC)) u_ifu(
+    ifu #(
+        .RESET_PC(RESET_PC)
+    ) u_ifu (
         .clk(clk),
         .rst_n(rst_n),
         .flush_addr_i(ctrl_flush_addr_o),
@@ -163,7 +165,7 @@ module tinyriscv_core #(
         .rsp_ready_o(ibus_rsp_ready_o)
     );
 
-    pipe_ctrl u_pipe_ctrl(
+    pipe_ctrl u_pipe_ctrl (
         .clk(clk),
         .rst_n(rst_n),
         .stall_from_id_i(id_stall_o),
@@ -177,7 +179,7 @@ module tinyriscv_core #(
         .flush_addr_o(ctrl_flush_addr_o)
     );
 
-    gpr_reg u_gpr_reg(
+    gpr_reg u_gpr_reg (
         .clk(clk),
         .rst_n(rst_n),
         .we_i(ex_reg_we_o),
@@ -189,7 +191,7 @@ module tinyriscv_core #(
         .rdata2_o(regs_rdata2_o)
     );
 
-    csr_reg u_csr_reg(
+    csr_reg u_csr_reg (
         .clk(clk),
         .rst_n(rst_n),
         .exu_we_i(ex_csr_we_o),
@@ -205,7 +207,7 @@ module tinyriscv_core #(
         .mstatus_o(csr_mstatus_o)
     );
 
-    ifu_idu u_ifu_idu(
+    ifu_idu u_ifu_idu (
         .clk(clk),
         .rst_n(rst_n),
         .inst_i(ifetch_inst_o),
@@ -217,7 +219,7 @@ module tinyriscv_core #(
         .inst_addr_o(if_inst_addr_o)
     );
 
-    idu u_idu(
+    idu u_idu (
         .clk(clk),
         .rst_n(rst_n),
         .inst_i(if_inst_o),
@@ -237,7 +239,7 @@ module tinyriscv_core #(
         .rd_we_o(id_rd_we_o)
     );
 
-    idu_exu u_idu_exu(
+    idu_exu u_idu_exu (
         .clk(clk),
         .rst_n(rst_n),
         .inst_i(id_inst_o),
@@ -260,7 +262,7 @@ module tinyriscv_core #(
         .rd_we_o(ie_rd_we_o)
     );
 
-    exu u_exu(
+    exu u_exu (
         .clk(clk),
         .rst_n(rst_n),
         .reg1_rdata_i(ie_rs1_rdata_o),
@@ -300,7 +302,7 @@ module tinyriscv_core #(
         .rd_we_i(ie_rd_we_o)
     );
 
-    clint u_clint(
+    clint u_clint (
         .clk(clk),
         .rst_n(rst_n),
         .int_flag_i(int_i),

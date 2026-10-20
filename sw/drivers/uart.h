@@ -8,7 +8,7 @@
  * 因为 rv32i 没有除法指令, -nostdlib 下运行时除法会链接不到 __udivsi3。 */
 static inline void uart_init(UART_TypeDef *uart, uint32_t clk_hz, uint32_t baud)
 {
-    uart->BAUD = (clk_hz + baud / 2) / baud - 1;    /* 50MHz/115200 -> 433, 四舍五入 */
+    uart->BAUD = (clk_hz + baud / 2) / baud - 1; /* 50MHz/115200 -> 433, 四舍五入 */
     uart->CTRL = UART_CTRL_TXEN | UART_CTRL_RXEN;
 }
 void uart_putc(UART_TypeDef *uart, char c);

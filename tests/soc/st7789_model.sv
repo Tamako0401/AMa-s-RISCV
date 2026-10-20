@@ -12,25 +12,25 @@
 //
 // 支持的命令: 0x2A CASET / 0x2B RASET / 0x2C RAMWR 会真正维护 GRAM;
 // 其余命令只结束 RAMWR 状态, 参数被忽略。
-`timescale 1ns/1ps
+`timescale 1ns / 1ps
 module st7789_model #(
     parameter W = 240,
     parameter H = 320
-)(
-    input wire rst_n,       // 面板复位引脚, 低有效
-    input wire cs_n,        // 片选, 低有效
-    input wire dc,          // 0 = 命令, 1 = 数据
-    input wire sck,         // SCK
-    input wire mosi         // MOSI
+) (
+    input wire rst_n,  // 面板复位引脚, 低有效
+    input wire cs_n,   // 片选, 低有效
+    input wire dc,     // 0 = 命令, 1 = 数据
+    input wire sck,    // SCK
+    input wire mosi    // MOSI
 );
 
     // 显存
-    reg [15:0] gram [0:W*H-1];
+    reg [15:0] gram[0:W*H-1];
 
-    localparam [1:0] ST_NONE   = 2'd0;
-    localparam [1:0] ST_CASET  = 2'd1;
-    localparam [1:0] ST_RASET  = 2'd2;
-    localparam [1:0] ST_RAMWR  = 2'd3;
+    localparam [1:0] ST_NONE  = 2'd0;
+    localparam [1:0] ST_CASET = 2'd1;
+    localparam [1:0] ST_RASET = 2'd2;
+    localparam [1:0] ST_RAMWR = 2'd3;
 
     reg [1:0]  st = ST_NONE;
     reg [2:0]  bit_cnt = 0;
@@ -39,23 +39,23 @@ module st7789_model #(
     integer    param_cnt = 0;
     reg [15:0] p0 = 0, p1 = 0;
 
-    integer xs = 0, xe = 0, ys = 0, ye = 0;     // 当前窗口
-    integer cx = 0, cy = 0;                     // 当前写入位置
-    reg        pix_hi_ok = 0;
-    reg [7:0]  pix_hi = 0;
+    integer xs = 0, xe = 0, ys = 0, ye = 0;  // 当前窗口
+    integer cx = 0, cy = 0;  // 当前写入位置
+    reg           pix_hi_ok = 0;
+    reg     [7:0] pix_hi = 0;
 
     // 统计, 供测试台核对
-    integer pixels   = 0;      // 写进 GRAM 的像素数
-    integer cmd_cnt  = 0;      // 收到的命令字节数
-    integer data_cnt = 0;      // 收到的数据字节数
-    reg [7:0] last_cmd = 0;
-    integer colmod = -1;       // 0x3A 的参数
-    integer madctl = -1;       // 0x36 的参数
-    integer ramwr_cnt = 0;     // 0x2C 出现次数
+    integer       pixels = 0;  // 写进 GRAM 的像素数
+    integer       cmd_cnt = 0;  // 收到的命令字节数
+    integer       data_cnt = 0;  // 收到的数据字节数
+    reg     [7:0] last_cmd = 0;
+    integer       colmod = -1;  // 0x3A 的参数
+    integer       madctl = -1;  // 0x36 的参数
+    integer       ramwr_cnt = 0;  // 0x2C 出现次数
 
-    string frame_path;
-    integer frame_enabled;
-    integer frame_pixels = 0;
+    string        frame_path;
+    integer       frame_enabled;
+    integer       frame_pixels = 0;
     initial frame_enabled = $value$plusargs("frame=%s", frame_path);
 
     task write_frame;
@@ -64,8 +64,8 @@ module st7789_model #(
             // 小窗口也会频繁结束 RAMWR, 累积像素后再写以减少文件开销。
             if (frame_enabled && pixels - frame_pixels >= 64) begin
                 fd = $fopen(frame_path, "wb");
-                for (integer i = 0; i < W*H; i = i + 1)
-                    $fwrite(fd, "%c%c", gram[i][7:0], gram[i][15:8]);
+                for (integer i = 0; i < W * H; i = i + 1)
+                $fwrite(fd, "%c%c", gram[i][7:0], gram[i][15:8]);
                 $fclose(fd);
                 frame_pixels = pixels;
             end
@@ -82,8 +82,8 @@ module st7789_model #(
             cmd_cnt = cmd_cnt + 1;
             last_cmd = c;
             case (c)
-                8'h2A: st = ST_CASET;
-                8'h2B: st = ST_RASET;
+                8'h2A:   st = ST_CASET;
+                8'h2B:   st = ST_RASET;
                 8'h2C: begin
                     st = ST_RAMWR;
                     cx = xs;
@@ -103,9 +103,15 @@ module st7789_model #(
                 ST_CASET: begin
                     case (param_cnt)
                         0: p0 = {p0[7:0], d};
-                        1: begin p0 = {p0[7:0], d}; xs = p0; end
+                        1: begin
+                            p0 = {p0[7:0], d};
+                            xs = p0;
+                        end
                         2: p1 = {p1[7:0], d};
-                        3: begin p1 = {p1[7:0], d}; xe = p1; end
+                        3: begin
+                            p1 = {p1[7:0], d};
+                            xe = p1;
+                        end
                         default: ;
                     endcase
                     param_cnt = param_cnt + 1;
@@ -113,9 +119,15 @@ module st7789_model #(
                 ST_RASET: begin
                     case (param_cnt)
                         0: p0 = {p0[7:0], d};
-                        1: begin p0 = {p0[7:0], d}; ys = p0; end
+                        1: begin
+                            p0 = {p0[7:0], d};
+                            ys = p0;
+                        end
                         2: p1 = {p1[7:0], d};
-                        3: begin p1 = {p1[7:0], d}; ye = p1; end
+                        3: begin
+                            p1 = {p1[7:0], d};
+                            ye = p1;
+                        end
                         default: ;
                     endcase
                     param_cnt = param_cnt + 1;
@@ -127,7 +139,7 @@ module st7789_model #(
                     end else begin
                         pix_hi_ok = 0;
                         if (cx >= 0 && cx < W && cy >= 0 && cy < H) begin
-                            gram[cy*W + cx] = {pix_hi, d};
+                            gram[cy*W+cx] = {pix_hi, d};
                             pixels = pixels + 1;
                         end
                         // 驱动写完最后一个窗口后可能保持 CS 低, 不再发命令。
@@ -152,13 +164,13 @@ module st7789_model #(
     endtask
 
     // SCK 上升沿采样 MOSI, 每 8 位组成一个字节
-    always @ (posedge sck) begin
+    always @(posedge sck) begin
         if (cs_n === 1'b0 && rst_n === 1'b1) begin
             shift = {shift[6:0], mosi};
             if (bit_cnt == 3'd7) begin
                 bit_cnt = 0;
                 if (dc === 1'b0) handle_cmd(shift);
-                else             handle_data(shift);
+                else handle_data(shift);
             end else begin
                 bit_cnt = bit_cnt + 1;
             end
@@ -166,7 +178,7 @@ module st7789_model #(
     end
 
     // 片选拉高或面板复位: 丢弃半截字节
-    always @ (posedge cs_n or negedge rst_n) begin
+    always @(posedge cs_n or negedge rst_n) begin
         if (cs_n && st == ST_RAMWR) write_frame();
         bit_cnt   = 0;
         shift     = 8'h00;
@@ -185,11 +197,11 @@ module st7789_model #(
             r = c[15:11];
             g = c[10:5];
             b = c[4:0];
-            if (r < 5'd4 && g < 6'd4 && b < 5'd4)      glyph = " ";
-            else if (r > 5'd20 && g > 6'd40 && b > 5'd20) glyph = "#";   // 白
-            else if (r >= g && r >= b)                  glyph = "R";
-            else if (g >= r && g >= b)                  glyph = "G";
-            else                                        glyph = "B";
+            if (r < 5'd4 && g < 6'd4 && b < 5'd4) glyph = " ";
+            else if (r > 5'd20 && g > 6'd40 && b > 5'd20) glyph = "#";  // 白
+            else if (r >= g && r >= b) glyph = "R";
+            else if (g >= r && g >= b) glyph = "G";
+            else glyph = "B";
         end
     endfunction
 
@@ -199,8 +211,7 @@ module st7789_model #(
             $display("    +%0s+", {60{"-"}});
             for (ry = 0; ry < H; ry = ry + 8) begin
                 $write("    |");
-                for (rx = 0; rx < W; rx = rx + 4)
-                    $write("%c", glyph(gram[ry*W + rx]));
+                for (rx = 0; rx < W; rx = rx + 4) $write("%c", glyph(gram[ry*W+rx]));
                 $display("|");
             end
             $display("    +%0s+", {60{"-"}});

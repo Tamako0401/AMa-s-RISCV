@@ -6,15 +6,21 @@
 #include "lcd_io.h"
 
 extern uint16_t lcd_w, lcd_h;
-static inline uint16_t lcd_width(void) { return lcd_w; }
-static inline uint16_t lcd_height(void) { return lcd_h; }
+static inline uint16_t lcd_width(void)
+{
+    return lcd_w;
+}
+static inline uint16_t lcd_height(void)
+{
+    return lcd_h;
+}
 
 #define RGB565(r, g, b) ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3)))
 #define LCD_BLACK 0x0000
 #define LCD_WHITE 0xFFFF
-#define LCD_RED   0xF800
+#define LCD_RED 0xF800
 #define LCD_GREEN 0x07E0
-#define LCD_BLUE  0x001F
+#define LCD_BLUE 0x001F
 
 /* 初始化屏幕; 宽高由驱动设好, 之后用 lcd_width()/lcd_height() 读 */
 void lcd_init_st7789(const lcd_pins_t *pins);

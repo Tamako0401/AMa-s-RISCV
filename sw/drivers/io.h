@@ -14,14 +14,18 @@
 
 static inline void io_dir(uint32_t pin, uint32_t dir)
 {
-    if (dir) IO_MATRIX->ENABLE_W1TS[pin >> 5] = 1UL << (pin & 31);
-    else IO_MATRIX->ENABLE_W1TC[pin >> 5] = 1UL << (pin & 31);
+    if (dir)
+        IO_MATRIX->ENABLE_W1TS[pin >> 5] = 1UL << (pin & 31);
+    else
+        IO_MATRIX->ENABLE_W1TC[pin >> 5] = 1UL << (pin & 31);
 }
 
 static inline void io_write(uint32_t pin, int level)
 {
-    if (level) IO_MATRIX->OUT_W1TS[pin >> 5] = 1UL << (pin & 31);
-    else IO_MATRIX->OUT_W1TC[pin >> 5] = 1UL << (pin & 31);
+    if (level)
+        IO_MATRIX->OUT_W1TS[pin >> 5] = 1UL << (pin & 31);
+    else
+        IO_MATRIX->OUT_W1TC[pin >> 5] = 1UL << (pin & 31);
 }
 
 static inline int io_read(uint32_t pin)

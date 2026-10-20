@@ -7,6 +7,7 @@
 程序就是 sw/app/ 下的目录名。板子按插着的 USB 串口芯片自动识别 (FT2232 = EGO1, CP2102 = 盘古),
 识别不了时用 --board 指定。本机工具路径写在 ama.local.toml (见 ama.local.toml.example), 没有也能用。
 """
+
 import subprocess
 import time
 from typing import Literal, Optional
@@ -21,8 +22,9 @@ from .local import CONFIG, TOOLS, tool
 
 BOARDS = boards()
 
-cli = typer.Typer(help=__doc__, no_args_is_help=True, add_completion=False,
-                  context_settings={'help_option_names': ['-h', '--help']})
+cli = typer.Typer(
+    help=__doc__, no_args_is_help=True, add_completion=False, context_settings={'help_option_names': ['-h', '--help']}
+)
 fpga = typer.Typer(help='位流: 只有改了 rtl/、boards/、sw/boot/ 才需要 (几分钟)', no_args_is_help=True)
 cli.add_typer(fpga, name='fpga')
 
@@ -48,6 +50,7 @@ def fail(why):
 def detect():
     """插着的板子: [(串口, 板名)]。FT2232 有两个口, 串口是编号大的那个, 所以倒序后每块板只取第一个"""
     from serial.tools import list_ports
+
     found = {}
     for p in sorted(list_ports.comports(), key=lambda p: p.device, reverse=True):
         for name, board in BOARDS.items():
@@ -72,6 +75,7 @@ def pick_board(board, port=None):
 
 def open_port(port, board):
     import serial
+
     if not port:
         fail(f'没找到 {board} 的串口: 检查 USB 线, 或用 --port 指定')
     return serial.Serial(port, 115200, timeout=0.3)
@@ -79,6 +83,7 @@ def open_port(port, board):
 
 def terminal(ser):
     from serial.tools import miniterm
+
     typer.secho(f'--- {ser.port} 115200, Ctrl+] 退出 ---', fg='cyan')
     ser.timeout = None
     term = miniterm.Miniterm(ser, echo=False)
@@ -96,8 +101,10 @@ def do_upload(app, board, port, force):
     step(f'下载到 {board} ({port})')
     hw = load.enter_bootloader(ser)
     if hw != hwid(board) and not force:
-        fail(f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{hwid(board):08x} 不一致 (rtl/、boards/、sw/boot/ 改过):\n'
-             f'  先 ama fpga build, ama fpga program; 或者加 --force 照样下载')
+        fail(
+            f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{hwid(board):08x} 不一致 (rtl/、boards/、sw/boot/ 改过):\n'
+            f'  先 ama fpga build, ama fpga program; 或者加 --force 照样下载'
+        )
     start = time.monotonic()
     load.download(ser, image)
     ser.write(b'G')
@@ -109,6 +116,7 @@ def do_upload(app, board, port, force):
 def test_cmd(paths: Optional[list[str]] = typer.Argument(None, help='测试目录或测试台文件; 不写跑全部')):
     """编译并运行 tests/ 和 sw/app/*/test/ 下的测试。"""
     from .testing import test
+
     if not test(paths):
         raise typer.Exit(1)
 
@@ -117,6 +125,7 @@ def test_cmd(paths: Optional[list[str]] = typer.Argument(None, help='测试目�
 def lint_cmd(fix: bool = typer.Option(False, '--fix', help='直接修复工具能自动修的问题')):
     """检查 Python、C 和 Verilog 的规范及明显问题。"""
     from .lint import lint
+
     if not lint(fix):
         raise typer.Exit(1)
 
@@ -125,6 +134,7 @@ def lint_cmd(fix: bool = typer.Option(False, '--fix', help='直接修复工具�
 def fmt_cmd(fix: bool = typer.Option(False, '--fix', help='直接改写格式不对的文件')):
     """检查 Python、C 和 Verilog 格式; 不加 --fix 只列出格式不对的文件。"""
     from .lint import fmt
+
     if not fmt(fix):
         raise typer.Exit(1)
 
@@ -166,8 +176,23 @@ def sim_binary(out):
     binary = obj / 'sim'
     if not binary.exists() or any(p.stat().st_mtime_ns > binary.stat().st_mtime_ns for p in inputs):
         step('编译仿真外壳')
-        run(*tool('verilator'), '--binary', '--timing', '-Wno-fatal', '--top-module', 'sim_top',
-            '-f', 'rtl/soc.f', *sources, '--Mdir', obj, '-o', 'sim', cwd=ROOT, stdout=subprocess.DEVNULL)
+        run(
+            *tool('verilator'),
+            '--binary',
+            '--timing',
+            '-Wno-fatal',
+            '--top-module',
+            'sim_top',
+            '-f',
+            'rtl/soc.f',
+            *sources,
+            '--Mdir',
+            obj,
+            '-o',
+            'sim',
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+        )
     return binary
 
 
@@ -185,8 +210,7 @@ def sim(app: str = App):
     frame = out / f'{app}.frame'
     frame.write_bytes(bytes(W * H * 2))
     step(f'仿真 {app}, 关窗口或 Ctrl+C 结束')
-    process = subprocess.Popen([str(binary), f'+rom={rom}', f'+frame={frame}'], cwd=ROOT,
-                               start_new_session=True)
+    process = subprocess.Popen([str(binary), f'+rom={rom}', f'+frame={frame}'], cwd=ROOT, start_new_session=True)
     try:
         show(frame, process)
     except KeyboardInterrupt:
@@ -226,15 +250,30 @@ def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
         fail(f'还没有位流, 先 ama fpga build {app} --board {board}')
     stamp = bit.with_suffix('.hwid')
     if not stamp.exists() or int(stamp.read_text(), 0) != hwid(board):
-        fail(f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build {app} --board {board}')
+        fail(
+            f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build {app} --board {board}'
+        )
     if BOARDS[board]['tool'] == 'pds':
         # 紫光的下载器没有命令行入口, 只能在 PDS 图形界面里下载
         print(f'打开 PDS → Tools → Fabric Configuration → 选择位流:\n  {bit}')
         return
     step(f'烧写 {bit.relative_to(ROOT)}')
-    result = subprocess.run([*tool('vivado'), '-mode', 'batch', '-nojournal', '-nolog', '-source',
-                             str(ROOT / 'boards/ego1/program.tcl'), '-tclargs', str(bit)],
-                            cwd=bit.parent, capture_output=True, text=True)
+    result = subprocess.run(
+        [
+            *tool('vivado'),
+            '-mode',
+            'batch',
+            '-nojournal',
+            '-nolog',
+            '-source',
+            str(ROOT / 'boards/ego1/program.tcl'),
+            '-tclargs',
+            str(bit),
+        ],
+        cwd=bit.parent,
+        capture_output=True,
+        text=True,
+    )
     # 返回码不可靠 (Vivado 没真正启动时也是 0), 以 program.tcl 打印的 DONE 位为准
     if result.returncode or 'DONE PROGRAMMED: 1' not in result.stdout:
         print(result.stdout[-2000:] + result.stderr[-2000:])

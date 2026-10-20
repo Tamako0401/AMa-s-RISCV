@@ -1,4 +1,5 @@
 """生成 FPGA 工程并检查综合结果。"""
+
 import os
 import shutil
 import subprocess
@@ -25,8 +26,9 @@ def generate(board, app, rom):
     if data['tool'] == 'pds':
         # PDS 的参数覆盖依赖版本，复制顶层才能可靠固化 HW_ID。
         generated = out / top.name
-        generated.write_text(top.read_text().replace('parameter [31:0] HW_ID = 0,',
-                             f"parameter [31:0] HW_ID = 32'h{hardware_id:08x},"))
+        generated.write_text(
+            top.read_text().replace('parameter [31:0] HW_ID = 0,', f"parameter [31:0] HW_ID = 32'h{hardware_id:08x},")
+        )
         top = generated
     sources.append(top)
     paths = [os.path.relpath(p, out) for p in sources]
@@ -36,19 +38,31 @@ def generate(board, app, rom):
     if data['tool'] == 'vivado':
         tcl = [f'read_verilog {{{p}}}' for p in paths]
         tcl += [f'read_xdc {{{p}}}' for p in constraints]
-        tcl += [f"synth_design -top {name} -part {data['part']} -generic HW_ID=32'h{hardware_id:08x} -include_dirs {{{include}}}",
-                'opt_design', 'place_design', 'route_design',
-                'report_timing_summary -file timing_summary.rpt',
-                'report_utilization -file utilization.rpt',
-                'set wns [get_property SLACK [get_timing_paths -delay_type max]]',
-                'if {$wns < 0} {error "Timing failed: WNS = $wns ns"}',
-                f"write_bitstream -force {data['bitstream']}"]
+        tcl += [
+            f"synth_design -top {name} -part {data['part']} -generic HW_ID=32'h{hardware_id:08x} -include_dirs {{{include}}}",
+            'opt_design',
+            'place_design',
+            'route_design',
+            'report_timing_summary -file timing_summary.rpt',
+            'report_utilization -file utilization.rpt',
+            'set wns [get_property SLACK [get_timing_paths -delay_type max]]',
+            'if {$wns < 0} {error "Timing failed: WNS = $wns ns"}',
+            f'write_bitstream -force {data["bitstream"]}',
+        ]
     else:
-        tcl = [f"set_arch -family {data['family']} -device {data['device']} -speedgrade {data['speedgrade']} -package {data['package']}"]
+        tcl = [
+            f'set_arch -family {data["family"]} -device {data["device"]} -speedgrade {data["speedgrade"]} -package {data["package"]}'
+        ]
         tcl += [f'add_design {{{p}}}' for p in paths]
         tcl += [f'add_constraint {{{p}}}' for p in constraints]
-        tcl += [f'compile -top_module {name} -include_path {{{include}}}',
-                'synthesize -ads -selected_syn_tool_opt 2', 'dev_map', 'pnr', 'report_timing', 'gen_bit_stream']
+        tcl += [
+            f'compile -top_module {name} -include_path {{{include}}}',
+            'synthesize -ads -selected_syn_tool_opt 2',
+            'dev_map',
+            'pnr',
+            'report_timing',
+            'gen_bit_stream',
+        ]
     (out / 'build.tcl').write_text('\n'.join(tcl) + '\n')
     return out
 
@@ -76,6 +90,6 @@ def build(board, out):
             raise SystemExit(f'PDS 没有读取固件初始化文件，检查 {log_path}')
         if 'gen_bit_stream successfully' not in log or not bit.exists():
             raise SystemExit(f'PDS 没有生成位流，检查 {log_path}')
-        timing = out / 'report_timing' / f"{Path(data['top']).stem}.rtr"
+        timing = out / 'report_timing' / f'{Path(data["top"]).stem}.rtr'
         if 'All Constraints Met.' not in timing.read_text(errors='replace'):
             raise SystemExit(f'PDS 时序没有满足约束，检查 {timing}')

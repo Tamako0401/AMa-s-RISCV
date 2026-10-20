@@ -25,8 +25,7 @@ static snake_cell_t head_cell(const snake_t *snake)
 
 static int food_is_free(const snake_t *snake)
 {
-    if (!snake->has_food || snake->food.x >= snake_cols ||
-        snake->food.y >= snake_rows)
+    if (!snake->has_food || snake->food.x >= snake_cols || snake->food.y >= snake_rows)
         return 0;
     unsigned index = snake->tail;
     for (unsigned i = 0; i < snake->length; i++) {
@@ -44,7 +43,7 @@ static void test_wall(void)
     snake_t snake;
     snake_change_t change;
     snake_init(&snake, 123);
-    snake.food = (snake_cell_t){ 0, 0 };
+    snake.food = (snake_cell_t){0, 0};
     int passed = 1;
     for (int i = 0; i < 11; i++) {
         snake_step(&snake, SNAKE_RIGHT, &change);
@@ -58,12 +57,11 @@ static void test_wall(void)
     snake_step(&snake, SNAKE_UP, &change);
     for (int i = 0; i < 16; i++)
         snake_step(&snake, SNAKE_UP, &change);
-    passed &= !snake.game_over && change.new_head.x == 0 &&
-              change.new_head.y == snake_rows - 1;
+    passed &= !snake.game_over && change.new_head.x == 0 && change.new_head.y == snake_rows - 1;
     check(passed, "straight movement and wrapping through walls");
 
     snake_init(&snake, 123);
-    snake.food = (snake_cell_t){ 0, 0 };
+    snake.food = (snake_cell_t){0, 0};
     snake.wrap = 0;
     for (int i = 0; i < 11; i++)
         snake_step(&snake, SNAKE_RIGHT, &change);
@@ -74,8 +72,8 @@ static void test_wall(void)
     snake.game_over = 1;
     uint16_t tail = snake.tail;
     snake_step(&snake, SNAKE_LEFT, &change);
-    check(snake.tail == tail && !change.head_added && !change.tail_removed &&
-          !change.food_added, "step after game over changes no cells");
+    check(snake.tail == tail && !change.head_added && !change.tail_removed && !change.food_added,
+          "step after game over changes no cells");
 }
 
 static void test_reverse(void)
@@ -83,10 +81,10 @@ static void test_reverse(void)
     snake_t snake;
     snake_change_t change;
     snake_init(&snake, 123);
-    snake.food = (snake_cell_t){ 0, 0 };
+    snake.food = (snake_cell_t){0, 0};
     snake_step(&snake, SNAKE_LEFT, &change);
-    check(!snake.game_over && snake.dir == SNAKE_RIGHT &&
-          change.head_added && change.new_head.x == 13 && change.new_head.y == 16,
+    check(!snake.game_over && snake.dir == SNAKE_RIGHT && change.head_added && change.new_head.x == 13 &&
+              change.new_head.y == 16,
           "reverse direction is ignored");
 }
 
@@ -96,24 +94,22 @@ static void test_growth_and_collision(void)
     snake_change_t change;
     snake_init(&snake, 123);
     snake_cell_t old_tail = snake.body[snake.tail];
-    snake.food = (snake_cell_t){ 13, 16 };
+    snake.food = (snake_cell_t){13, 16};
     snake_step(&snake, SNAKE_RIGHT, &change);
-    check(snake.length == 4 && snake.tail == 0 && change.head_added &&
-          !change.tail_removed && change.food_added &&
-          same_cell(snake.body[snake.tail], old_tail) &&
-          same_cell(change.new_food, snake.food) && food_is_free(&snake),
+    check(snake.length == 4 && snake.tail == 0 && change.head_added && !change.tail_removed && change.food_added &&
+              same_cell(snake.body[snake.tail], old_tail) && same_cell(change.new_food, snake.food) &&
+              food_is_free(&snake),
           "eating grows snake, preserves tail and reports new food");
-    snake.food = (snake_cell_t){ 13, 17 };
+    snake.food = (snake_cell_t){13, 17};
     snake_step(&snake, SNAKE_DOWN, &change);
-    snake.food = (snake_cell_t){ 12, 17 };
+    snake.food = (snake_cell_t){12, 17};
     snake_step(&snake, SNAKE_LEFT, &change);
     int passed = snake.length == 6 && !snake.game_over;
-    snake.food = (snake_cell_t){ 0, 0 };
+    snake.food = (snake_cell_t){0, 0};
     snake_cell_t old_head = head_cell(&snake);
     snake_step(&snake, SNAKE_UP, &change);
-    check(passed && snake.game_over && snake.length == 6 &&
-          same_cell(head_cell(&snake), old_head) && !change.head_added &&
-          !change.tail_removed && !change.food_added,
+    check(passed && snake.game_over && snake.length == 6 && same_cell(head_cell(&snake), old_head) &&
+              !change.head_added && !change.tail_removed && !change.food_added,
           "right, down, left, up collides with body");
 }
 
@@ -122,16 +118,16 @@ static void test_tail_entry(void)
     snake_t snake;
     snake_change_t change;
     snake_init(&snake, 123);
-    snake.food = (snake_cell_t){ 13, 16 };
+    snake.food = (snake_cell_t){13, 16};
     snake_step(&snake, SNAKE_RIGHT, &change);
-    snake.food = (snake_cell_t){ 0, 0 };
+    snake.food = (snake_cell_t){0, 0};
     snake_step(&snake, SNAKE_DOWN, &change);
     snake_step(&snake, SNAKE_LEFT, &change);
     snake_cell_t tail = snake.body[snake.tail];
     snake_step(&snake, SNAKE_UP, &change);
-    check(!snake.game_over && snake.length == 4 && change.head_added &&
-          change.tail_removed && same_cell(change.new_head, tail) &&
-          same_cell(change.old_tail, tail), "moving into vacated tail is legal");
+    check(!snake.game_over && snake.length == 4 && change.head_added && change.tail_removed &&
+              same_cell(change.new_head, tail) && same_cell(change.old_tail, tail),
+          "moving into vacated tail is legal");
 }
 
 static void test_food(void)
@@ -152,8 +148,7 @@ static void test_food(void)
     for (unsigned i = 0; i < 100; i++) {
         snake_cell_t next = head_cell(&snake);
         snake_dir_t dir = snake.dir;
-        if ((dir == SNAKE_RIGHT && next.x == snake_cols - 1) ||
-            (dir == SNAKE_LEFT && next.x == 0)) {
+        if ((dir == SNAKE_RIGHT && next.x == snake_cols - 1) || (dir == SNAKE_LEFT && next.x == 0)) {
             dir = SNAKE_DOWN;
             next.y++;
         } else {
@@ -174,22 +169,20 @@ static void test_food(void)
 
 static void test_ring_wrap(void)
 {
-    static const snake_dir_t turns[] = {
-        SNAKE_RIGHT, SNAKE_RIGHT, SNAKE_DOWN, SNAKE_DOWN,
-        SNAKE_LEFT, SNAKE_LEFT, SNAKE_UP, SNAKE_UP
-    };
+    static const snake_dir_t turns[] = {SNAKE_RIGHT, SNAKE_RIGHT, SNAKE_DOWN, SNAKE_DOWN,
+                                        SNAKE_LEFT,  SNAKE_LEFT,  SNAKE_UP,   SNAKE_UP};
     snake_t snake;
     snake_change_t change;
     snake_init(&snake, 123);
-    snake.food = (snake_cell_t){ 0, 0 };
+    snake.food = (snake_cell_t){0, 0};
     int passed = 1;
     for (unsigned i = 0; i < 800; i++) {
         snake_step(&snake, turns[i & 7], &change);
-        passed &= !snake.game_over && snake.length == 3 &&
-                  change.head_added && change.tail_removed && !change.food_added;
+        passed &=
+            !snake.game_over && snake.length == 3 && change.head_added && change.tail_removed && !change.food_added;
     }
-    check(passed && snake.tail == 32 && head_cell(&snake).x == 12 &&
-          head_cell(&snake).y == 16, "800 steps wrap ring buffer");
+    check(passed && snake.tail == 32 && head_cell(&snake).x == 12 && head_cell(&snake).y == 16,
+          "800 steps wrap ring buffer");
 }
 
 static void test_full_board(void)
@@ -200,25 +193,24 @@ static void test_full_board(void)
     unsigned index = 0;
     /* 满图测试也要保持蛇身连通, 才能验证合法局面的结束规则。 */
     for (int x = 2; x < snake_cols; x++)
-        snake.body[index++] = (snake_cell_t){ x, 0 };
+        snake.body[index++] = (snake_cell_t){x, 0};
     for (int y = 1; y < snake_rows; y++) {
         if (y & 1) {
             for (int x = snake_cols - 1; x >= 1; x--)
-                snake.body[index++] = (snake_cell_t){ x, y };
+                snake.body[index++] = (snake_cell_t){x, y};
         } else {
             for (int x = 1; x < snake_cols; x++)
-                snake.body[index++] = (snake_cell_t){ x, y };
+                snake.body[index++] = (snake_cell_t){x, y};
         }
     }
     for (int y = snake_rows - 1; y >= 0; y--)
-        snake.body[index++] = (snake_cell_t){ 0, y };
+        snake.body[index++] = (snake_cell_t){0, y};
     snake.length = index;
     snake.dir = SNAKE_UP;
-    snake.food = (snake_cell_t){ 1, 0 };
+    snake.food = (snake_cell_t){1, 0};
     snake_step(&snake, SNAKE_RIGHT, &change);
-    check(snake.game_over && snake.length == SNAKE_CAPACITY &&
-          !snake.has_food && change.head_added && !change.tail_removed &&
-          !change.food_added && same_cell(change.new_head, snake.food),
+    check(snake.game_over && snake.length == SNAKE_CAPACITY && !snake.has_food && change.head_added &&
+              !change.tail_removed && !change.food_added && same_cell(change.new_head, snake.food),
           "full board finishes without trying to place food");
 }
 

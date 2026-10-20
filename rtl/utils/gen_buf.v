@@ -1,7 +1,7 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
 // Changes: Normalize line endings to LF and remove trailing whitespace.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,26 +20,37 @@
 // 将输入打DP拍后输出
 module gen_ticks_sync #(
     parameter DP = 2,
-    parameter DW = 32)(
+    parameter DW = 32
+) (
 
     input wire rst_n,
     input wire clk,
 
-    input wire[DW-1:0] din,
-    output wire[DW-1:0] dout
+    input  wire [DW-1:0] din,
+    output wire [DW-1:0] dout
 
-    );
+);
 
-    wire[DW-1:0] sync_dat[DP-1:0];
+    wire [DW-1:0] sync_dat[DP-1:0];
 
     genvar i;
 
     generate
-        for (i = 0; i < DP; i = i + 1) begin: ticks_sync
-            if (i == 0) begin: dp_is_0
-                gen_rst_0_dff #(DW) rst_0_dff(clk, rst_n, din, sync_dat[0]);
-            end else begin: dp_is_not_0
-                gen_rst_0_dff #(DW) rst_0_dff(clk, rst_n, sync_dat[i-1], sync_dat[i]);
+        for (i = 0; i < DP; i = i + 1) begin : ticks_sync
+            if (i == 0) begin : dp_is_0
+                gen_rst_0_dff #(DW) rst_0_dff (
+                    clk,
+                    rst_n,
+                    din,
+                    sync_dat[0]
+                );
+            end else begin : dp_is_not_0
+                gen_rst_0_dff #(DW) rst_0_dff (
+                    clk,
+                    rst_n,
+                    sync_dat[i-1],
+                    sync_dat[i]
+                );
             end
         end
     endgenerate

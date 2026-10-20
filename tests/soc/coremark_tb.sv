@@ -3,22 +3,29 @@
 // 时钟周期数与实机相同 (同一份 RTL, 存储都在片内), 所以这里算出的 CoreMark/MHz 就是实机值;
 // 上板只是用真实主频跑满 CoreMark 规定的 10 秒。
 // 结束判定: 程序在 portable_fini 里写 tohost (0x1000_0000) = 1。
-`timescale 1ns/1ps
+`timescale 1ns / 1ps
 module coremark_tb;
     parameter [31:0] TOHOST_ADDR = 32'h10000000;
-    parameter integer BIT_CLKS = 434;          // 50 MHz / 115200, 与 uart_init 算出的分频一致
+    parameter integer BIT_CLKS = 434;  // 50 MHz / 115200, 与 uart_init 算出的分频一致
     parameter integer MAX_CYCLES = 400000000;
 
     reg clk = 0;
-    always #10 clk = ~clk;                     // 50 MHz, 与板载时钟相同
-    reg rst_n = 0;
+    always #10 clk = ~clk;  // 50 MHz, 与板载时钟相同
+    reg  rst_n = 0;
     wire uart_tx;
 
-    soc_top u_soc(
-        .clk(clk), .rst_n(rst_n),
-        .uart_rx(1'b1), .uart_tx(uart_tx), .led(),
-        .spi_mosi(), .spi_miso(1'b0), .spi_ss(), .spi_clk(),
-        .lcd_dc(), .lcd_rst_n()
+    soc_top u_soc (
+        .clk(clk),
+        .rst_n(rst_n),
+        .uart_rx(1'b1),
+        .uart_tx(uart_tx),
+        .led(),
+        .spi_mosi(),
+        .spi_miso(1'b0),
+        .spi_ss(),
+        .spi_clk(),
+        .lcd_dc(),
+        .lcd_rst_n()
     );
 
     // 观察数据总线上对 tohost 的写
@@ -61,7 +68,7 @@ module coremark_tb;
         repeat (5) @(posedge clk);
         rst_n = 1;
         wait (done);
-        repeat (BIT_CLKS * 12) @(posedge clk);   // 让最后一个字符发完
+        repeat (BIT_CLKS * 12) @(posedge clk);  // 让最后一个字符发完
         $display("[coremark_tb] finished after %0d cycles", cycles);
         $finish;
     end

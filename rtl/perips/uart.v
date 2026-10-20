@@ -1,7 +1,7 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
 // Changes: Normalize line endings to LF and remove trailing whitespace. Remove dependency on upstream core/defines.v. Expose CPU_CLOCK_HZ as a parameter; preserve upstream default and divider behavior. Execute requests only on handshake and hold responses under backpressure.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,79 +21,79 @@
 // 串口收发模块(默认: 115200, 8，N，1)
 module uart #(
     parameter CPU_CLOCK_HZ = 50000000
-)(
+) (
 
 
     input wire clk,
     input wire rst_n,
-    input wire[31:0] addr_i,
-    input wire[31:0] data_i,
-    input wire[3:0] sel_i,
+    input wire [31:0] addr_i,
+    input wire [31:0] data_i,
+    input wire [3:0] sel_i,
     input wire we_i,
-    output wire[31:0] data_o,
+    output wire [31:0] data_o,
 
-    input wire req_valid_i,
+    input  wire req_valid_i,
     output wire req_ready_o,
     output wire rsp_valid_o,
-    input wire rsp_ready_i,
+    input  wire rsp_ready_i,
 
     output wire tx_pin,
-    input wire rx_pin
+    input  wire rx_pin
 
-    );
+);
 
     // 波特率115200bps
     localparam BAUD_115200 = CPU_CLOCK_HZ / 115200;
 
-    localparam S_IDLE       = 4'b0001;
-    localparam S_START      = 4'b0010;
-    localparam S_SEND_BYTE  = 4'b0100;
-    localparam S_STOP       = 4'b1000;
+    localparam S_IDLE      = 4'b0001;
+    localparam S_START     = 4'b0010;
+    localparam S_SEND_BYTE = 4'b0100;
+    localparam S_STOP      = 4'b1000;
 
 
-    reg[3:0] state;
-    reg[3:0] next_state;
-    reg[15:0] cycle_cnt;
-    reg tx_bit = 1'b1;                 // 上电尚无时钟时也保持空闲电平
-    reg[3:0] bit_cnt;
+    reg  [ 3:0] state;
+    reg  [ 3:0] next_state;
+    reg  [15:0] cycle_cnt;
+    reg         tx_bit = 1'b1;  // 上电尚无时钟时也保持空闲电平
+    reg  [ 3:0] bit_cnt;
 
-    reg rx_q0;
-    reg rx_q1;
-    wire rx_negedge;
-    reg rx_start;                      // RX使能
-    reg[3:0] rx_clk_edge_cnt;          // clk沿的个数
-    reg rx_clk_edge_level;             // clk沿电平
-    reg rx_done;
-    reg[15:0] rx_clk_cnt;
-    reg[15:0] rx_div_cnt;
-    reg[7:0] rx_data;
-    reg rx_over;
+    reg         rx_q0;
+    reg         rx_q1;
+    wire        rx_negedge;
+    reg         rx_start;  // RX使能
+    reg  [ 3:0] rx_clk_edge_cnt;  // clk沿的个数
+    reg         rx_clk_edge_level;  // clk沿电平
+    reg         rx_done;
+    reg  [15:0] rx_clk_cnt;
+    reg  [15:0] rx_div_cnt;
+    reg  [ 7:0] rx_data;
+    reg         rx_over;
 
     // 寄存器(偏移)地址
-    localparam UART_CTRL    = 8'h0;
-    localparam UART_STATUS  = 8'h4;
-    localparam UART_BAUD    = 8'h8;
-    localparam UART_TXDATA  = 8'hc;
-    localparam UART_RXDATA  = 8'h10;
+    localparam UART_CTRL   = 8'h0;
+    localparam UART_STATUS = 8'h4;
+    localparam UART_BAUD   = 8'h8;
+    localparam UART_TXDATA = 8'hc;
+    localparam UART_RXDATA = 8'h10;
 
     // UART控制寄存器，可读可写
     // bit[0]: UART TX使能, 1: enable, 0: disable
     // bit[1]: UART RX使能, 1: enable, 0: disable
-    reg[31:0] uart_ctrl;
+    reg [31:0] uart_ctrl;
 
     // UART状态寄存器
     // 只读，bit[0]: TX空闲状态标志, 1: busy, 0: idle
     // 可读可写，bit[1]: RX接收完成标志, 1: over, 0: receiving
-    reg[31:0] uart_status;
+    reg [31:0] uart_status;
 
     // UART波特率寄存器(分频系数)，可读可写
-    reg[31:0] uart_baud;
+    reg [31:0] uart_baud;
 
     // UART发送数据寄存器，可读可写
-    reg[31:0] uart_tx;
+    reg [31:0] uart_tx;
 
     // UART接收数据寄存器，只读
-    reg[31:0] uart_rx;
+    reg [31:0] uart_rx;
 
     reg remain;
     assign req_ready_o = rst_n && (!remain || rsp_ready_i);
@@ -111,7 +111,7 @@ module uart #(
 
 
     // 写uart_rxdata
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_rx <= 32'h0;
         end else begin
@@ -123,7 +123,7 @@ module uart #(
     end
 
     // 写uart_txdata
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_tx <= 32'h0;
         end else begin
@@ -136,7 +136,7 @@ module uart #(
 
     // 写uart_status
     // 两个标志各自更新: 软件写 STATUS 的那一拍不能跳过硬件事件 (见 tests/reusable/uart_status_tb.sv)。
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_status <= 32'h0;
         end else begin
@@ -144,7 +144,7 @@ module uart #(
             // 开始发送数据时，置位TX忙标志
             if (tx_start) begin
                 uart_status[0] <= 1'b1;
-            // 发送完成时，清TX忙标志
+                // 发送完成时，清TX忙标志
             end else if ((state == S_STOP) & (cycle_cnt == uart_baud[15:0])) begin
                 uart_status[0] <= 1'b0;
             end
@@ -158,7 +158,7 @@ module uart #(
     end
 
     // 写uart_ctrl
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_ctrl <= 32'h0;
         end else begin
@@ -169,7 +169,7 @@ module uart #(
     end
 
     // 写uart_baud
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             uart_baud <= BAUD_115200;
         end else begin
@@ -184,10 +184,10 @@ module uart #(
         end
     end
 
-    reg[31:0] data_r;
+    reg [31:0] data_r;
 
     // 读寄存器
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             data_r <= 32'h0;
             remain <= 1'b0;
@@ -213,7 +213,7 @@ module uart #(
 
     // *************************** TX发送 ****************************
 
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= S_IDLE;
         end else begin
@@ -221,7 +221,7 @@ module uart #(
         end
     end
 
-    always @ (*) begin
+    always @(*) begin
         case (state)
             S_IDLE: begin
                 if (tx_start) begin
@@ -258,7 +258,7 @@ module uart #(
     end
 
     // cycle_cnt
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             cycle_cnt <= 16'h0;
         end else begin
@@ -275,7 +275,7 @@ module uart #(
     end
 
     // bit_cnt
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             bit_cnt <= 4'h0;
         end else begin
@@ -293,7 +293,7 @@ module uart #(
     end
 
     // tx_bit
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             tx_bit <= 1'b1;
         end else begin
@@ -313,7 +313,7 @@ module uart #(
 
     // *************************** RX接收 ****************************
 
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rx_q0 <= 1'b0;
             rx_q1 <= 1'b0;
@@ -327,7 +327,7 @@ module uart #(
     assign rx_negedge = rx_q1 & (~rx_q0);
 
     // 产生开始接收数据信号，接收期间一直有效
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rx_start <= 1'b0;
         end else begin
@@ -343,7 +343,7 @@ module uart #(
         end
     end
 
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rx_div_cnt <= 16'h0;
         end else begin
@@ -357,7 +357,7 @@ module uart #(
     end
 
     // 对时钟进行计数
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rx_clk_cnt <= 16'h0;
         end else if (rx_start == 1'b1) begin
@@ -373,20 +373,20 @@ module uart #(
     end
 
     // 每当时钟计数达到分频值时产生一个上升沿脉冲
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            rx_clk_edge_cnt <= 4'h0;
+            rx_clk_edge_cnt   <= 4'h0;
             rx_clk_edge_level <= 1'b0;
         end else if (rx_start == 1'b1) begin
             // 计数达到分频值
             if (rx_clk_cnt == rx_div_cnt) begin
                 // 时钟沿个数达到最大值
                 if (rx_clk_edge_cnt == 4'd9) begin
-                    rx_clk_edge_cnt <= 4'h0;
+                    rx_clk_edge_cnt   <= 4'h0;
                     rx_clk_edge_level <= 1'b0;
                 end else begin
                     // 时钟沿个数加1
-                    rx_clk_edge_cnt <= rx_clk_edge_cnt + 4'h1;
+                    rx_clk_edge_cnt   <= rx_clk_edge_cnt + 4'h1;
                     // 产生上升沿脉冲
                     rx_clk_edge_level <= 1'b1;
                 end
@@ -394,13 +394,13 @@ module uart #(
                 rx_clk_edge_level <= 1'b0;
             end
         end else begin
-            rx_clk_edge_cnt <= 4'h0;
+            rx_clk_edge_cnt   <= 4'h0;
             rx_clk_edge_level <= 1'b0;
         end
     end
 
     // bit序列
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rx_data <= 8'h0;
             rx_over <= 1'b0;

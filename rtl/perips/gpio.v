@@ -1,7 +1,7 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
 // Changes: Normalize source; add masked BSRR and hold responses under backpressure.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,39 +18,39 @@
  */
 
 // GPIO模块
-module gpio(
+module gpio (
 
     input wire clk,
     input wire rst_n,
-    input wire[31:0] addr_i,
-    input wire[31:0] data_i,
-    input wire[3:0] sel_i,
+    input wire [31:0] addr_i,
+    input wire [31:0] data_i,
+    input wire [3:0] sel_i,
     input wire we_i,
-	output wire[31:0] data_o,
+    output wire [31:0] data_o,
 
-    input wire req_valid_i,
+    input  wire req_valid_i,
     output wire req_ready_o,
     output wire rsp_valid_o,
-    input wire rsp_ready_i,
+    input  wire rsp_ready_i,
 
-    input wire[1:0] io_pin_i,
-    output wire[31:0] reg_ctrl,
-    output wire[31:0] reg_data
+    input  wire [ 1:0] io_pin_i,
+    output wire [31:0] reg_ctrl,
+    output wire [31:0] reg_data
 
-    );
+);
 
     // GPIO寄存器(偏移)地址
     localparam GPIO_CTRL = 4'h0;
     localparam GPIO_DATA = 4'h4;
-    localparam GPIO_BSRR = 4'h8; // [15:0] set, [31:16] reset; set wins on overlap.
+    localparam GPIO_BSRR = 4'h8;  // [15:0] set, [31:16] reset; set wins on overlap.
 
     // GPIO控制寄存器
     // 每2位控制1个IO的输入、输出模式，最多支持16个IO
     // 0: 高阻，1：输出，2：输入
-    reg[31:0] gpio_ctrl;
+    reg [31:0] gpio_ctrl;
 
     // GPIO输入输出数据寄存器
-    reg[31:0] gpio_data;
+    reg [31:0] gpio_data;
 
     assign reg_ctrl = gpio_ctrl;
     assign reg_data = gpio_data;
@@ -67,7 +67,7 @@ module gpio(
     wire [31:0] bsrr = data_i & write_mask;
 
     // 写gpio_ctrl
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             gpio_ctrl <= 32'h0;
         end else begin
@@ -89,7 +89,7 @@ module gpio(
     end
 
     // 写gpio_data
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             gpio_data <= 32'h0;
         end else begin
@@ -113,10 +113,10 @@ module gpio(
         end
     end
 
-    reg[31:0] data_r;
+    reg [31:0] data_r;
 
     // 读寄存器
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             data_r <= 32'h0;
             response_valid <= 0;
@@ -130,7 +130,7 @@ module gpio(
                 case (addr_i[3:2])
                     GPIO_CTRL[3:2]: data_r <= gpio_ctrl;
                     GPIO_DATA[3:2]: data_r <= gpio_data;
-                    default:   data_r <= 32'h0;
+                    default: data_r <= 32'h0;
                 endcase
             end
         end

@@ -65,89 +65,89 @@
 //
 // 未命中任何从设备的地址: 不对请求握手，主设备会一直等待(本总线没有错误响应
 // 通道，顶层必须保证地址落在合法区间)。
-module rib(
+module rib (
 
     input wire clk,
     input wire rst_n,
 
     // master 0 interface (推荐接 ibus)
-    input wire[31:0] m0_addr_i,          // 主设备0读、写地址
-    input wire[31:0] m0_data_i,          // 主设备0写数据
-    input wire[3:0] m0_sel_i,            // 主设备0字节选择
-    input wire m0_we_i,                  // 主设备0写标志
-    input wire m0_req_valid_i,           // 主设备0请求有效
-    output wire m0_req_ready_o,          // 主设备0请求就绪
-    input wire m0_rsp_ready_i,           // 主设备0响应就绪
-    output wire m0_rsp_valid_o,          // 主设备0响应有效
-    output wire[31:0] m0_data_o,         // 主设备0读取到的数据
+    input  wire [31:0] m0_addr_i,       // 主设备0读、写地址
+    input  wire [31:0] m0_data_i,       // 主设备0写数据
+    input  wire [ 3:0] m0_sel_i,        // 主设备0字节选择
+    input  wire        m0_we_i,         // 主设备0写标志
+    input  wire        m0_req_valid_i,  // 主设备0请求有效
+    output wire        m0_req_ready_o,  // 主设备0请求就绪
+    input  wire        m0_rsp_ready_i,  // 主设备0响应就绪
+    output wire        m0_rsp_valid_o,  // 主设备0响应有效
+    output wire [31:0] m0_data_o,       // 主设备0读取到的数据
 
     // master 1 interface (推荐接 dbus)
-    input wire[31:0] m1_addr_i,          // 主设备1读、写地址
-    input wire[31:0] m1_data_i,          // 主设备1写数据
-    input wire[3:0] m1_sel_i,            // 主设备1字节选择
-    input wire m1_we_i,                  // 主设备1写标志
-    input wire m1_req_valid_i,           // 主设备1请求有效
-    output wire m1_req_ready_o,          // 主设备1请求就绪
-    input wire m1_rsp_ready_i,           // 主设备1响应就绪
-    output wire m1_rsp_valid_o,          // 主设备1响应有效
-    output wire[31:0] m1_data_o,         // 主设备1读取到的数据
+    input  wire [31:0] m1_addr_i,       // 主设备1读、写地址
+    input  wire [31:0] m1_data_i,       // 主设备1写数据
+    input  wire [ 3:0] m1_sel_i,        // 主设备1字节选择
+    input  wire        m1_we_i,         // 主设备1写标志
+    input  wire        m1_req_valid_i,  // 主设备1请求有效
+    output wire        m1_req_ready_o,  // 主设备1请求就绪
+    input  wire        m1_rsp_ready_i,  // 主设备1响应就绪
+    output wire        m1_rsp_valid_o,  // 主设备1响应有效
+    output wire [31:0] m1_data_o,       // 主设备1读取到的数据
 
     // slave 0 interface (ROM)
-    output wire[31:0] s0_addr_o,
-    output wire[31:0] s0_data_o,
-    output wire[3:0] s0_sel_o,
+    output wire [31:0] s0_addr_o,
+    output wire [31:0] s0_data_o,
+    output wire [3:0] s0_sel_o,
     output wire s0_we_o,
     output wire s0_req_valid_o,
     input wire s0_req_ready_i,
     input wire s0_rsp_valid_i,
     output wire s0_rsp_ready_o,
-    input wire[31:0] s0_data_i,
+    input wire [31:0] s0_data_i,
 
     // slave 1 interface (RAM)
-    output wire[31:0] s1_addr_o,
-    output wire[31:0] s1_data_o,
-    output wire[3:0] s1_sel_o,
+    output wire [31:0] s1_addr_o,
+    output wire [31:0] s1_data_o,
+    output wire [3:0] s1_sel_o,
     output wire s1_we_o,
     output wire s1_req_valid_o,
     input wire s1_req_ready_i,
     input wire s1_rsp_valid_i,
     output wire s1_rsp_ready_o,
-    input wire[31:0] s1_data_i,
+    input wire [31:0] s1_data_i,
 
     // slave 2 interface (Timer)
-    output wire[31:0] s2_addr_o,
-    output wire[31:0] s2_data_o,
-    output wire[3:0] s2_sel_o,
+    output wire [31:0] s2_addr_o,
+    output wire [31:0] s2_data_o,
+    output wire [3:0] s2_sel_o,
     output wire s2_we_o,
     output wire s2_req_valid_o,
     input wire s2_req_ready_i,
     input wire s2_rsp_valid_i,
     output wire s2_rsp_ready_o,
-    input wire[31:0] s2_data_i,
+    input wire [31:0] s2_data_i,
 
     // slave 3 interface (UART)
-    output wire[31:0] s3_addr_o,
-    output wire[31:0] s3_data_o,
-    output wire[3:0] s3_sel_o,
+    output wire [31:0] s3_addr_o,
+    output wire [31:0] s3_data_o,
+    output wire [3:0] s3_sel_o,
     output wire s3_we_o,
     output wire s3_req_valid_o,
     input wire s3_req_ready_i,
     input wire s3_rsp_valid_i,
     output wire s3_rsp_ready_o,
-    input wire[31:0] s3_data_i,
+    input wire [31:0] s3_data_i,
 
     // slave 4 interface (GPIO)
-    output wire[31:0] s4_addr_o,
-    output wire[31:0] s4_data_o,
-    output wire[3:0] s4_sel_o,
+    output wire [31:0] s4_addr_o,
+    output wire [31:0] s4_data_o,
+    output wire [3:0] s4_sel_o,
     output wire s4_we_o,
     output wire s4_req_valid_o,
     input wire s4_req_ready_i,
     input wire s4_rsp_valid_i,
     output wire s4_rsp_ready_o,
-    input wire[31:0] s4_data_i
+    input wire [31:0] s4_data_i
 
-    );
+);
 
 
     // 从设备由地址最高 4 位 addr[31:28] 选择，因此基地址必须按 0xN000_0000 对齐。
@@ -167,28 +167,28 @@ module rib(
     localparam [2:0] S_NONE = 3'd7;
 
     // 未完成事务的状态
-    reg busy;                    // 1: 已接受请求，正在等待响应
-    reg owner;                   // 未完成事务的发起主设备
-    reg[2:0] rsp_slave;          // 未完成事务的目标从设备
+    reg         busy;  // 1: 已接受请求，正在等待响应
+    reg         owner;  // 未完成事务的发起主设备
+    reg  [ 2:0] rsp_slave;  // 未完成事务的目标从设备
 
 
     // *************************** 主设备仲裁 ****************************
 
     // 固定优先级仲裁: m0 高于 m1。只在空闲时决定由谁发起。
-    wire m0_grant = m0_req_valid_i;
-    wire m1_grant = m1_req_valid_i & (~m0_grant);
+    wire        m0_grant = m0_req_valid_i;
+    wire        m1_grant = m1_req_valid_i & (~m0_grant);
 
     // 被授权主设备的请求信号
-    wire[31:0] req_addr  = m0_grant ? m0_addr_i  : m1_addr_i;
-    wire[31:0] req_wdata = m0_grant ? m0_data_i  : m1_data_i;
-    wire[3:0]  req_sel   = m0_grant ? m0_sel_i   : m1_sel_i;
-    wire       req_we    = m0_grant ? m0_we_i    : m1_we_i;
+    wire [31:0] req_addr = m0_grant ? m0_addr_i : m1_addr_i;
+    wire [31:0] req_wdata = m0_grant ? m0_data_i : m1_data_i;
+    wire [ 3:0] req_sel = m0_grant ? m0_sel_i : m1_sel_i;
+    wire        req_we = m0_grant ? m0_we_i : m1_we_i;
 
 
     // *************************** 地址译码 ******************************
 
-    reg[2:0] dec_slave;
-    always @ (*) begin
+    reg  [ 2:0] dec_slave;
+    always @(*) begin
         case (req_addr[31:28])
             SLAVE_0_BASE: dec_slave = 3'd0;
             SLAVE_1_BASE: dec_slave = 3'd1;
@@ -200,11 +200,10 @@ module rib(
     end
 
     // 空闲、有请求、且地址命中从设备时才发起一次事务
-    wire launch = rst_n & (~busy) & (m0_req_valid_i | m1_req_valid_i)
-                  & (dec_slave != S_NONE);
+    wire launch = rst_n & (~busy) & (m0_req_valid_i | m1_req_valid_i) & (dec_slave != S_NONE);
 
     // 从设备只看到地址低 28 位偏移，基地址在 rib 里被剥离
-    wire[31:0] req_offset = {4'h0, req_addr[27:0]};
+    wire [31:0] req_offset = {4'h0, req_addr[27:0]};
 
 
     // *********************** 从设备请求通道 ****************************
@@ -216,38 +215,38 @@ module rib(
     wire s4_hit = launch & (dec_slave == 3'd4);
 
     assign s0_addr_o      = s0_hit ? req_offset : 32'h0;
-    assign s0_data_o      = s0_hit ? req_wdata  : 32'h0;
-    assign s0_sel_o       = s0_hit ? req_sel    : 4'h0;
+    assign s0_data_o      = s0_hit ? req_wdata : 32'h0;
+    assign s0_sel_o       = s0_hit ? req_sel : 4'h0;
     assign s0_we_o        = s0_hit & req_we;
     assign s0_req_valid_o = s0_hit;
 
     assign s1_addr_o      = s1_hit ? req_offset : 32'h0;
-    assign s1_data_o      = s1_hit ? req_wdata  : 32'h0;
-    assign s1_sel_o       = s1_hit ? req_sel    : 4'h0;
+    assign s1_data_o      = s1_hit ? req_wdata : 32'h0;
+    assign s1_sel_o       = s1_hit ? req_sel : 4'h0;
     assign s1_we_o        = s1_hit & req_we;
     assign s1_req_valid_o = s1_hit;
 
     assign s2_addr_o      = s2_hit ? req_offset : 32'h0;
-    assign s2_data_o      = s2_hit ? req_wdata  : 32'h0;
-    assign s2_sel_o       = s2_hit ? req_sel    : 4'h0;
+    assign s2_data_o      = s2_hit ? req_wdata : 32'h0;
+    assign s2_sel_o       = s2_hit ? req_sel : 4'h0;
     assign s2_we_o        = s2_hit & req_we;
     assign s2_req_valid_o = s2_hit;
 
     assign s3_addr_o      = s3_hit ? req_offset : 32'h0;
-    assign s3_data_o      = s3_hit ? req_wdata  : 32'h0;
-    assign s3_sel_o       = s3_hit ? req_sel    : 4'h0;
+    assign s3_data_o      = s3_hit ? req_wdata : 32'h0;
+    assign s3_sel_o       = s3_hit ? req_sel : 4'h0;
     assign s3_we_o        = s3_hit & req_we;
     assign s3_req_valid_o = s3_hit;
 
     assign s4_addr_o      = s4_hit ? req_offset : 32'h0;
-    assign s4_data_o      = s4_hit ? req_wdata  : 32'h0;
-    assign s4_sel_o       = s4_hit ? req_sel    : 4'h0;
+    assign s4_data_o      = s4_hit ? req_wdata : 32'h0;
+    assign s4_sel_o       = s4_hit ? req_sel : 4'h0;
     assign s4_we_o        = s4_hit & req_we;
     assign s4_req_valid_o = s4_hit;
 
     // 把被选中从设备的 req_ready 送回被授权的主设备
     reg req_ready_sel;
-    always @ (*) begin
+    always @(*) begin
         case (dec_slave)
             3'd0:    req_ready_sel = s0_req_ready_i;
             3'd1:    req_ready_sel = s1_req_ready_i;
@@ -262,23 +261,40 @@ module rib(
     assign m1_req_ready_o = m1_grant & launch & req_ready_sel;
 
     // 请求握手(同一时刻只会有一个主设备被授权)
-    wire req_fire = (m0_req_valid_i & m0_req_ready_o)
-                    | (m1_req_valid_i & m1_req_ready_o);
+    wire req_fire = (m0_req_valid_i & m0_req_ready_o) | (m1_req_valid_i & m1_req_ready_o);
 
 
     // *********************** 从设备响应通道 ****************************
 
     // 响应 valid/data 来自被锁存的 rsp_slave，而不是当前地址
     reg rsp_valid_sel;
-    reg[31:0] rsp_data_sel;
-    always @ (*) begin
+    reg [31:0] rsp_data_sel;
+    always @(*) begin
         case (rsp_slave)
-            3'd0:    begin rsp_valid_sel = s0_rsp_valid_i; rsp_data_sel = s0_data_i; end
-            3'd1:    begin rsp_valid_sel = s1_rsp_valid_i; rsp_data_sel = s1_data_i; end
-            3'd2:    begin rsp_valid_sel = s2_rsp_valid_i; rsp_data_sel = s2_data_i; end
-            3'd3:    begin rsp_valid_sel = s3_rsp_valid_i; rsp_data_sel = s3_data_i; end
-            3'd4:    begin rsp_valid_sel = s4_rsp_valid_i; rsp_data_sel = s4_data_i; end
-            default: begin rsp_valid_sel = 1'b0;           rsp_data_sel = 32'h0;     end
+            3'd0: begin
+                rsp_valid_sel = s0_rsp_valid_i;
+                rsp_data_sel  = s0_data_i;
+            end
+            3'd1: begin
+                rsp_valid_sel = s1_rsp_valid_i;
+                rsp_data_sel  = s1_data_i;
+            end
+            3'd2: begin
+                rsp_valid_sel = s2_rsp_valid_i;
+                rsp_data_sel  = s2_data_i;
+            end
+            3'd3: begin
+                rsp_valid_sel = s3_rsp_valid_i;
+                rsp_data_sel  = s3_data_i;
+            end
+            3'd4: begin
+                rsp_valid_sel = s4_rsp_valid_i;
+                rsp_data_sel  = s4_data_i;
+            end
+            default: begin
+                rsp_valid_sel = 1'b0;
+                rsp_data_sel  = 32'h0;
+            end
         endcase
     end
 
@@ -301,7 +317,7 @@ module rib(
 
     // *********************** 事务状态寄存器 ****************************
 
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             busy <= 1'b0;
             owner <= M0;

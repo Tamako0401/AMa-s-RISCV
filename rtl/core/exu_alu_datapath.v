@@ -1,7 +1,7 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
 // Changes: Normalize line endings to LF and remove trailing whitespace. Remove dependency on upstream core/defines.v.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,18 +19,18 @@
 
 
 
-`define DATAPATH_MUX_WIDTH  (32+32+16)
+`define DATAPATH_MUX_WIDTH (32+32+16)
 
 
-module exu_alu_datapath(
+module exu_alu_datapath (
 
     input wire clk,
     input wire rst_n,
 
     // ALU
     input wire req_alu_i,
-    input wire[31:0] alu_op1_i,
-    input wire[31:0] alu_op2_i,
+    input wire [31:0] alu_op1_i,
+    input wire [31:0] alu_op2_i,
     input wire alu_op_add_i,
     input wire alu_op_sub_i,
     input wire alu_op_sll_i,
@@ -44,8 +44,8 @@ module exu_alu_datapath(
 
     // BJP
     input wire req_bjp_i,
-    input wire[31:0] bjp_op1_i,
-    input wire[31:0] bjp_op2_i,
+    input wire [31:0] bjp_op1_i,
+    input wire [31:0] bjp_op2_i,
     input wire bjp_op_beq_i,
     input wire bjp_op_bne_i,
     input wire bjp_op_blt_i,
@@ -53,30 +53,30 @@ module exu_alu_datapath(
     input wire bjp_op_bge_i,
     input wire bjp_op_bgeu_i,
     input wire bjp_op_jump_i,
-    input wire[31:0] bjp_jump_op1_i,
-    input wire[31:0] bjp_jump_op2_i,
+    input wire [31:0] bjp_jump_op1_i,
+    input wire [31:0] bjp_jump_op2_i,
 
     // MEM
     input wire req_mem_i,
-    input wire[31:0] mem_op1_i,
-    input wire[31:0] mem_op2_i,
+    input wire [31:0] mem_op1_i,
+    input wire [31:0] mem_op2_i,
 
     // CSR
     input wire req_csr_i,
-    input wire[31:0] csr_op1_i,
-    input wire[31:0] csr_op2_i,
+    input wire [31:0] csr_op1_i,
+    input wire [31:0] csr_op2_i,
     input wire csr_csrrw_i,
     input wire csr_csrrs_i,
     input wire csr_csrrc_i,
 
-    output wire[31:0] alu_res_o,
-    output wire[31:0] bjp_res_o,
+    output wire [31:0] alu_res_o,
+    output wire [31:0] bjp_res_o,
     output wire bjp_cmp_res_o
 
-    );
+);
 
-    wire[31:0] mux_op1;
-    wire[31:0] mux_op2;
+    wire [31:0] mux_op1;
+    wire [31:0] mux_op2;
     wire op_add;
     wire op_sub;
     wire op_sll;
@@ -95,22 +95,22 @@ module exu_alu_datapath(
     wire op_bgeu;
 
     // 异或
-    wire[31:0] xor_res = mux_op1 ^ mux_op2;
+    wire [31:0] xor_res = mux_op1 ^ mux_op2;
     // 或
-    wire[31:0] or_res = mux_op1 | mux_op2;
+    wire [31:0] or_res = mux_op1 | mux_op2;
     // 与
-    wire[31:0] and_res = mux_op1 & mux_op2;
+    wire [31:0] and_res = mux_op1 & mux_op2;
     // 加、减
-    wire[31:0] add_op1 = req_bjp_i? bjp_jump_op1_i: mux_op1;
-    wire[31:0] add_op2 = req_bjp_i? bjp_jump_op2_i: mux_op2;
-    wire[31:0] add_sub_res = add_op1 + (op_sub? (-add_op2): add_op2);
+    wire [31:0] add_op1 = req_bjp_i ? bjp_jump_op1_i : mux_op1;
+    wire [31:0] add_op2 = req_bjp_i ? bjp_jump_op2_i : mux_op2;
+    wire [31:0] add_sub_res = add_op1 + (op_sub ? (-add_op2) : add_op2);
     // 左移
-    wire[31:0] sll_res = mux_op1 << mux_op2[4:0];
+    wire [31:0] sll_res = mux_op1 << mux_op2[4:0];
     // 逻辑右移
-    wire[31:0] srl_res = mux_op1 >> mux_op2[4:0];
+    wire [31:0] srl_res = mux_op1 >> mux_op2[4:0];
     // 算数右移
-    wire[31:0] sr_shift_mask = 32'hffffffff >> mux_op2[4:0];
-    wire[31:0] sra_res = (srl_res & sr_shift_mask) | ({32{mux_op1[31]}} & (~sr_shift_mask));
+    wire [31:0] sr_shift_mask = 32'hffffffff >> mux_op2[4:0];
+    wire [31:0] sra_res = (srl_res & sr_shift_mask) | ({32{mux_op1[31]}} & (~sr_shift_mask));
 
     // 有符号数比较
     wire op1_ge_op2_signed = ($signed(mux_op1) >= $signed(mux_op2));
@@ -127,12 +127,12 @@ module exu_alu_datapath(
     wire cmp_res_gt = op_bge & op1_ge_op2_signed;
     wire cmp_res_gtu = op_bgeu & op1_ge_op2_unsigned;
 
-    wire[31:0] slt_res = (~op1_ge_op2_signed)? 32'h1: 32'h0;
-    wire[31:0] sltu_res = (~op1_ge_op2_unsigned)? 32'h1: 32'h0;
+    wire [31:0] slt_res = (~op1_ge_op2_signed) ? 32'h1 : 32'h0;
+    wire [31:0] sltu_res = (~op1_ge_op2_unsigned) ? 32'h1 : 32'h0;
 
-    reg[31:0] alu_datapath_res;
+    reg [31:0] alu_datapath_res;
 
-    always @ (*) begin
+    always @(*) begin
         alu_datapath_res = 32'h0;
         case (1'b1)
             op_xor:  alu_datapath_res = xor_res;

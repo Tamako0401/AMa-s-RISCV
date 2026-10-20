@@ -6,6 +6,7 @@
     --force  板上位流的硬件版本号和本地源码对不上时也照样下载
 以后并进 ama run。
 """
+
 import struct
 import sys
 import time
@@ -18,7 +19,7 @@ from serial.tools import list_ports, miniterm
 from .firmware import load_segments, hwid
 from .boards import boards
 
-APP_SIZE = 0xF800           # ROM 里 bootloader 之前的部分
+APP_SIZE = 0xF800  # ROM 里 bootloader 之前的部分
 USB = {tuple(data['usb']): name for name, data in boards().items()}
 
 
@@ -30,7 +31,7 @@ def app_image(elf):
         sys.exit(f'{elf}: 程序 {end} 字节, 超过 app 区 {APP_SIZE} 字节')
     image = bytearray(b'\xa5' * ((end + 3) & ~3))
     for addr, data in segments:
-        image[addr:addr + len(data)] = data
+        image[addr : addr + len(data)] = data
     return bytes(image)
 
 
@@ -50,7 +51,7 @@ def enter_bootloader(ser):
         ser.break_condition = True
         time.sleep(0.02)
         ser.break_condition = False
-        time.sleep(0.005)           # 等复位释放、bootloader 初始化好 UART
+        time.sleep(0.005)  # 等复位释放、bootloader 初始化好 UART
         ser.reset_input_buffer()
         ser.write(b'\x7f')
         reply = ser.read(12)
@@ -66,12 +67,12 @@ def download(ser, image):
     crc = zlib.crc32(image)
     for _ in range(2):
         ser.write(b'W' + struct.pack('<II', len(image), crc) + image)
-        ser.timeout = 2 + len(image) * 10 / ser.baudrate     # 传输时间 + 板子回读算 CRC
+        ser.timeout = 2 + len(image) * 10 / ser.baudrate  # 传输时间 + 板子回读算 CRC
         reply = ser.read(1)
         if reply == b'K':
             return
         if reply == b'E':
-            board_crc, = struct.unpack('<I', ser.read(4))
+            (board_crc,) = struct.unpack('<I', ser.read(4))
             print(f'校验失败: 电脑 0x{crc:08x}, 板子 0x{board_crc:08x}, 重试')
     sys.exit('下载失败')
 
@@ -87,8 +88,10 @@ def main(argv):
     hw = enter_bootloader(ser)
     local = hwid(board)
     if hw != local and not force:
-        sys.exit(f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{local:08x} 不一致: '
-                 f'先重新构建、烧写位流, 或者加 --force 照样下载')
+        sys.exit(
+            f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{local:08x} 不一致: '
+            f'先重新构建、烧写位流, 或者加 --force 照样下载'
+        )
     start = time.monotonic()
     download(ser, image)
     ser.write(b'G')

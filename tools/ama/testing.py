@@ -1,4 +1,5 @@
 """解释 tests.toml, 编译并运行仿真和电脑端测试。"""
+
 import shlex
 import subprocess
 import time
@@ -20,10 +21,19 @@ def command(args, log):
 
 def program(run, out, log):
     elf = out / 'program.elf'
-    args = [*compiler('clang'), *flags('clang'), '-march=rv32im_zicsr_zifencei',
-            '-fno-stack-protector', *[f'-I{d}' for d in SW_INC],
-            *run.get('defines', []), '-T', run.get('link', 'tests/cpu/link.ld'),
-            *run['program'], '-o', elf]
+    args = [
+        *compiler('clang'),
+        *flags('clang'),
+        '-march=rv32im_zicsr_zifencei',
+        '-fno-stack-protector',
+        *[f'-I{d}' for d in SW_INC],
+        *run.get('defines', []),
+        '-T',
+        run.get('link', 'tests/cpu/link.ld'),
+        *run['program'],
+        '-o',
+        elf,
+    ]
     if command(args, log):
         return False
     rom = elf_to_rom(elf)
@@ -43,8 +53,16 @@ def images(run, out, log):
     if 'app' in run:
         # 编译失败算这个测试 FAIL, 不中断其它测试; 输出在日志里
         try:
-            build_firmware(run['app'], 'mes50hp', run.get('cc', 'clang'), ['-DSIM_CYCLE_DIV=1000', *run.get('defines', [])],
-                           ['-DSIM_CYCLE_DIV=200'], out, stdout=log, stderr=subprocess.STDOUT)
+            build_firmware(
+                run['app'],
+                'mes50hp',
+                run.get('cc', 'clang'),
+                ['-DSIM_CYCLE_DIV=1000', *run.get('defines', [])],
+                ['-DSIM_CYCLE_DIV=200'],
+                out,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
         except SystemExit:
             return None
         args.append(f'+rom={out / "rom.hex"}')
@@ -62,8 +80,20 @@ def simulator(test, tb, params, out, log):
     for source in [rtl] if isinstance(rtl, str) else rtl:
         sources += ['-f', source] if source.endswith('.f') else [source]
     sources += test.get('extra', []) + [tb]
-    args = [*tool('verilator'), '--binary', '--timing', '-Wno-fatal', '--top-module', tb.stem,
-            *[f'-G{k}={v}' for k, v in params.items()], *sources, '--Mdir', out / 'obj', '-o', 'sim']
+    args = [
+        *tool('verilator'),
+        '--binary',
+        '--timing',
+        '-Wno-fatal',
+        '--top-module',
+        tb.stem,
+        *[f'-G{k}={v}' for k, v in params.items()],
+        *sources,
+        '--Mdir',
+        out / 'obj',
+        '-o',
+        'sim',
+    ]
     return None if command(args, log) else [out / 'obj/sim']
 
 
@@ -102,8 +132,18 @@ def bench(test, tb):
                     ok = (status != 0) if test.get('expect') == 'fail' else (status == 0)
             label = run.get('app', ','.join(run.get('program', [])))
             detail = ' '.join(f'{k}={v}' for k, v in params.items())
-            name = ' '.join(filter(None, [str(tb.relative_to(ROOT)), detail, label, run.get('cc', ''),
-                                          '(预期失败)' if test.get('expect') == 'fail' else '']))
+            name = ' '.join(
+                filter(
+                    None,
+                    [
+                        str(tb.relative_to(ROOT)),
+                        detail,
+                        label,
+                        run.get('cc', ''),
+                        '(预期失败)' if test.get('expect') == 'fail' else '',
+                    ],
+                )
+            )
             results.append(report(name, ok, start, path))
     return results
 
@@ -124,7 +164,9 @@ def host(directory):
 
 def test(paths):
     start = time.monotonic()
-    selected = [Path(p).resolve() for p in paths] if paths else [ROOT / 'tests', *sorted((ROOT / 'sw/app').glob('*/test'))]
+    selected = (
+        [Path(p).resolve() for p in paths] if paths else [ROOT / 'tests', *sorted((ROOT / 'sw/app').glob('*/test'))]
+    )
     configs, hosts = set(), set()
     for path in selected:
         if path.is_file():

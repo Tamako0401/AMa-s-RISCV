@@ -1,7 +1,7 @@
 // Imported from JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G
 // Source commit: 00a3334d7c98f57a6d429a5e18910a7e2e88390b
 // Local changes: see third_party/tinyriscv-manifest.json and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2019 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,63 +21,63 @@
 
 // 执行模块
 // 纯组合逻辑电路
-module exu(
+module exu (
 
     input wire clk,
     input wire rst_n,
 
     // clint
-    input wire int_assert_i,                // 中断发生标志
-    input wire[31:0] int_addr_i,            // 中断跳转地址
-    input wire int_stall_i,                 // 暂停标志
-    output wire inst_ecall_o,               // ecall指令
-    output wire inst_ebreak_o,              // ebreak指令
-    output wire inst_mret_o,                // mret指令
+    input  wire        int_assert_i,   // 中断发生标志
+    input  wire [31:0] int_addr_i,     // 中断跳转地址
+    input  wire        int_stall_i,    // 暂停标志
+    output wire        inst_ecall_o,   // ecall指令
+    output wire        inst_ebreak_o,  // ebreak指令
+    output wire        inst_mret_o,    // mret指令
 
     // mem
-    input wire[31:0] mem_rdata_i,           // 内存输入数据
-    input wire mem_req_ready_i,
-    input wire mem_rsp_valid_i,
-    output wire[31:0] mem_wdata_o,          // 写内存数据
-    output wire[31:0] mem_addr_o,           // 读、写内存地址
-    output wire mem_we_o,                   // 是否要写内存
-    output wire[3:0] mem_sel_o,             // 字节位
-    output wire mem_req_valid_o,
-    output wire mem_rsp_ready_o,
-    output wire mem_access_misaligned_o,
+    input  wire [31:0] mem_rdata_i,             // 内存输入数据
+    input  wire        mem_req_ready_i,
+    input  wire        mem_rsp_valid_i,
+    output wire [31:0] mem_wdata_o,             // 写内存数据
+    output wire [31:0] mem_addr_o,              // 读、写内存地址
+    output wire        mem_we_o,                // 是否要写内存
+    output wire [ 3:0] mem_sel_o,               // 字节位
+    output wire        mem_req_valid_o,
+    output wire        mem_rsp_ready_o,
+    output wire        mem_access_misaligned_o,
 
     // gpr_reg
-    output wire[31:0] reg_wdata_o,          // 写寄存器数据
-    output wire reg_we_o,                   // 是否要写通用寄存器
-    output wire[4:0] reg_waddr_o,           // 写通用寄存器地址
+    output wire [31:0] reg_wdata_o,  // 写寄存器数据
+    output wire        reg_we_o,     // 是否要写通用寄存器
+    output wire [ 4:0] reg_waddr_o,  // 写通用寄存器地址
 
     // csr_reg
-    input wire[31:0] csr_rdata_i,
-    output wire[31:0] csr_raddr_o,          // 读CSR寄存器地址
-    output wire[31:0] csr_wdata_o,          // 写CSR寄存器数据
-    output wire csr_we_o,                   // 是否要写CSR寄存器
-    output wire[31:0] csr_waddr_o,          // 写CSR寄存器地址
+    input  wire [31:0] csr_rdata_i,
+    output wire [31:0] csr_raddr_o,  // 读CSR寄存器地址
+    output wire [31:0] csr_wdata_o,  // 写CSR寄存器数据
+    output wire        csr_we_o,     // 是否要写CSR寄存器
+    output wire [31:0] csr_waddr_o,  // 写CSR寄存器地址
 
     // to pipe_ctrl
-    output wire hold_flag_o,                // 是否暂停标志
-    output wire jump_flag_o,                // 是否跳转标志
-    output wire[31:0] jump_addr_o,          // 跳转目的地址
+    output wire        hold_flag_o,  // 是否暂停标志
+    output wire        jump_flag_o,  // 是否跳转标志
+    output wire [31:0] jump_addr_o,  // 跳转目的地址
 
     // from idu_exu
-    input wire[`DECINFO_WIDTH-1:0] dec_info_bus_i,
-    input wire[31:0] dec_imm_i,
-    input wire[31:0] dec_pc_i,
-    input wire[31:0] next_pc_i,
-    input wire[4:0] rd_waddr_i,
-    input wire[31:0] reg1_rdata_i,          // 通用寄存器1输入数据
-    input wire[31:0] reg2_rdata_i,          // 通用寄存器2输入数据
-    input wire rd_we_i
+    input wire [`DECINFO_WIDTH-1:0] dec_info_bus_i,
+    input wire [              31:0] dec_imm_i,
+    input wire [              31:0] dec_pc_i,
+    input wire [              31:0] next_pc_i,
+    input wire [               4:0] rd_waddr_i,
+    input wire [              31:0] reg1_rdata_i,    // 通用寄存器1输入数据
+    input wire [              31:0] reg2_rdata_i,    // 通用寄存器2输入数据
+    input wire                      rd_we_i
 
-    );
+);
 
     // dispatch to ALU
-    wire[31:0] alu_op1_o;
-    wire[31:0] alu_op2_o;
+    wire [31:0] alu_op1_o;
+    wire [31:0] alu_op2_o;
     wire req_alu_o;
     wire alu_op_lui_o;
     wire alu_op_auipc_o;
@@ -92,10 +92,10 @@ module exu(
     wire alu_op_or_o;
     wire alu_op_and_o;
     // dispatch to BJP
-    wire[31:0] bjp_op1_o;
-    wire[31:0] bjp_op2_o;
-    wire[31:0] bjp_jump_op1_o;
-    wire[31:0] bjp_jump_op2_o;
+    wire [31:0] bjp_op1_o;
+    wire [31:0] bjp_op2_o;
+    wire [31:0] bjp_jump_op1_o;
+    wire [31:0] bjp_jump_op2_o;
     wire req_bjp_o;
     wire bjp_op_jump_o;
     wire bjp_op_beq_o;
@@ -106,8 +106,8 @@ module exu(
     wire bjp_op_bgeu_o;
     // dispatch to MULDIV
     wire req_muldiv_o;
-    wire[31:0] muldiv_op1_o;
-    wire[31:0] muldiv_op2_o;
+    wire [31:0] muldiv_op1_o;
+    wire [31:0] muldiv_op2_o;
     wire muldiv_op_mul_o;
     wire muldiv_op_mulh_o;
     wire muldiv_op_mulhsu_o;
@@ -118,16 +118,16 @@ module exu(
     wire muldiv_op_remu_o;
     // dispatch to CSR
     wire req_csr_o;
-    wire[31:0] csr_op1_o;
-    wire[31:0] csr_addr_o;
+    wire [31:0] csr_op1_o;
+    wire [31:0] csr_addr_o;
     wire csr_csrrw_o;
     wire csr_csrrs_o;
     wire csr_csrrc_o;
     // dispatch to MEM
     wire req_mem_o;
-    wire[31:0] mem_op1_o;
-    wire[31:0] mem_op2_o;
-    wire[31:0] mem_rs2_data_o;
+    wire [31:0] mem_op1_o;
+    wire [31:0] mem_op2_o;
+    wire [31:0] mem_rs2_data_o;
     wire mem_op_lb_o;
     wire mem_op_lh_o;
     wire mem_op_lw_o;
@@ -143,7 +143,7 @@ module exu(
     wire sys_op_ebreak_o;
     wire sys_op_fence_o;
 
-    exu_dispatch u_exu_dispatch(
+    exu_dispatch u_exu_dispatch (
         // input
         .clk(clk),
         .rst_n(rst_n),
@@ -221,17 +221,17 @@ module exu(
         .sys_op_fence_o(sys_op_fence_o)
     );
 
-    assign inst_ecall_o = sys_op_ecall_o;
+    assign inst_ecall_o  = sys_op_ecall_o;
     assign inst_ebreak_o = sys_op_ebreak_o;
-    assign inst_mret_o = sys_op_mret_o;
+    assign inst_mret_o   = sys_op_mret_o;
 
-    wire[31:0] alu_res_o;
-    wire[31:0] bjp_res_o;
+    wire [31:0] alu_res_o;
+    wire [31:0] bjp_res_o;
     wire bjp_cmp_res_o;
-    wire[31:0] csr_op1 = csr_csrrc_o? (~csr_op1_o): csr_op1_o;
-    wire[31:0] csr_op2 = csr_csrrw_o? (32'h0): csr_rdata_i;
+    wire [31:0] csr_op1 = csr_csrrc_o ? (~csr_op1_o) : csr_op1_o;
+    wire [31:0] csr_op2 = csr_csrrw_o ? (32'h0) : csr_rdata_i;
 
-    exu_alu_datapath u_exu_alu_datapath(
+    exu_alu_datapath u_exu_alu_datapath (
         .clk(clk),
         .rst_n(rst_n),
         // ALU
@@ -280,10 +280,10 @@ module exu(
 
     wire mem_reg_we_o;
     wire mem_mem_we_o;
-    wire[31:0] mem_wdata;
+    wire [31:0] mem_wdata;
     wire mem_stall_o;
 
-    exu_mem u_exu_mem(
+    exu_mem u_exu_mem (
         .clk(clk),
         .rst_n(rst_n),
         .req_mem_i(req_mem_o),
@@ -311,11 +311,11 @@ module exu(
         .mem_rsp_ready_o(mem_rsp_ready_o)
     );
 
-    wire[31:0] muldiv_reg_wdata_o;
+    wire [31:0] muldiv_reg_wdata_o;
     wire muldiv_reg_we_o;
     wire muldiv_stall_o;
 
-    exu_muldiv u_exu_muldiv(
+    exu_muldiv u_exu_muldiv (
         .clk(clk),
         .rst_n(rst_n),
         .muldiv_op1_i(muldiv_op1_o),
@@ -335,7 +335,7 @@ module exu(
 
     wire commit_reg_we_o;
 
-    exu_commit u_exu_commit(
+    exu_commit u_exu_commit (
         .clk(clk),
         .rst_n(rst_n),
         .req_muldiv_i(req_muldiv_o),

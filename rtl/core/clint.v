@@ -1,7 +1,7 @@
 // Imported from JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G
 // Source commit: 00a3334d7c98f57a6d429a5e18910a7e2e88390b
 // Local changes: see third_party/tinyriscv-manifest.json and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,98 +21,120 @@
 
 // core local interruptor module
 // 核心中断管理、仲裁模块
-module clint(
+module clint (
 
     input wire clk,
     input wire rst_n,
 
     // from core
-    input wire[`INT_WIDTH-1:0] int_flag_i,      // 中断输入信号
+    input wire [`INT_WIDTH-1:0] int_flag_i,  // 中断输入信号
 
     // from exu
-    input wire inst_ecall_i,                    // ecall指令
-    input wire inst_ebreak_i,                   // ebreak指令
-    input wire inst_mret_i,                     // mret指令
-    input wire[31:0] inst_addr_i,               // 指令地址
-    input wire jump_flag_i,
-    input wire mem_access_misaligned_i,
+    input wire        inst_ecall_i,            // ecall指令
+    input wire        inst_ebreak_i,           // ebreak指令
+    input wire        inst_mret_i,             // mret指令
+    input wire [31:0] inst_addr_i,             // 指令地址
+    input wire        jump_flag_i,
+    input wire        mem_access_misaligned_i,
 
     // from csr_reg
-    input wire[31:0] csr_mtvec_i,               // mtvec寄存器
-    input wire[31:0] csr_mepc_i,                // mepc寄存器
-    input wire[31:0] csr_mstatus_i,             // mstatus寄存器
+    input wire [31:0] csr_mtvec_i,   // mtvec寄存器
+    input wire [31:0] csr_mepc_i,    // mepc寄存器
+    input wire [31:0] csr_mstatus_i, // mstatus寄存器
 
     // to csr_reg
-    output reg csr_we_o,                        // 写CSR寄存器标志
-    output reg[31:0] csr_waddr_o,               // 写CSR寄存器地址
-    output reg[31:0] csr_wdata_o,               // 写CSR寄存器数据
+    output reg        csr_we_o,     // 写CSR寄存器标志
+    output reg [31:0] csr_waddr_o,  // 写CSR寄存器地址
+    output reg [31:0] csr_wdata_o,  // 写CSR寄存器数据
 
     // to pipe_ctrl
-    output wire stall_flag_o,                   // 流水线暂停标志
-    output wire[31:0] int_addr_o,               // 中断入口地址
-    output wire int_assert_o                    // 中断标志
+    output wire        stall_flag_o,  // 流水线暂停标志
+    output wire [31:0] int_addr_o,    // 中断入口地址
+    output wire        int_assert_o   // 中断标志
 
-    );
+);
 
     // 中断状态定义
-    localparam S_INT_IDLE            = 4'b0001;
-    localparam S_INT_SYNC_ASSERT     = 4'b0010;
-    localparam S_INT_ASYNC_ASSERT    = 4'b0100;
-    localparam S_INT_MRET            = 4'b1000;
+    localparam S_INT_IDLE         = 4'b0001;
+    localparam S_INT_SYNC_ASSERT  = 4'b0010;
+    localparam S_INT_ASYNC_ASSERT = 4'b0100;
+    localparam S_INT_MRET         = 4'b1000;
 
     // 写CSR寄存器状态定义
-    localparam S_CSR_IDLE            = 5'b00001;
-    localparam S_CSR_MSTATUS         = 5'b00010;
-    localparam S_CSR_MEPC            = 5'b00100;
-    localparam S_CSR_MSTATUS_MRET    = 5'b01000;
-    localparam S_CSR_MCAUSE          = 5'b10000;
+    localparam S_CSR_IDLE         = 5'b00001;
+    localparam S_CSR_MSTATUS      = 5'b00010;
+    localparam S_CSR_MEPC         = 5'b00100;
+    localparam S_CSR_MSTATUS_MRET = 5'b01000;
+    localparam S_CSR_MCAUSE       = 5'b10000;
 
-    reg[3:0] int_state;
-    reg[4:0] csr_state;
-    reg[31:0] inst_addr;
-    reg[31:0] cause;
+    reg [3:0] int_state;
+    reg [4:0] csr_state;
+    reg [31:0] inst_addr;
+    reg [31:0] cause;
 
     wire global_int_en = csr_mstatus_i[3];
 
-    assign stall_flag_o = ((int_state != S_INT_IDLE) | (csr_state != S_CSR_IDLE))? 1'b1: 1'b0;
+    assign stall_flag_o = ((int_state != S_INT_IDLE) | (csr_state != S_CSR_IDLE)) ? 1'b1 : 1'b0;
 
     // 将跳转标志放在流水线上传递
     wire pc_state_jump_flag;
-    gen_rst_0_dff #(1) pc_state_dff(clk, rst_n, jump_flag_i, pc_state_jump_flag);
+    gen_rst_0_dff #(1) pc_state_dff (
+        clk,
+        rst_n,
+        jump_flag_i,
+        pc_state_jump_flag
+    );
 
     wire if_state_jump_flag;
-    gen_rst_0_dff #(1) if_state_dff(clk, rst_n, pc_state_jump_flag, if_state_jump_flag);
+    gen_rst_0_dff #(1) if_state_dff (
+        clk,
+        rst_n,
+        pc_state_jump_flag,
+        if_state_jump_flag
+    );
 
     wire id_state_jump_flag;
-    gen_rst_0_dff #(1) id_state_dff(clk, rst_n, if_state_jump_flag, id_state_jump_flag);
+    gen_rst_0_dff #(1) id_state_dff (
+        clk,
+        rst_n,
+        if_state_jump_flag,
+        id_state_jump_flag
+    );
 
     wire ex_state_jump_flag;
-    gen_rst_0_dff #(1) ex_state_dff(clk, rst_n, id_state_jump_flag, ex_state_jump_flag);
+    gen_rst_0_dff #(1) ex_state_dff (
+        clk,
+        rst_n,
+        id_state_jump_flag,
+        ex_state_jump_flag
+    );
 
-    wire[3:0] state_jump_flag = {pc_state_jump_flag, if_state_jump_flag, id_state_jump_flag, ex_state_jump_flag};
+    wire [3:0] state_jump_flag = {
+        pc_state_jump_flag, if_state_jump_flag, id_state_jump_flag, ex_state_jump_flag
+    };
     // 如果流水线没有冲刷完成则不响应中断
     wire inst_addr_valid = (~(|state_jump_flag)) | ex_state_jump_flag;
 
 
     // 中断仲裁逻辑
-    always @ (*) begin
+    always @(*) begin
         // 同步中断
         if (inst_ecall_i | inst_ebreak_i | mem_access_misaligned_i) begin
             int_state = S_INT_SYNC_ASSERT;
-        // 异步中断
+            // 异步中断
         end else if ((int_flag_i != `INT_NONE) & global_int_en & inst_addr_valid) begin
             int_state = S_INT_ASYNC_ASSERT;
-        // 中断返回
+            // 中断返回
         end else if (inst_mret_i) begin
             int_state = S_INT_MRET;
-        // 无中断响应
+            // 无中断响应
         end else begin
             int_state = S_INT_IDLE;
         end
     end
 
     // 写CSR寄存器状态切换
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             csr_state <= S_CSR_IDLE;
             cause <= 32'h0;
@@ -164,7 +186,7 @@ module clint(
     end
 
     // 发出中断信号前，先写几个CSR寄存器
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             csr_we_o <= 1'b0;
             csr_waddr_o <= 32'h0;
@@ -206,7 +228,7 @@ module clint(
 
     reg in_int_context;
 
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             in_int_context <= 1'b0;
         end else begin

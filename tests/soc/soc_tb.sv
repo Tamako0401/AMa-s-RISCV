@@ -1,4 +1,4 @@
-`timescale 1ns/1ps
+`timescale 1ns / 1ps
 // SoC 级测试台: 直接例化 rtl/soc_top/soc_top.v, 程序真正跑在 RTL 的
 // rib + rom + ram 上。
 //
@@ -29,8 +29,8 @@ module soc_tb;
 
     // 层次化引用核的数据总线端口(接 rib 的主设备 1), 只用于观察
     wire [31:0] da, dw;
-    wire [3:0]  dsel;
-    wire        dwe, dv, dr;
+    wire [3:0] dsel;
+    wire dwe, dv, dr;
     assign da   = u_soc.u_core.dbus_addr_o;
     assign dw   = u_soc.u_core.dbus_data_o;
     assign dsel = u_soc.u_core.dbus_sel_o;
@@ -38,12 +38,12 @@ module soc_tb;
     assign dv   = u_soc.u_core.dbus_req_valid_o;
     assign dr   = u_soc.u_core.dbus_req_ready_i;
 
-    reg uart_rx_line = 1;        // 串口空闲为高
-    soc_top u_soc(
-        .clk(clk),
-        .rst_n(rst_n),
-        .uart_rx(uart_rx_line),
-        .spi_miso(1'b0)          // 本测试不驱动 SPI 设备
+    reg uart_rx_line = 1;  // 串口空闲为高
+    soc_top u_soc (
+        .clk     (clk),
+        .rst_n   (rst_n),
+        .uart_rx (uart_rx_line),
+        .spi_miso(1'b0)           // 本测试不驱动 SPI 设备
     );
 
     // UART: 从 uart_tx 引脚解码字节(不看内部寄存器), 收到两个字节后从 uart_rx 发 0x3C。
@@ -53,29 +53,30 @@ module soc_tb;
     integer uart_tx_bytes = 0;
     reg [7:0] uart_byte;
     integer bit_clks, b;
-    always @(negedge u_soc.uart_tx) if (rst_n && check_uart) begin
-        bit_clks = u_soc.u_uart.uart_baud[15:0] + 1;
-        repeat (bit_clks / 2) @(posedge clk);
-        if (u_soc.uart_tx !== 1'b0) $fatal(1, "UART start bit");
-        for (b = 0; b < 8; b = b + 1) begin
-            repeat (bit_clks) @(posedge clk);
-            uart_byte[b] = u_soc.uart_tx;
-        end
-        repeat (bit_clks) @(posedge clk);
-        if (u_soc.uart_tx !== 1'b1) $fatal(1, "UART stop bit");
-        if (uart_byte !== (uart_tx_bytes == 0 ? 8'h41 : 8'h5a))
-            $fatal(1, "UART TX byte %0d got=%h", uart_tx_bytes, uart_byte);
-        uart_tx_bytes = uart_tx_bytes + 1;
-        if (uart_tx_bytes == 2) begin
-            uart_rx_line = 0;                                   // 起始位
-            repeat (bit_clks) @(posedge clk);
+    always @(negedge u_soc.uart_tx)
+        if (rst_n && check_uart) begin
+            bit_clks = u_soc.u_uart.uart_baud[15:0] + 1;
+            repeat (bit_clks / 2) @(posedge clk);
+            if (u_soc.uart_tx !== 1'b0) $fatal(1, "UART start bit");
             for (b = 0; b < 8; b = b + 1) begin
-                uart_rx_line = UART_RX_BYTE[b];                 // 低位先发
                 repeat (bit_clks) @(posedge clk);
+                uart_byte[b] = u_soc.uart_tx;
             end
-            uart_rx_line = 1;                                   // 停止位
+            repeat (bit_clks) @(posedge clk);
+            if (u_soc.uart_tx !== 1'b1) $fatal(1, "UART stop bit");
+            if (uart_byte !== (uart_tx_bytes == 0 ? 8'h41 : 8'h5a))
+                $fatal(1, "UART TX byte %0d got=%h", uart_tx_bytes, uart_byte);
+            uart_tx_bytes = uart_tx_bytes + 1;
+            if (uart_tx_bytes == 2) begin
+                uart_rx_line = 0;  // 起始位
+                repeat (bit_clks) @(posedge clk);
+                for (b = 0; b < 8; b = b + 1) begin
+                    uart_rx_line = UART_RX_BYTE[b];  // 低位先发
+                    repeat (bit_clks) @(posedge clk);
+                end
+                uart_rx_line = 1;  // 停止位
+            end
         end
-    end
 
     // rib 的互斥性: 任一时刻最多一个从设备被选中, 最多一个主设备收到响应
     wire [2:0] sel_cnt = u_soc.u_rib.s0_req_valid_o + u_soc.u_rib.s1_req_valid_o
@@ -83,36 +84,38 @@ module soc_tb;
                        + u_soc.u_rib.s4_req_valid_o;
     wire [1:0] rsp_cnt = u_soc.u_rib.m0_rsp_valid_o + u_soc.u_rib.m1_rsp_valid_o;
 
-    always @(posedge clk) if (rst_n) begin
-        if (sel_cnt > 3'd1) $fatal(1, "rib selected %0d slaves at once", sel_cnt);
-        if (rsp_cnt > 2'd1) $fatal(1, "rib routed a response to both masters");
-        if (check_spi && dv && dr && !dwe && da == 32'h40000004) begin
-            case (gpio_checks)
-                0: expected_controls = 3'b101;
-                1: expected_controls = 3'b011;
-                2: expected_controls = 3'b010;
-                3: expected_controls = 3'b011;
-                4: expected_controls = 3'b111;
-                default: $fatal(1, "Unexpected GPIO read");
-            endcase
-            if ({u_soc.spi_ss, u_soc.lcd_dc, u_soc.lcd_rst_n} !== expected_controls)
-                $fatal(1, "GPIO-controlled screen pins at checkpoint %0d", gpio_checks);
-            gpio_checks = gpio_checks + 1;
+    always @(posedge clk)
+        if (rst_n) begin
+            if (sel_cnt > 3'd1) $fatal(1, "rib selected %0d slaves at once", sel_cnt);
+            if (rsp_cnt > 2'd1) $fatal(1, "rib routed a response to both masters");
+            if (check_spi && dv && dr && !dwe && da == 32'h40000004) begin
+                case (gpio_checks)
+                    0: expected_controls = 3'b101;
+                    1: expected_controls = 3'b011;
+                    2: expected_controls = 3'b010;
+                    3: expected_controls = 3'b011;
+                    4: expected_controls = 3'b111;
+                    default: $fatal(1, "Unexpected GPIO read");
+                endcase
+                if ({u_soc.spi_ss, u_soc.lcd_dc, u_soc.lcd_rst_n} !== expected_controls)
+                    $fatal(1, "GPIO-controlled screen pins at checkpoint %0d", gpio_checks);
+                gpio_checks = gpio_checks + 1;
+            end
         end
-    end
 
-    always @(u_soc.spi_clk) if (rst_n && check_spi) begin
-        if ({u_soc.spi_ss, u_soc.lcd_dc, u_soc.lcd_rst_n} !== 3'b011)
-            $fatal(1, "CS/DC/RST_N changed during SPI clocks");
-        spi_edges = spi_edges + 1;
-        // This program uses mode 0. Decode actual pins to verify CPU byte
-        // stores reach the serial data path, not only the register/status path.
-        if (u_soc.spi_clk) spi_byte = {spi_byte[6:0], u_soc.spi_mosi};
-        if (!u_soc.spi_clk && spi_edges % 16 == 0) begin
-            if (spi_byte !== (spi_edges == 16 ? 8'ha5 : 8'h3c))
-                $fatal(1, "SoC MOSI byte got=%h at edge %0d", spi_byte, spi_edges);
+    always @(u_soc.spi_clk)
+        if (rst_n && check_spi) begin
+            if ({u_soc.spi_ss, u_soc.lcd_dc, u_soc.lcd_rst_n} !== 3'b011)
+                $fatal(1, "CS/DC/RST_N changed during SPI clocks");
+            spi_edges = spi_edges + 1;
+            // This program uses mode 0. Decode actual pins to verify CPU byte
+            // stores reach the serial data path, not only the register/status path.
+            if (u_soc.spi_clk) spi_byte = {spi_byte[6:0], u_soc.spi_mosi};
+            if (!u_soc.spi_clk && spi_edges % 16 == 0) begin
+                if (spi_byte !== (spi_edges == 16 ? 8'ha5 : 8'h3c))
+                    $fatal(1, "SoC MOSI byte got=%h at edge %0d", spi_byte, spi_edges);
+            end
         end
-    end
 
     initial begin
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
@@ -129,31 +132,36 @@ module soc_tb;
         rst_n = 1;
     end
 
-    always @(posedge clk) if (rst_n && !seen) begin
-        cycles <= cycles + 1;
-        if (cycles > 200000) $fatal(1, "Timeout");
-        if (dv && dr && dwe) begin
-            if (da == RESULT_ADDR) begin
-                if (dsel !== 4'b1111) $fatal(1, "Result write must be a full word");
-                result <= dw;
-                seen <= 1;
-            end else begin
-                stores <= stores + 1;
+    always @(posedge clk)
+        if (rst_n && !seen) begin
+            cycles <= cycles + 1;
+            if (cycles > 200000) $fatal(1, "Timeout");
+            if (dv && dr && dwe) begin
+                if (da == RESULT_ADDR) begin
+                    if (dsel !== 4'b1111) $fatal(1, "Result write must be a full word");
+                    result <= dw;
+                    seen   <= 1;
+                end else begin
+                    stores <= stores + 1;
+                end
             end
         end
-    end
 
-    always @(posedge clk) if (seen) begin
-        if (result !== 32'h1) $fatal(1, "Program FAIL code=%h", result);
-        if (expected_stores >= 0 && stores != expected_stores)
-            $fatal(1, "Store count %0d expected %0d", stores, expected_stores);
-        if (check_spi && (gpio_checks != 5 || spi_edges != 32))
-            $fatal(1, "SPI/GPIO checkpoints=%0d clocks=%0d", gpio_checks, spi_edges);
-        if (check_uart && (uart_tx_bytes != 2 || u_soc.led !== 8'ha5))
-            $fatal(1, "UART bytes=%0d led=%h", uart_tx_bytes, u_soc.led);
-        $display("PASS SoC %s cycles=%0d stores=%0d", rom_path, cycles, stores);
-        $finish;
-    end
+    always @(posedge clk)
+        if (seen) begin
+            if (result !== 32'h1) $fatal(1, "Program FAIL code=%h", result);
+            if (expected_stores >= 0 && stores != expected_stores)
+                $fatal(1, "Store count %0d expected %0d", stores, expected_stores);
+            if (check_spi && (gpio_checks != 5 || spi_edges != 32))
+                $fatal(1, "SPI/GPIO checkpoints=%0d clocks=%0d", gpio_checks, spi_edges);
+            if (check_uart && (uart_tx_bytes != 2 || u_soc.led !== 8'ha5))
+                $fatal(1, "UART bytes=%0d led=%h", uart_tx_bytes, u_soc.led);
+            $display("PASS SoC %s cycles=%0d stores=%0d", rom_path, cycles, stores);
+            $finish;
+        end
 
-    initial begin #2000000; $fatal(1, "timeout"); end
+    initial begin
+        #2000000;
+        $fatal(1, "timeout");
+    end
 endmodule

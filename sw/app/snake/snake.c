@@ -19,8 +19,7 @@ static uint32_t random_next(snake_t *snake)
     return x;
 }
 
-static int body_contains(const snake_t *snake, snake_cell_t cell,
-                         uint16_t start, uint16_t count)
+static int body_contains(const snake_t *snake, snake_cell_t cell, uint16_t start, uint16_t count)
 {
     for (uint16_t i = 0; i < count; i++) {
         snake_cell_t part = snake->body[body_index(start + i)];
@@ -76,21 +75,33 @@ void snake_step(snake_t *snake, snake_dir_t dir, snake_change_t *change)
     int x = head.x;
     int y = head.y;
     switch (snake->dir) {
-    case SNAKE_UP:    y--; break;
-    case SNAKE_DOWN:  y++; break;
-    case SNAKE_LEFT:  x--; break;
-    case SNAKE_RIGHT: x++; break;
+    case SNAKE_UP:
+        y--;
+        break;
+    case SNAKE_DOWN:
+        y++;
+        break;
+    case SNAKE_LEFT:
+        x--;
+        break;
+    case SNAKE_RIGHT:
+        x++;
+        break;
     }
     if (!snake->wrap && (x < 0 || x >= snake_cols || y < 0 || y >= snake_rows)) {
         snake->game_over = 1;
         return;
     }
-    if (x < 0) x = snake_cols - 1;
-    if (x >= snake_cols) x = 0;
-    if (y < 0) y = snake_rows - 1;
-    if (y >= snake_rows) y = 0;
+    if (x < 0)
+        x = snake_cols - 1;
+    if (x >= snake_cols)
+        x = 0;
+    if (y < 0)
+        y = snake_rows - 1;
+    if (y >= snake_rows)
+        y = 0;
 
-    snake_cell_t next = { x, y };
+    snake_cell_t next = {x, y};
     int eating = x == snake->food.x && y == snake->food.y;
     /* 不生长时尾格会同时腾空, 可以成为新蛇头。 */
     uint16_t start = body_index(snake->tail + !eating);

@@ -42,7 +42,19 @@ void lcd_io_dc(int level)
     io_write(dc_pin, level);
 }
 
-void lcd_io_rst(int level) { io_write(rst_pin, level); }
-void lcd_io_write_byte(uint8_t data) { spi_write_byte(SPI1, data); }
-void lcd_io_wait(void) { spi_wait_idle(SPI1); }
-void lcd_io_delay_ms(uint32_t ms) { delay_ms(ms); }
+void lcd_io_rst(int level)
+{
+    io_write(rst_pin, level);
+}
+void lcd_io_write_byte(uint8_t data)
+{
+    spi_write_byte(SPI1, data);
+}
+void lcd_io_wait(void)
+{
+    spi_wait_idle(SPI1);
+}
+void lcd_io_delay_ms(uint32_t ms)
+{
+    delay_ms(ms);
+}

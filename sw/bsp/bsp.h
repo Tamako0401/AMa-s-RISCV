@@ -11,7 +11,7 @@
 #include "mes50hp_pins.h"
 #endif
 
-#define SYSCLK_HZ  50000000UL    /* MES50HP 板载 50MHz, 不经 PLL */
+#define SYSCLK_HZ 50000000UL /* MES50HP 板载 50MHz, 不经 PLL */
 
 /* 仿真时把毫秒换算出的周期数按比例缩小。屏幕初始化的延时(0x01/0x11/0x29 等
  * 合计 0.5 秒)按真实计数要 2600 万拍, 纯仿真跑不动; 按 1000 倍缩到 2.6 万拍。
@@ -20,7 +20,7 @@
 #define SIM_CYCLE_DIV 1
 #endif
 
-#define DELAY_CYCLES_PER_MS  (SYSCLK_HZ / 1000 / SIM_CYCLE_DIV)
+#define DELAY_CYCLES_PER_MS (SYSCLK_HZ / 1000 / SIM_CYCLE_DIV)
 
 #define CONSOLE_UART UART1
 

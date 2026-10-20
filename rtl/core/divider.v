@@ -1,7 +1,7 @@
 // Imported from JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G
 // Source commit: 00a3334d7c98f57a6d429a5e18910a7e2e88390b
 // Local changes: see third_party/tinyriscv-manifest.json and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2019 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,20 +22,20 @@
 // 除法模块
 // 试商法实现32位整数除法
 // 每次除法运算至少需要33个时钟周期才能完成
-module divider(
+module divider (
 
     input wire clk,
     input wire rst_n,
 
-    input wire[31:0] dividend_i,        // 被除数
-    input wire[31:0] divisor_i,         // 除数
-    input wire start_i,                 // 开始信号，运算期间这个信号需要一直保持有效
-    input wire[3:0] op_i,               // 具体是哪一条指令
+    input wire [31:0] dividend_i,  // 被除数
+    input wire [31:0] divisor_i,  // 除数
+    input wire start_i,  // 开始信号，运算期间这个信号需要一直保持有效
+    input wire [3:0] op_i,  // 具体是哪一条指令
 
-    output reg[31:0] result_o,          // 除法结果，高32位是余数，低32位是商
-    output reg ready_o                  // 运算结束信号
+    output reg [31:0] result_o,  // 除法结果，高32位是余数，低32位是商
+    output reg        ready_o    // 运算结束信号
 
-    );
+);
 
     // 状态定义
     localparam STATE_IDLE  = 4'b0001;
@@ -43,14 +43,14 @@ module divider(
     localparam STATE_CALC  = 4'b0100;
     localparam STATE_END   = 4'b1000;
 
-    reg[31:0] dividend_r;
-    reg[31:0] divisor_r;
-    reg[3:0] op_r;
-    reg[3:0] state;
-    reg[31:0] count;
-    reg[31:0] div_result;
-    reg[31:0] div_remain;
-    reg[31:0] minuend;
+    reg [31:0] dividend_r;
+    reg [31:0] divisor_r;
+    reg [3:0] op_r;
+    reg [3:0] state;
+    reg [31:0] count;
+    reg [31:0] div_result;
+    reg [31:0] div_remain;
+    reg [31:0] minuend;
     reg invert_result;
 
     wire op_div = op_r[3];
@@ -58,15 +58,15 @@ module divider(
     wire op_rem = op_r[1];
     wire op_remu = op_r[0];
 
-    wire[31:0] dividend_invert = (-dividend_r);
-    wire[31:0] divisor_invert = (-divisor_r);
+    wire [31:0] dividend_invert = (-dividend_r);
+    wire [31:0] divisor_invert = (-divisor_r);
     wire minuend_ge_divisor = minuend >= divisor_r;
-    wire[31:0] minuend_sub_res = minuend - divisor_r;
+    wire [31:0] minuend_sub_res = minuend - divisor_r;
     wire[31:0] div_result_tmp = minuend_ge_divisor? ({div_result[30:0], 1'b1}): ({div_result[30:0], 1'b0});
-    wire[31:0] minuend_tmp = minuend_ge_divisor? minuend_sub_res[30:0]: minuend[30:0];
+    wire [31:0] minuend_tmp = minuend_ge_divisor ? minuend_sub_res[30:0] : minuend[30:0];
 
     // 状态机实现
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= STATE_IDLE;
             ready_o <= 1'b0;
@@ -106,8 +106,8 @@ module divider(
                                 result_o <= dividend_r;
                             end
                             ready_o <= 1'b1;
-                            state <= STATE_IDLE;
-                        // 除数不为0
+                            state   <= STATE_IDLE;
+                            // 除数不为0
                         end else begin
                             count <= 32'h40000000;
                             state <= STATE_CALC;
@@ -171,7 +171,7 @@ module divider(
                 STATE_END: begin
                     if (start_i) begin
                         ready_o <= 1'b1;
-                        state <= STATE_IDLE;
+                        state   <= STATE_IDLE;
                         if (op_div | op_divu) begin
                             if (invert_result) begin
                                 result_o <= (-div_result);

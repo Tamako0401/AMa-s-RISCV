@@ -4,7 +4,7 @@
 #include "io.h"
 #include "uart.h"
 #include "key.h"
-#include "app_board.h"          /* 本板的按键表、LED、read_settings: boards/<板>/ */
+#include "app_board.h" /* 本板的按键表、LED、read_settings: boards/<板>/ */
 
 #include "snake.h"
 
@@ -41,19 +41,39 @@ static snake_dir_t read_input(snake_dir_t dir, int *start, int *moved)
         if (!uart_on)
             continue;
         switch (c) {
-        case 'k': case 'w': dir = SNAKE_UP; break;
-        case 'j': case 's': dir = SNAKE_DOWN; break;
-        case 'h': case 'a': dir = SNAKE_LEFT; break;
-        case 'l': case 'd': dir = SNAKE_RIGHT; break;
-        case 'p': case ' ': *start = 1; break;
+        case 'k':
+        case 'w':
+            dir = SNAKE_UP;
+            break;
+        case 'j':
+        case 's':
+            dir = SNAKE_DOWN;
+            break;
+        case 'h':
+        case 'a':
+            dir = SNAKE_LEFT;
+            break;
+        case 'l':
+        case 'd':
+            dir = SNAKE_RIGHT;
+            break;
+        case 'p':
+        case ' ':
+            *start = 1;
+            break;
         }
         *moved |= c != 'p' && c != ' ';
     }
-    if (key_rose(&keys[K_START])) *start = 1;
-    if (key_status(&keys[K_UP]))    dir = SNAKE_UP;
-    if (key_status(&keys[K_DOWN]))  dir = SNAKE_DOWN;
-    if (key_status(&keys[K_LEFT]))  dir = SNAKE_LEFT;
-    if (key_status(&keys[K_RIGHT])) dir = SNAKE_RIGHT;
+    if (key_rose(&keys[K_START]))
+        *start = 1;
+    if (key_status(&keys[K_UP]))
+        dir = SNAKE_UP;
+    if (key_status(&keys[K_DOWN]))
+        dir = SNAKE_DOWN;
+    if (key_status(&keys[K_LEFT]))
+        dir = SNAKE_LEFT;
+    if (key_status(&keys[K_RIGHT]))
+        dir = SNAKE_RIGHT;
     *moved |= dir != old;
     return dir;
 }

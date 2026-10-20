@@ -7,139 +7,237 @@
 //   - 单次执行: 每一笔 RIB 事务只能产生一笔 AXI 事务(计数器核对)
 //   - AXI 数据宽度 32 与 64 两种取值的字节通道定位
 //   - 非 OKAY 响应上报到 error_o
-`timescale 1ns/1ps
+`timescale 1ns / 1ps
 module axi_bridge_tb;
 
     reg clk = 0;
-    always #5 clk = ~clk;          // 100 MHz
+    always #5 clk = ~clk;  // 100 MHz
     reg rst_n = 0;
 
     integer waited;
 
     // ================= 32 位 AXI 实例 =================
 
-    reg  [31:0] r32_addr = 0, r32_wdata = 0;
-    reg  [3:0]  r32_sel = 0;
-    reg         r32_we = 0, r32_valid = 0, r32_rsp_ready = 0;
+    reg [31:0] r32_addr = 0, r32_wdata = 0;
+    reg [3:0] r32_sel = 0;
+    reg r32_we = 0, r32_valid = 0, r32_rsp_ready = 0;
     wire [31:0] r32_rdata;
-    wire        r32_ready, r32_rsp_valid, r32_error;
+    wire r32_ready, r32_rsp_valid, r32_error;
 
-    wire [3:0]  a32_arid, a32_rid, a32_awid, a32_bid;
+    wire [3:0] a32_arid, a32_rid, a32_awid, a32_bid;
     wire [31:0] a32_araddr, a32_awaddr, a32_rdata, a32_wdata;
-    wire [7:0]  a32_arlen, a32_awlen;
-    wire [2:0]  a32_arsize, a32_awsize;
-    wire [1:0]  a32_arburst, a32_awburst, a32_rresp, a32_bresp;
-    wire        a32_arvalid, a32_arready, a32_rvalid, a32_rready, a32_rlast;
-    wire        a32_awvalid, a32_awready, a32_wvalid, a32_wready, a32_wlast;
-    wire        a32_bvalid, a32_bready;
-    wire [3:0]  a32_wstrb;
-    reg         inject32 = 0;
+    wire [7:0] a32_arlen, a32_awlen;
+    wire [2:0] a32_arsize, a32_awsize;
+    wire [1:0] a32_arburst, a32_awburst, a32_rresp, a32_bresp;
+    wire a32_arvalid, a32_arready, a32_rvalid, a32_rready, a32_rlast;
+    wire a32_awvalid, a32_awready, a32_wvalid, a32_wready, a32_wlast;
+    wire a32_bvalid, a32_bready;
+    wire [3:0] a32_wstrb;
+    reg        inject32 = 0;
 
     integer a32_ar_count = 0, a32_aw_count = 0, a32_w_count = 0;
-    always @ (posedge clk) begin
+    always @(posedge clk) begin
         if (a32_arvalid && a32_arready) a32_ar_count <= a32_ar_count + 1;
         if (a32_awvalid && a32_awready) a32_aw_count <= a32_aw_count + 1;
-        if (a32_wvalid  && a32_wready ) a32_w_count  <= a32_w_count  + 1;
+        if (a32_wvalid && a32_wready) a32_w_count <= a32_w_count + 1;
     end
 
     axi_bridge #(
-        .AXI_ID_WIDTH(4), .AXI_ADDR_WIDTH(32), .AXI_DATA_WIDTH(32)
+        .AXI_ID_WIDTH  (4),
+        .AXI_ADDR_WIDTH(32),
+        .AXI_DATA_WIDTH(32)
     ) dut32 (
-        .clk(clk), .rst_n(rst_n),
-        .addr_i(r32_addr), .data_i(r32_wdata), .sel_i(r32_sel), .we_i(r32_we),
-        .data_o(r32_rdata), .req_valid_i(r32_valid), .req_ready_o(r32_ready),
-        .rsp_valid_o(r32_rsp_valid), .rsp_ready_i(r32_rsp_ready),
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(r32_addr),
+        .data_i(r32_wdata),
+        .sel_i(r32_sel),
+        .we_i(r32_we),
+        .data_o(r32_rdata),
+        .req_valid_i(r32_valid),
+        .req_ready_o(r32_ready),
+        .rsp_valid_o(r32_rsp_valid),
+        .rsp_ready_i(r32_rsp_ready),
         .error_o(r32_error),
-        .m_axi_arid(a32_arid), .m_axi_araddr(a32_araddr), .m_axi_arlen(a32_arlen),
-        .m_axi_arsize(a32_arsize), .m_axi_arburst(a32_arburst),
-        .m_axi_arvalid(a32_arvalid), .m_axi_arready(a32_arready),
-        .m_axi_rid(a32_rid), .m_axi_rdata(a32_rdata), .m_axi_rresp(a32_rresp),
-        .m_axi_rlast(a32_rlast), .m_axi_rvalid(a32_rvalid), .m_axi_rready(a32_rready),
-        .m_axi_awid(a32_awid), .m_axi_awaddr(a32_awaddr), .m_axi_awlen(a32_awlen),
-        .m_axi_awsize(a32_awsize), .m_axi_awburst(a32_awburst),
-        .m_axi_awvalid(a32_awvalid), .m_axi_awready(a32_awready),
-        .m_axi_wdata(a32_wdata), .m_axi_wstrb(a32_wstrb), .m_axi_wlast(a32_wlast),
-        .m_axi_wvalid(a32_wvalid), .m_axi_wready(a32_wready),
-        .m_axi_bid(a32_bid), .m_axi_bresp(a32_bresp),
-        .m_axi_bvalid(a32_bvalid), .m_axi_bready(a32_bready)
+        .m_axi_arid(a32_arid),
+        .m_axi_araddr(a32_araddr),
+        .m_axi_arlen(a32_arlen),
+        .m_axi_arsize(a32_arsize),
+        .m_axi_arburst(a32_arburst),
+        .m_axi_arvalid(a32_arvalid),
+        .m_axi_arready(a32_arready),
+        .m_axi_rid(a32_rid),
+        .m_axi_rdata(a32_rdata),
+        .m_axi_rresp(a32_rresp),
+        .m_axi_rlast(a32_rlast),
+        .m_axi_rvalid(a32_rvalid),
+        .m_axi_rready(a32_rready),
+        .m_axi_awid(a32_awid),
+        .m_axi_awaddr(a32_awaddr),
+        .m_axi_awlen(a32_awlen),
+        .m_axi_awsize(a32_awsize),
+        .m_axi_awburst(a32_awburst),
+        .m_axi_awvalid(a32_awvalid),
+        .m_axi_awready(a32_awready),
+        .m_axi_wdata(a32_wdata),
+        .m_axi_wstrb(a32_wstrb),
+        .m_axi_wlast(a32_wlast),
+        .m_axi_wvalid(a32_wvalid),
+        .m_axi_wready(a32_wready),
+        .m_axi_bid(a32_bid),
+        .m_axi_bresp(a32_bresp),
+        .m_axi_bvalid(a32_bvalid),
+        .m_axi_bready(a32_bready)
     );
 
     axi_slave_model #(
-        .ADDR_WIDTH(32), .DATA_WIDTH(32), .ID_WIDTH(4),
-        .WORDS(256), .RD_LATENCY(3), .WR_LATENCY(2)
+        .ADDR_WIDTH(32),
+        .DATA_WIDTH(32),
+        .ID_WIDTH(4),
+        .WORDS(256),
+        .RD_LATENCY(3),
+        .WR_LATENCY(2)
     ) slv32 (
-        .clk(clk), .rst_n(rst_n),
-        .arid(a32_arid), .araddr(a32_araddr), .arlen(a32_arlen),
-        .arsize(a32_arsize), .arburst(a32_arburst),
-        .arvalid(a32_arvalid), .arready(a32_arready),
-        .rid(a32_rid), .rdata(a32_rdata), .rresp(a32_rresp), .rlast(a32_rlast),
-        .rvalid(a32_rvalid), .rready(a32_rready),
-        .awid(a32_awid), .awaddr(a32_awaddr), .awlen(a32_awlen),
-        .awsize(a32_awsize), .awburst(a32_awburst),
-        .awvalid(a32_awvalid), .awready(a32_awready),
-        .wdata(a32_wdata), .wstrb(a32_wstrb), .wlast(a32_wlast),
-        .wvalid(a32_wvalid), .wready(a32_wready),
-        .bid(a32_bid), .bresp(a32_bresp), .bvalid(a32_bvalid), .bready(a32_bready),
+        .clk(clk),
+        .rst_n(rst_n),
+        .arid(a32_arid),
+        .araddr(a32_araddr),
+        .arlen(a32_arlen),
+        .arsize(a32_arsize),
+        .arburst(a32_arburst),
+        .arvalid(a32_arvalid),
+        .arready(a32_arready),
+        .rid(a32_rid),
+        .rdata(a32_rdata),
+        .rresp(a32_rresp),
+        .rlast(a32_rlast),
+        .rvalid(a32_rvalid),
+        .rready(a32_rready),
+        .awid(a32_awid),
+        .awaddr(a32_awaddr),
+        .awlen(a32_awlen),
+        .awsize(a32_awsize),
+        .awburst(a32_awburst),
+        .awvalid(a32_awvalid),
+        .awready(a32_awready),
+        .wdata(a32_wdata),
+        .wstrb(a32_wstrb),
+        .wlast(a32_wlast),
+        .wvalid(a32_wvalid),
+        .wready(a32_wready),
+        .bid(a32_bid),
+        .bresp(a32_bresp),
+        .bvalid(a32_bvalid),
+        .bready(a32_bready),
         .inject_error(inject32)
     );
 
     // ================= 64 位 AXI 实例 =================
     // 验证一个 RIB 事务只落在 64 位数据的其中一个 4 字节通道上
 
-    reg  [31:0] r64_addr = 0, r64_wdata = 0;
-    reg  [3:0]  r64_sel = 0;
-    reg         r64_we = 0, r64_valid = 0, r64_rsp_ready = 0;
+    reg [31:0] r64_addr = 0, r64_wdata = 0;
+    reg [3:0] r64_sel = 0;
+    reg r64_we = 0, r64_valid = 0, r64_rsp_ready = 0;
     wire [31:0] r64_rdata;
-    wire        r64_ready, r64_rsp_valid, r64_error;
+    wire r64_ready, r64_rsp_valid, r64_error;
 
-    wire [3:0]  a64_arid, a64_rid, a64_awid, a64_bid;
+    wire [3:0] a64_arid, a64_rid, a64_awid, a64_bid;
     wire [31:0] a64_araddr, a64_awaddr;
     wire [63:0] a64_rdata, a64_wdata;
-    wire [7:0]  a64_arlen, a64_awlen, a64_wstrb;
-    wire [2:0]  a64_arsize, a64_awsize;
-    wire [1:0]  a64_arburst, a64_awburst, a64_rresp, a64_bresp;
-    wire        a64_arvalid, a64_arready, a64_rvalid, a64_rready, a64_rlast;
-    wire        a64_awvalid, a64_awready, a64_wvalid, a64_wready, a64_wlast;
-    wire        a64_bvalid, a64_bready;
+    wire [7:0] a64_arlen, a64_awlen, a64_wstrb;
+    wire [2:0] a64_arsize, a64_awsize;
+    wire [1:0] a64_arburst, a64_awburst, a64_rresp, a64_bresp;
+    wire a64_arvalid, a64_arready, a64_rvalid, a64_rready, a64_rlast;
+    wire a64_awvalid, a64_awready, a64_wvalid, a64_wready, a64_wlast;
+    wire a64_bvalid, a64_bready;
 
     axi_bridge #(
-        .AXI_ID_WIDTH(4), .AXI_ADDR_WIDTH(32), .AXI_DATA_WIDTH(64)
+        .AXI_ID_WIDTH  (4),
+        .AXI_ADDR_WIDTH(32),
+        .AXI_DATA_WIDTH(64)
     ) dut64 (
-        .clk(clk), .rst_n(rst_n),
-        .addr_i(r64_addr), .data_i(r64_wdata), .sel_i(r64_sel), .we_i(r64_we),
-        .data_o(r64_rdata), .req_valid_i(r64_valid), .req_ready_o(r64_ready),
-        .rsp_valid_o(r64_rsp_valid), .rsp_ready_i(r64_rsp_ready),
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(r64_addr),
+        .data_i(r64_wdata),
+        .sel_i(r64_sel),
+        .we_i(r64_we),
+        .data_o(r64_rdata),
+        .req_valid_i(r64_valid),
+        .req_ready_o(r64_ready),
+        .rsp_valid_o(r64_rsp_valid),
+        .rsp_ready_i(r64_rsp_ready),
         .error_o(r64_error),
-        .m_axi_arid(a64_arid), .m_axi_araddr(a64_araddr), .m_axi_arlen(a64_arlen),
-        .m_axi_arsize(a64_arsize), .m_axi_arburst(a64_arburst),
-        .m_axi_arvalid(a64_arvalid), .m_axi_arready(a64_arready),
-        .m_axi_rid(a64_rid), .m_axi_rdata(a64_rdata), .m_axi_rresp(a64_rresp),
-        .m_axi_rlast(a64_rlast), .m_axi_rvalid(a64_rvalid), .m_axi_rready(a64_rready),
-        .m_axi_awid(a64_awid), .m_axi_awaddr(a64_awaddr), .m_axi_awlen(a64_awlen),
-        .m_axi_awsize(a64_awsize), .m_axi_awburst(a64_awburst),
-        .m_axi_awvalid(a64_awvalid), .m_axi_awready(a64_awready),
-        .m_axi_wdata(a64_wdata), .m_axi_wstrb(a64_wstrb), .m_axi_wlast(a64_wlast),
-        .m_axi_wvalid(a64_wvalid), .m_axi_wready(a64_wready),
-        .m_axi_bid(a64_bid), .m_axi_bresp(a64_bresp),
-        .m_axi_bvalid(a64_bvalid), .m_axi_bready(a64_bready)
+        .m_axi_arid(a64_arid),
+        .m_axi_araddr(a64_araddr),
+        .m_axi_arlen(a64_arlen),
+        .m_axi_arsize(a64_arsize),
+        .m_axi_arburst(a64_arburst),
+        .m_axi_arvalid(a64_arvalid),
+        .m_axi_arready(a64_arready),
+        .m_axi_rid(a64_rid),
+        .m_axi_rdata(a64_rdata),
+        .m_axi_rresp(a64_rresp),
+        .m_axi_rlast(a64_rlast),
+        .m_axi_rvalid(a64_rvalid),
+        .m_axi_rready(a64_rready),
+        .m_axi_awid(a64_awid),
+        .m_axi_awaddr(a64_awaddr),
+        .m_axi_awlen(a64_awlen),
+        .m_axi_awsize(a64_awsize),
+        .m_axi_awburst(a64_awburst),
+        .m_axi_awvalid(a64_awvalid),
+        .m_axi_awready(a64_awready),
+        .m_axi_wdata(a64_wdata),
+        .m_axi_wstrb(a64_wstrb),
+        .m_axi_wlast(a64_wlast),
+        .m_axi_wvalid(a64_wvalid),
+        .m_axi_wready(a64_wready),
+        .m_axi_bid(a64_bid),
+        .m_axi_bresp(a64_bresp),
+        .m_axi_bvalid(a64_bvalid),
+        .m_axi_bready(a64_bready)
     );
 
     axi_slave_model #(
-        .ADDR_WIDTH(32), .DATA_WIDTH(64), .ID_WIDTH(4),
-        .WORDS(256), .RD_LATENCY(2), .WR_LATENCY(2)
+        .ADDR_WIDTH(32),
+        .DATA_WIDTH(64),
+        .ID_WIDTH(4),
+        .WORDS(256),
+        .RD_LATENCY(2),
+        .WR_LATENCY(2)
     ) slv64 (
-        .clk(clk), .rst_n(rst_n),
-        .arid(a64_arid), .araddr(a64_araddr), .arlen(a64_arlen),
-        .arsize(a64_arsize), .arburst(a64_arburst),
-        .arvalid(a64_arvalid), .arready(a64_arready),
-        .rid(a64_rid), .rdata(a64_rdata), .rresp(a64_rresp), .rlast(a64_rlast),
-        .rvalid(a64_rvalid), .rready(a64_rready),
-        .awid(a64_awid), .awaddr(a64_awaddr), .awlen(a64_awlen),
-        .awsize(a64_awsize), .awburst(a64_awburst),
-        .awvalid(a64_awvalid), .awready(a64_awready),
-        .wdata(a64_wdata), .wstrb(a64_wstrb), .wlast(a64_wlast),
-        .wvalid(a64_wvalid), .wready(a64_wready),
-        .bid(a64_bid), .bresp(a64_bresp), .bvalid(a64_bvalid), .bready(a64_bready),
+        .clk(clk),
+        .rst_n(rst_n),
+        .arid(a64_arid),
+        .araddr(a64_araddr),
+        .arlen(a64_arlen),
+        .arsize(a64_arsize),
+        .arburst(a64_arburst),
+        .arvalid(a64_arvalid),
+        .arready(a64_arready),
+        .rid(a64_rid),
+        .rdata(a64_rdata),
+        .rresp(a64_rresp),
+        .rlast(a64_rlast),
+        .rvalid(a64_rvalid),
+        .rready(a64_rready),
+        .awid(a64_awid),
+        .awaddr(a64_awaddr),
+        .awlen(a64_awlen),
+        .awsize(a64_awsize),
+        .awburst(a64_awburst),
+        .awvalid(a64_awvalid),
+        .awready(a64_awready),
+        .wdata(a64_wdata),
+        .wstrb(a64_wstrb),
+        .wlast(a64_wlast),
+        .wvalid(a64_wvalid),
+        .wready(a64_wready),
+        .bid(a64_bid),
+        .bresp(a64_bresp),
+        .bvalid(a64_bvalid),
+        .bready(a64_bready),
         .inject_error(1'b0)
     );
 
@@ -147,12 +245,16 @@ module axi_bridge_tb;
     // ================= 访问任务 =================
     // 全部在 negedge 驱动与采样, 避开 posedge 上 valid/ready 的竞争
 
-    task access32(input wr, input [31:0] a, input [31:0] wd,
-                  input [3:0] be, input integer hold, output [31:0] rd);
+    task access32(input wr, input [31:0] a, input [31:0] wd, input [3:0] be, input integer hold,
+                  output [31:0] rd);
         begin
             @(negedge clk);
-            r32_addr = a; r32_wdata = wd; r32_sel = be; r32_we = wr;
-            r32_valid = 1; r32_rsp_ready = 0;
+            r32_addr = a;
+            r32_wdata = wd;
+            r32_sel = be;
+            r32_we = wr;
+            r32_valid = 1;
+            r32_rsp_ready = 0;
 
             waited = 0;
             while (!r32_ready) begin
@@ -160,10 +262,14 @@ module axi_bridge_tb;
                 if (waited > 2000) $fatal(1, "32: request timeout");
                 @(negedge clk);
             end
-            @(posedge clk);                 // 请求握手
+            @(posedge clk);  // 请求握手
 
             @(negedge clk);
-            r32_valid = 0; r32_addr = 0; r32_wdata = 0; r32_sel = 0; r32_we = 0;
+            r32_valid = 0;
+            r32_addr = 0;
+            r32_wdata = 0;
+            r32_sel = 0;
+            r32_we = 0;
 
             waited = 0;
             while (!r32_rsp_valid) begin
@@ -180,19 +286,22 @@ module axi_bridge_tb;
             end
 
             r32_rsp_ready = 1;
-            @(posedge clk);                 // 响应握手
+            @(posedge clk);  // 响应握手
             @(negedge clk);
             if (r32_rsp_valid) $fatal(1, "32: duplicate response");
             r32_rsp_ready = 0;
         end
     endtask
 
-    task access64(input [31:0] a, input [31:0] wd, input [3:0] be,
-                  output [31:0] rd);
+    task access64(input [31:0] a, input [31:0] wd, input [3:0] be, output [31:0] rd);
         begin
             @(negedge clk);
-            r64_addr = a; r64_wdata = wd; r64_sel = be;
-            r64_we = 1; r64_valid = 1; r64_rsp_ready = 0;
+            r64_addr = a;
+            r64_wdata = wd;
+            r64_sel = be;
+            r64_we = 1;
+            r64_valid = 1;
+            r64_rsp_ready = 0;
 
             waited = 0;
             while (!r64_ready) begin
@@ -203,7 +312,8 @@ module axi_bridge_tb;
             @(posedge clk);
 
             @(negedge clk);
-            r64_valid = 0; r64_we = 0;
+            r64_valid = 0;
+            r64_we = 0;
 
             waited = 0;
             while (!r64_rsp_valid) begin
@@ -224,7 +334,10 @@ module axi_bridge_tb;
     task read64(input [31:0] a, output [31:0] rd);
         begin
             @(negedge clk);
-            r64_addr = a; r64_we = 0; r64_valid = 1; r64_rsp_ready = 0;
+            r64_addr = a;
+            r64_we = 0;
+            r64_valid = 1;
+            r64_rsp_ready = 0;
             waited = 0;
             while (!r64_ready) begin
                 waited = waited + 1;
@@ -264,25 +377,25 @@ module axi_bridge_tb;
         repeat (2) @(negedge clk);
 
         // ---- 预置存储器内容(直接按层次写模型内部的数组)----
-        slv32.mem[0] = 32'h11223344;   // 0x00
-        slv32.mem[1] = 32'h55667788;   // 0x04
-        slv32.mem[2] = 32'h9abcdef0;   // 0x08
+        slv32.mem[0] = 32'h11223344;  // 0x00
+        slv32.mem[1] = 32'h55667788;  // 0x04
+        slv32.mem[2] = 32'h9abcdef0;  // 0x08
 
         // ---- 1. 字读 ----
         ar_before = a32_ar_count;
         access32(0, 32'h0000_0000, 0, 4'hf, 0, got);
         if (got !== 32'h11223344) $fatal(1, "word read got %h", got);
-        if (a32_ar_count - ar_before !== 1) $fatal(1, "read issued %0d AXI reads",
-            a32_ar_count - ar_before);
+        if (a32_ar_count - ar_before !== 1)
+            $fatal(1, "read issued %0d AXI reads", a32_ar_count - ar_before);
         cases = cases + 1;
 
         // ---- 2. 字节通道 0: 只应改最低字节 ----
         aw_before = a32_aw_count;
         access32(1, 32'h0000_0004, 32'h000000aa, 4'h1, 0, got);
-        if (a32_aw_count - aw_before !== 1) $fatal(1, "write issued %0d AXI writes",
-            a32_aw_count - aw_before);
-        if (a32_w_count - aw_before !== 1) $fatal(1, "write issued %0d W beats",
-            a32_w_count - aw_before);
+        if (a32_aw_count - aw_before !== 1)
+            $fatal(1, "write issued %0d AXI writes", a32_aw_count - aw_before);
+        if (a32_w_count - aw_before !== 1)
+            $fatal(1, "write issued %0d W beats", a32_w_count - aw_before);
         access32(0, 32'h0000_0004, 0, 4'hf, 0, got);
         if (got !== 32'h556677aa) $fatal(1, "byte0 write got %h", got);
         cases = cases + 1;
@@ -338,12 +451,11 @@ module axi_bridge_tb;
         ar_before = a32_ar_count;
         aw_before = a32_aw_count;
         for (k = 0; k < 16; k = k + 1) begin
-            access32(1, 32'h0000_0100 + k*4, 32'hdead0000 + k, 4'hf, 0, got);
+            access32(1, 32'h0000_0100 + k * 4, 32'hdead0000 + k, 4'hf, 0, got);
         end
         for (k = 0; k < 16; k = k + 1) begin
-            access32(0, 32'h0000_0100 + k*4, 0, 4'hf, 0, got);
-            if (got !== (32'hdead0000 + k))
-                $fatal(1, "burst word %0d got %h", k, got);
+            access32(0, 32'h0000_0100 + k * 4, 0, 4'hf, 0, got);
+            if (got !== (32'hdead0000 + k)) $fatal(1, "burst word %0d got %h", k, got);
         end
         if (a32_aw_count - aw_before !== 16)
             $fatal(1, "16 writes produced %0d AXI writes", a32_aw_count - aw_before);
@@ -383,7 +495,8 @@ module axi_bridge_tb;
         if (r64_error !== 1'b0) $fatal(1, "64-bit error_o should stay clear");
         cases = cases + 1;
 
-        $display("PASS axi_bridge: %0d cases, byte lanes, backpressure, single-issue, 32/64-bit, SLVERR",
+        $display(
+            "PASS axi_bridge: %0d cases, byte lanes, backpressure, single-issue, 32/64-bit, SLVERR",
             cases);
         $finish;
     end

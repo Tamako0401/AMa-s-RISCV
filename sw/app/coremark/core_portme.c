@@ -43,14 +43,12 @@ static inline ee_u32 read_cycle(void)
     return c;
 }
 
-void
-start_time(void)
+void start_time(void)
 {
     start_time_val = read_cycle();
 }
 
-void
-stop_time(void)
+void stop_time(void)
 {
     stop_time_val = read_cycle();
 }
@@ -63,16 +61,14 @@ get_time(void)
 }
 
 /* HAS_FLOAT=0, 返回整数秒 (向下取整); 只用于 "够不够 10 秒" 的判断和粗略显示 */
-secs_ret
-time_in_secs(CORE_TICKS ticks)
+secs_ret time_in_secs(CORE_TICKS ticks)
 {
     return ticks / SYSCLK_HZ;
 }
 
 ee_u32 default_num_contexts = 1;
 
-void
-portable_init(core_portable *p, int *argc, char *argv[])
+void portable_init(core_portable *p, int *argc, char *argv[])
 {
     (void)argc;
     (void)argv;
@@ -85,8 +81,7 @@ portable_init(core_portable *p, int *argc, char *argv[])
     p->portable_id = 1;
 }
 
-void
-portable_fini(core_portable *p)
+void portable_fini(core_portable *p)
 {
     p->portable_id = 0;
     core_results *result = (core_results *)((char *)p - offsetof(core_results, port));
@@ -99,18 +94,17 @@ portable_fini(core_portable *p)
             score++;
         }
     }
-    ee_printf("CoreMark/MHz: %lu.%03lu\n", (unsigned long)(score / 1000),
-              (unsigned long)(score % 1000));
+    ee_printf("CoreMark/MHz: %lu.%03lu\n", (unsigned long)(score / 1000), (unsigned long)(score % 1000));
 #ifdef MIN_SCORE
-    if (score < MIN_SCORE) coremark_errors++;
+    if (score < MIN_SCORE)
+        coremark_errors++;
 #endif
     ee_printf("CoreMark done.\n");
     tohost = ticks && !coremark_errors ? 1 : 2;
 }
 
 /* -nostdlib 没有 C 库, 但编译器会为结构体赋值/清零自动生成 memcpy/memset 调用 */
-void *
-memcpy(void *dst, const void *src, size_t n)
+void *memcpy(void *dst, const void *src, size_t n)
 {
     ee_u8 *d = dst;
     const ee_u8 *s = src;
@@ -119,8 +113,7 @@ memcpy(void *dst, const void *src, size_t n)
     return dst;
 }
 
-void *
-memset(void *dst, int c, size_t n)
+void *memset(void *dst, int c, size_t n)
 {
     ee_u8 *d = dst;
     while (n--)

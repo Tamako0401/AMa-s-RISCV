@@ -1,7 +1,7 @@
 // Imported from JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G
 // Source commit: 00a3334d7c98f57a6d429a5e18910a7e2e88390b
 // Local changes: see third_party/tinyriscv-manifest.json and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2019 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@
 
 // 流水线控制模块
 // 发出暂停、冲刷流水线信号
-module pipe_ctrl(
+module pipe_ctrl (
 
     input wire clk,
     input wire rst_n,
@@ -31,20 +31,20 @@ module pipe_ctrl(
     input wire stall_from_jtag_i,
     input wire stall_from_clint_i,
     input wire jump_assert_i,
-    input wire[31:0] jump_addr_i,
+    input wire [31:0] jump_addr_i,
 
     output wire flush_o,
-    output wire[`STALL_WIDTH-1:0] stall_o,
-    output wire[31:0] flush_addr_o
+    output wire [`STALL_WIDTH-1:0] stall_o,
+    output wire [31:0] flush_addr_o
 
-    );
+);
 
     assign flush_addr_o = jump_addr_i;
     assign flush_o = jump_assert_i | stall_from_clint_i;
 
-    reg[`STALL_WIDTH-1:0] stall;
+    reg [`STALL_WIDTH-1:0] stall;
 
-    always @ (*) begin
+    always @(*) begin
         if (stall_from_ex_i | stall_from_clint_i) begin
             stall[`STALL_EX] = 1'b1;
             stall[`STALL_ID] = 1'b1;

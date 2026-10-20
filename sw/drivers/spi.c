@@ -2,10 +2,8 @@
 
 void spi_init(SPI_TypeDef *spi, uint32_t mode, uint32_t br)
 {
-    spi->CR1 = (mode & (SPI_CR1_CPOL | SPI_CR1_CPHA))
-             | ((br << SPI_CR1_BR_Pos) & SPI_CR1_BR)
-             | SPI_CR1_MSTR
-             | SPI_CR1_SPE;
+    spi->CR1 =
+        (mode & (SPI_CR1_CPOL | SPI_CR1_CPHA)) | ((br << SPI_CR1_BR_Pos) & SPI_CR1_BR) | SPI_CR1_MSTR | SPI_CR1_SPE;
 }
 
 void spi_write_byte(SPI_TypeDef *spi, uint8_t data)

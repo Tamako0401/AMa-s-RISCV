@@ -9,7 +9,7 @@
 //   - Add an optional RAM_INIT_FILE parameter, forwarded to gen_ram's INIT_FILE,
 //     so the data memory can be preloaded with a program's .data image.
 // See docs/third-party.md and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,29 +39,29 @@
 // - 初值由 $readmemh 从 RAM_INIT_FILE 载入(文件名为空则不初始化); 该方式在仿真中
 //   已验证, 能否被综合工具推断成存储初值尚未验证。内容不随复位清零。
 module ram #(
-    parameter DP = 8192,                  // 深度, 单位 word(4字节)
-    parameter RAM_INIT_FILE = ""          // 初始化 hex 文件名, 相对仿真工作目录
-)(
+    parameter DP            = 8192,  // 深度, 单位 word(4字节)
+    parameter RAM_INIT_FILE = ""     // 初始化 hex 文件名, 相对仿真工作目录
+) (
 
     input wire clk,
     input wire rst_n,
-    input wire[31:0] addr_i,
-    input wire[31:0] data_i,
-    input wire[3:0] sel_i,
+    input wire [31:0] addr_i,
+    input wire [31:0] data_i,
+    input wire [3:0] sel_i,
     input wire we_i,
-    output wire[31:0] data_o,
+    output wire [31:0] data_o,
 
-    input wire req_valid_i,
+    input  wire req_valid_i,
     output wire req_ready_o,
     output wire rsp_valid_o,
-    input wire rsp_ready_i
+    input  wire rsp_ready_i
 
-    );
+);
 
     localparam AW = $clog2(DP);
 
     // 字节地址 -> 字地址
-    wire[31:0] word_addr = addr_i[31:2];
+    wire [31:0] word_addr = addr_i[31:2];
 
     // 请求被接受的那一拍才写: 主设备保持 we_i 等待响应时不会重复写入
     wire wr_en = we_i & req_valid_i & req_ready_o;
@@ -72,7 +72,7 @@ module ram #(
         .MW(4),
         .AW(AW),
         .INIT_FILE(RAM_INIT_FILE)
-    ) u_gen_ram(
+    ) u_gen_ram (
         .clk(clk),
         .addr_i(word_addr[AW-1:0]),
         .data_i(data_i),
@@ -84,8 +84,8 @@ module ram #(
     // req/rsp 握手时序: 请求被接受后的下一拍拉高 rsp_valid_o
     vld_rdy #(
         .CUT_READY(0)
-    ) u_vld_rdy(
-        .clk(clk),
+    ) u_vld_rdy (
+        .clk  (clk),
         .rst_n(rst_n),
         .vld_i(req_valid_i),
         .rdy_o(req_ready_o),

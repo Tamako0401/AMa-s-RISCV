@@ -1,7 +1,7 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
 // Changes: Normalize line endings to LF and remove trailing whitespace.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,17 +19,18 @@
 
 
 module vld_rdy #(
-    parameter CUT_READY = 0)(
+    parameter CUT_READY = 0
+) (
 
     input wire clk,
     input wire rst_n,
 
-    input wire vld_i,
+    input  wire vld_i,
     output wire rdy_o,
-    input wire rdy_i,
+    input  wire rdy_i,
     output wire vld_o
 
-    );
+);
 
     wire vld_set;
     wire vld_clr;
@@ -45,7 +46,13 @@ module vld_rdy #(
     assign vld_ena = vld_set | vld_clr;
     assign vld_nxt = vld_set | (~vld_clr);
 
-    gen_en_dff #(1) vld_dff(clk, rst_n, vld_ena, vld_nxt, vld_r);
+    gen_en_dff #(1) vld_dff (
+        clk,
+        rst_n,
+        vld_ena,
+        vld_nxt,
+        vld_r
+    );
 
     assign vld_o = vld_r;
 

@@ -10,13 +10,13 @@
 
 #ifdef BOARD_EGO1
 /* ST7735S 128x160, 插 J5 */
-#define SHIELD_LCD_PINS { .sck = PIN_J5_1, .mosi = PIN_J5_2, .rst = PIN_J5_3, \
-                          .dc = PIN_J5_4, .bl = PIN_J5_5, .cs = PIN_J5_6 }
+#define SHIELD_LCD_PINS                                                                                                \
+    {.sck = PIN_J5_1, .mosi = PIN_J5_2, .rst = PIN_J5_3, .dc = PIN_J5_4, .bl = PIN_J5_5, .cs = PIN_J5_6}
 #define SHIELD_LCD_INIT lcd_init_st7735
 #else
 /* ST7789 240x320, 插 J8 的 23~28 脚 */
-#define SHIELD_LCD_PINS { .sck = PIN_J8_27, .mosi = PIN_J8_28, .cs = PIN_J8_23, \
-                          .dc = PIN_J8_26, .rst = PIN_J8_25, .bl = PIN_J8_24 }
+#define SHIELD_LCD_PINS                                                                                                \
+    {.sck = PIN_J8_27, .mosi = PIN_J8_28, .cs = PIN_J8_23, .dc = PIN_J8_26, .rst = PIN_J8_25, .bl = PIN_J8_24}
 #define SHIELD_LCD_INIT lcd_init_st7789
 #endif
 

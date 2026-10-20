@@ -21,7 +21,7 @@
 // DR  0x0c: low-byte writes enqueue TX; low-byte reads consume RX.
 // BR selects clk / (2 ** (BR+1)); CR1 writes wait until the enabled TX queue
 // has drained. Chip select, display DC and display reset belong to GPIO.
-module spi(
+module spi (
     input wire clk,
     input wire rst_n,
     input wire [31:0] data_i,
@@ -69,14 +69,14 @@ module spi(
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            cr1 <= 7'h04; // MSTR fixed high; SPE is a persistent enable.
+            cr1 <= 7'h04;  // MSTR fixed high; SPE is a persistent enable.
             response_valid <= 0;
             response_data <= 0;
         end else begin
             if (response_valid && rsp_ready_i) response_valid <= 0;
             if (fire) begin
                 response_valid <= 1;
-                response_data <= 0;
+                response_data  <= 0;
                 if (!we_i) begin
                     case (addr_i[3:2])
                         CR1: response_data <= {25'b0, cr1};
@@ -93,13 +93,13 @@ module spi(
     // Separate buffer and shifter: accepting the next byte cannot corrupt TX.
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            tx_full <= 0;
+            tx_full   <= 0;
             tx_buffer <= 0;
         end else begin
             if (start_byte) tx_full <= 0;
             if (push_tx) begin
                 tx_buffer <= data_i[7:0];
-                tx_full <= 1;
+                tx_full   <= 1;
             end
         end
     end
@@ -126,7 +126,7 @@ module spi(
                 edge_index <= 0;
                 rx_shift <= 0;
                 if (!cr1[0]) begin
-                    spi_mosi <= tx_buffer[7]; // CPHA=0 preload before first edge.
+                    spi_mosi <= tx_buffer[7];  // CPHA=0 preload before first edge.
                     tx_shift <= {tx_buffer[6:0], 1'b0};
                 end else tx_shift <= tx_buffer;
             end else if (busy) begin
@@ -135,8 +135,7 @@ module spi(
                     ticks_left <= half_period - 1'b1;
                     edge_index <= edge_index + 1'b1;
                     // Even indices are leading edges; odd indices are trailing.
-                    if (edge_index[0] == cpha)
-                        rx_shift <= {rx_shift[6:0], spi_miso};
+                    if (edge_index[0] == cpha) rx_shift <= {rx_shift[6:0], spi_miso};
                     else begin
                         spi_mosi <= tx_shift[7];
                         tx_shift <= {tx_shift[6:0], 1'b0};
@@ -168,7 +167,7 @@ module spi(
             if (finish_byte) begin
                 if (!rx_full || pop_rx) begin
                     rx_buffer <= completed_rx;
-                    rx_full <= 1;
+                    rx_full   <= 1;
                 end else begin
                     overrun <= 1;
                     overrun_dr_read <= 0;

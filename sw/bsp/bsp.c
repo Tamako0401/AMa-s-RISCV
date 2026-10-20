@@ -3,7 +3,7 @@
 static inline uint32_t read_cycle(void)
 {
     uint32_t c;
-    __asm__ volatile ("csrr %0, cycle" : "=r"(c));
+    __asm__ volatile("csrr %0, cycle" : "=r"(c));
     return c;
 }
 

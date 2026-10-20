@@ -4,19 +4,14 @@
 #include <stdint.h>
 
 /* 最大屏幕 240x320, 每格 10 像素; 小屏按运行时尺寸取格子数。 */
-#define SNAKE_CAPACITY  (24 * 32)
+#define SNAKE_CAPACITY (24 * 32)
 extern uint16_t snake_cols, snake_rows, snake_cells;
 
 typedef struct {
     uint8_t x, y;
 } snake_cell_t;
 
-typedef enum {
-    SNAKE_UP,
-    SNAKE_DOWN,
-    SNAKE_LEFT,
-    SNAKE_RIGHT
-} snake_dir_t;
+typedef enum { SNAKE_UP, SNAKE_DOWN, SNAKE_LEFT, SNAKE_RIGHT } snake_dir_t;
 
 typedef struct {
     snake_cell_t body[SNAKE_CAPACITY];
@@ -27,7 +22,7 @@ typedef struct {
     uint32_t rng;
     uint8_t has_food;
     uint8_t game_over;
-    uint8_t wrap;           /* 1: 穿墙从对边出来; 0: 撞墙结束 */
+    uint8_t wrap; /* 1: 穿墙从对边出来; 0: 撞墙结束 */
 } snake_t;
 
 /* 尾格可能同时成为新头, 上层需先擦尾再画头。 */

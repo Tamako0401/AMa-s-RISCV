@@ -52,11 +52,11 @@ void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     uint8_t col[4] = {x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF};
     uint8_t row[4] = {y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF};
 
-    lcd_write_cmd(0x2A);    /* CASET 列地址 */
+    lcd_write_cmd(0x2A); /* CASET 列地址 */
     lcd_write_data(col, 4);
-    lcd_write_cmd(0x2B);    /* RASET 行地址 */
+    lcd_write_cmd(0x2B); /* RASET 行地址 */
     lcd_write_data(row, 4);
-    lcd_write_cmd(0x2C);    /* RAMWR 开始写显存 */
+    lcd_write_cmd(0x2C); /* RAMWR 开始写显存 */
 }
 
 void lcd_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
@@ -98,7 +98,7 @@ void lcd_draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t 
     }
 
     int32_t dx = x1 > x0 ? x1 - x0 : x0 - x1;
-    int32_t dy = y1 > y0 ? y0 - y1 : y1 - y0;   /* 取负 */
+    int32_t dy = y1 > y0 ? y0 - y1 : y1 - y0; /* 取负 */
     int32_t sx = x0 < x1 ? 1 : -1;
     int32_t sy = y0 < y1 ? 1 : -1;
     int32_t err = dx + dy;

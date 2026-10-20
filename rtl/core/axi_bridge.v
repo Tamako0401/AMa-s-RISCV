@@ -27,17 +27,17 @@ module axi_bridge #(
     parameter AXI_ID_WIDTH   = 4,
     parameter AXI_ADDR_WIDTH = 32,
     parameter AXI_DATA_WIDTH = 32
-)(
+) (
 
     input wire clk,
     input wire rst_n,
 
     // ---- RIB 从设备侧 ----
-    input wire[31:0] addr_i,
-    input wire[31:0] data_i,
-    input wire[3:0] sel_i,
+    input wire [31:0] addr_i,
+    input wire [31:0] data_i,
+    input wire [3:0] sel_i,
     input wire we_i,
-    output wire[31:0] data_o,
+    output wire [31:0] data_o,
     input wire req_valid_i,
     output wire req_ready_o,
     output wire rsp_valid_o,
@@ -46,45 +46,45 @@ module axi_bridge #(
     output wire error_o,
 
     // ---- AXI 主设备侧: 读地址通道 ----
-    output wire[AXI_ID_WIDTH-1:0] m_axi_arid,
-    output wire[AXI_ADDR_WIDTH-1:0] m_axi_araddr,
-    output wire[7:0] m_axi_arlen,
-    output wire[2:0] m_axi_arsize,
-    output wire[1:0] m_axi_arburst,
+    output wire [AXI_ID_WIDTH-1:0] m_axi_arid,
+    output wire [AXI_ADDR_WIDTH-1:0] m_axi_araddr,
+    output wire [7:0] m_axi_arlen,
+    output wire [2:0] m_axi_arsize,
+    output wire [1:0] m_axi_arburst,
     output wire m_axi_arvalid,
     input wire m_axi_arready,
 
     // ---- AXI 主设备侧: 读数据通道 ----
-    input wire[AXI_ID_WIDTH-1:0] m_axi_rid,
-    input wire[AXI_DATA_WIDTH-1:0] m_axi_rdata,
-    input wire[1:0] m_axi_rresp,
+    input wire [AXI_ID_WIDTH-1:0] m_axi_rid,
+    input wire [AXI_DATA_WIDTH-1:0] m_axi_rdata,
+    input wire [1:0] m_axi_rresp,
     input wire m_axi_rlast,
     input wire m_axi_rvalid,
     output wire m_axi_rready,
 
     // ---- AXI 主设备侧: 写地址通道 ----
-    output wire[AXI_ID_WIDTH-1:0] m_axi_awid,
-    output wire[AXI_ADDR_WIDTH-1:0] m_axi_awaddr,
-    output wire[7:0] m_axi_awlen,
-    output wire[2:0] m_axi_awsize,
-    output wire[1:0] m_axi_awburst,
+    output wire [AXI_ID_WIDTH-1:0] m_axi_awid,
+    output wire [AXI_ADDR_WIDTH-1:0] m_axi_awaddr,
+    output wire [7:0] m_axi_awlen,
+    output wire [2:0] m_axi_awsize,
+    output wire [1:0] m_axi_awburst,
     output wire m_axi_awvalid,
     input wire m_axi_awready,
 
     // ---- AXI 主设备侧: 写数据通道 ----
-    output wire[AXI_DATA_WIDTH-1:0] m_axi_wdata,
-    output wire[AXI_DATA_WIDTH/8-1:0] m_axi_wstrb,
+    output wire [AXI_DATA_WIDTH-1:0] m_axi_wdata,
+    output wire [AXI_DATA_WIDTH/8-1:0] m_axi_wstrb,
     output wire m_axi_wlast,
     output wire m_axi_wvalid,
     input wire m_axi_wready,
 
     // ---- AXI 主设备侧: 写响应通道 ----
-    input wire[AXI_ID_WIDTH-1:0] m_axi_bid,
-    input wire[1:0] m_axi_bresp,
+    input wire [AXI_ID_WIDTH-1:0] m_axi_bid,
+    input wire [1:0] m_axi_bresp,
     input wire m_axi_bvalid,
     output wire m_axi_bready
 
-    );
+);
 
     localparam AXI_BYTES = AXI_DATA_WIDTH / 8;
 
@@ -104,21 +104,21 @@ module axi_bridge #(
     localparam [2:0] S_B    = 3'd4;
     localparam [2:0] S_RESP = 3'd5;
 
-    reg [2:0] state;
+    reg [ 2:0] state;
 
     // 请求握手时锁存: 之后地址与仲裁变化都不影响本笔事务
     reg [31:0] req_addr;
     reg [31:0] req_wdata;
-    reg [3:0]  req_sel;
+    reg [ 3:0] req_sel;
     reg        req_we;
 
     reg [31:0] rd_data;
 
     // 写地址通道与写数据通道的握手可能不在同一拍, 用粘滞位分别记录
-    reg aw_done;
-    reg w_done;
+    reg        aw_done;
+    reg        w_done;
 
-    reg error_r;
+    reg        error_r;
 
 
     // *************************** AXI 读出信号 **************************
@@ -138,7 +138,7 @@ module axi_bridge #(
     assign m_axi_awburst = AXI_INCR;
     assign m_axi_awvalid = (state == S_AW) && (!aw_done);
 
-    assign m_axi_wlast   = 1'b1;                     // 单拍事务, 这一拍就是最后一拍
+    assign m_axi_wlast   = 1'b1;  // 单拍事务, 这一拍就是最后一拍
     assign m_axi_wvalid  = (state == S_AW) && (!w_done);
 
     assign m_axi_bready  = (state == S_B);
@@ -146,10 +146,10 @@ module axi_bridge #(
     // 写数据按地址低位放进对应的字节通道, 字节使能随之平移。
     // AXI 数据宽度超过 32 位时, 一次 RIB 事务只占其中一个 4 字节通道。
     generate
-        if (AXI_BYTES == 4) begin: g_write_32
+        if (AXI_BYTES == 4) begin : g_write_32
             assign m_axi_wdata = req_wdata;
             assign m_axi_wstrb = req_sel;
-        end else begin: g_write_64
+        end else begin : g_write_64
             assign m_axi_wdata = req_addr[2] ? {req_wdata, 32'h0} : {32'h0, req_wdata};
             assign m_axi_wstrb = req_addr[2] ? {req_sel, 4'h0} : {4'h0, req_sel};
         end
@@ -158,9 +158,9 @@ module axi_bridge #(
     // 读回整拍后, 按地址低位挑出 RIB 要的那 4 字节
     wire [31:0] rd_lane;
     generate
-        if (AXI_BYTES == 4) begin: g_read_32
+        if (AXI_BYTES == 4) begin : g_read_32
             assign rd_lane = m_axi_rdata[31:0];
-        end else begin: g_read_64
+        end else begin : g_read_64
             assign rd_lane = req_addr[2] ? m_axi_rdata[63:32] : m_axi_rdata[31:0];
         end
     endgenerate
@@ -169,12 +169,12 @@ module axi_bridge #(
     // *************************** 事务状态机 ****************************
 
     wire ar_hs = m_axi_arvalid && m_axi_arready;
-    wire r_hs  = m_axi_rvalid && m_axi_rready;
+    wire r_hs = m_axi_rvalid && m_axi_rready;
     wire aw_hs = m_axi_awvalid && m_axi_awready;
-    wire w_hs  = m_axi_wvalid && m_axi_wready;
-    wire b_hs  = m_axi_bvalid && m_axi_bready;
+    wire w_hs = m_axi_wvalid && m_axi_wready;
+    wire b_hs = m_axi_bvalid && m_axi_bready;
 
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state     <= S_IDLE;
             req_addr  <= 32'h0;

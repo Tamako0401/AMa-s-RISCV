@@ -1,7 +1,7 @@
 // Imported from JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G
 // Source commit: 00a3334d7c98f57a6d429a5e18910a7e2e88390b
 // Local changes: see third_party/tinyriscv-manifest.json and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2019 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,32 +20,44 @@
 `include "defines.v"
 
 // 将指令向译码模块传递
-module ifu_idu(
+module ifu_idu (
 
     input wire clk,
     input wire rst_n,
 
-    input wire[31:0] inst_i,                // 指令内容
-    input wire[31:0] inst_addr_i,           // 指令地址
-    input wire[`STALL_WIDTH-1:0] stall_i,   // 流水线暂停
-    input wire flush_i,                     // 流水线冲刷
-    input wire inst_valid_i,
+    input wire [            31:0] inst_i,       // 指令内容
+    input wire [            31:0] inst_addr_i,  // 指令地址
+    input wire [`STALL_WIDTH-1:0] stall_i,      // 流水线暂停
+    input wire                    flush_i,      // 流水线冲刷
+    input wire                    inst_valid_i,
 
-    output wire[31:0] inst_o,               // 指令内容
-    output wire[31:0] inst_addr_o           // 指令地址
+    output wire [31:0] inst_o,      // 指令内容
+    output wire [31:0] inst_addr_o  // 指令地址
 
-    );
+);
 
     wire en = !stall_i[`STALL_ID] | flush_i;
 
-    wire[31:0] i_inst = (flush_i || !inst_valid_i)? `INST_NOP: inst_i;
-    wire[31:0] inst;
-    gen_en_dff #(32) inst_ff(clk, rst_n, en, i_inst, inst);
+    wire [31:0] i_inst = (flush_i || !inst_valid_i) ? `INST_NOP : inst_i;
+    wire [31:0] inst;
+    gen_en_dff #(32) inst_ff (
+        clk,
+        rst_n,
+        en,
+        i_inst,
+        inst
+    );
     assign inst_o = inst;
 
-    wire[31:0] i_inst_addr = flush_i? 32'h0: inst_addr_i;
-    wire[31:0] inst_addr;
-    gen_en_dff #(32) inst_addr_ff(clk, rst_n, en, i_inst_addr, inst_addr);
+    wire [31:0] i_inst_addr = flush_i ? 32'h0 : inst_addr_i;
+    wire [31:0] inst_addr;
+    gen_en_dff #(32) inst_addr_ff (
+        clk,
+        rst_n,
+        en,
+        i_inst_addr,
+        inst_addr
+    );
     assign inst_addr_o = inst_addr;
 
 endmodule

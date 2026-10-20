@@ -8,7 +8,7 @@
 enum { K_UP, K_DOWN, K_LEFT, K_RIGHT, K_START, KEY_N };
 extern key_t keys[KEY_N];
 
-#define LED_WRAP PIN_LD2_0          /* 挨着拨码开关 SW0 */
+#define LED_WRAP PIN_LD2_0 /* 挨着拨码开关 SW0 */
 #define LED_UART PIN_LD2_1
 #define SW_WRAP PIN_SW0
 #define SW_UART PIN_SW1

@@ -1,7 +1,7 @@
 // Imported from JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G
 // Source commit: 00a3334d7c98f57a6d429a5e18910a7e2e88390b
 // Local changes: see third_party/tinyriscv-manifest.json and docs/cpu-baseline.md.
- /*
+/*
  Copyright 2020 Blue Liang, liangkangnan@163.com
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,35 +20,35 @@
 `include "defines.v"
 
 // CSR寄存器模块
-module csr_reg(
+module csr_reg (
 
     input wire clk,
     input wire rst_n,
 
     // exu
-    input wire exu_we_i,                    // exu模块写寄存器标志
-    input wire[31:0] exu_waddr_i,           // exu模块写寄存器地址
-    input wire[31:0] exu_wdata_i,           // exu模块写寄存器数据
-    input wire[31:0] exu_raddr_i,           // exu模块读寄存器地址
-    output wire[31:0] exu_rdata_o,          // exu模块读寄存器数据
+    input  wire        exu_we_i,     // exu模块写寄存器标志
+    input  wire [31:0] exu_waddr_i,  // exu模块写寄存器地址
+    input  wire [31:0] exu_wdata_i,  // exu模块写寄存器数据
+    input  wire [31:0] exu_raddr_i,  // exu模块读寄存器地址
+    output wire [31:0] exu_rdata_o,  // exu模块读寄存器数据
 
     // clint
-    input wire clint_we_i,                  // clint模块写寄存器标志
-    input wire[31:0] clint_waddr_i,         // clint模块写寄存器地址
-    input wire[31:0] clint_wdata_i,         // clint模块写寄存器数据
-    output wire[31:0] mtvec_o,              // mtvec寄存器值
-    output wire[31:0] mepc_o,               // mepc寄存器值
-    output wire[31:0] mstatus_o             // mstatus寄存器值
+    input  wire        clint_we_i,     // clint模块写寄存器标志
+    input  wire [31:0] clint_waddr_i,  // clint模块写寄存器地址
+    input  wire [31:0] clint_wdata_i,  // clint模块写寄存器数据
+    output wire [31:0] mtvec_o,        // mtvec寄存器值
+    output wire [31:0] mepc_o,         // mepc寄存器值
+    output wire [31:0] mstatus_o       // mstatus寄存器值
 
-    );
+);
 
-    reg[63:0] cycle;
-    reg[31:0] mtvec;
-    reg[31:0] mcause;
-    reg[31:0] mepc;
-    reg[31:0] mie;
-    reg[31:0] mstatus;
-    reg[31:0] mscratch;
+    reg [63:0] cycle;
+    reg [31:0] mtvec;
+    reg [31:0] mcause;
+    reg [31:0] mepc;
+    reg [31:0] mie;
+    reg [31:0] mstatus;
+    reg [31:0] mscratch;
 
     assign mtvec_o = mtvec;
     assign mepc_o = mepc;
@@ -56,7 +56,7 @@ module csr_reg(
 
     // cycle counter
     // 复位撤销后就一直计数
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             cycle <= {32'h0, 32'h0};
         end else begin
@@ -65,11 +65,11 @@ module csr_reg(
     end
 
     wire we = exu_we_i | clint_we_i;
-    wire[31:0] waddr = exu_we_i? exu_waddr_i: clint_waddr_i;
-    wire[31:0] wdata = exu_we_i? exu_wdata_i: clint_wdata_i;
+    wire [31:0] waddr = exu_we_i ? exu_waddr_i : clint_waddr_i;
+    wire [31:0] wdata = exu_we_i ? exu_wdata_i : clint_wdata_i;
 
     // 写寄存器
-    always @ (posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             mtvec <= 32'h0;
             mcause <= 32'h0;
@@ -103,10 +103,10 @@ module csr_reg(
         end
     end
 
-    reg[31:0] exu_rdata;
+    reg [31:0] exu_rdata;
 
     // exu模块读CSR寄存器
-    always @ (*) begin
+    always @(*) begin
         case (exu_raddr_i[11:0])
             `CSR_CYCLE: begin
                 exu_rdata = cycle[31:0];

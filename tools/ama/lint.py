@@ -1,4 +1,5 @@
 """源码规范检查和格式化。"""
+
 from .boards import ROOT
 from .firmware import run
 from .local import tool
@@ -8,14 +9,18 @@ def sources():
     groups = [
         [ROOT / 'ama', *(ROOT / 'tools/ama').rglob('*.py'), *(ROOT / 'sim').glob('*.py')],
         [p for p in (ROOT / 'sw').rglob('*') if p.suffix in {'.c', '.h'}],
-        [p for top in ['rtl', 'boards', 'tests', 'sim']
-         for p in (ROOT / top).rglob('*') if p.suffix in {'.v', '.sv'}],
+        [p for top in ['rtl', 'boards', 'tests', 'sim'] for p in (ROOT / top).rglob('*') if p.suffix in {'.v', '.sv'}],
     ]
-    return [[str(p.relative_to(ROOT)) for p in sorted(paths)
-             if not {'third_party', 'legacy', 'build'} & set(p.relative_to(ROOT).parts)
-             and not p.match('boards/*/pins*')
-             and not (p.parent == ROOT / 'sw/bsp' and (p.name.startswith('pins') or p.stem.endswith('_pins')))]
-            for paths in groups]
+    return [
+        [
+            str(p.relative_to(ROOT))
+            for p in sorted(paths)
+            if not {'third_party', 'legacy', 'build'} & set(p.relative_to(ROOT).parts)
+            and not p.match('boards/*/pins*')
+            and not (p.parent == ROOT / 'sw/bsp' and (p.name.startswith('pins') or p.stem.endswith('_pins')))
+        ]
+        for paths in groups
+    ]
 
 
 def lint(fix):
