@@ -76,11 +76,35 @@ typedef struct {
 
 #define IO_MATRIX ((IO_TypeDef *)0x40003000UL)
 
+/* ---------------- 视频: 640x480 输出, 画面 320x240 (每点 2x2), 见 docs/video.md ---------------- */
+typedef struct {
+    __IO uint32_t CTRL;   /* 0x00 bit0 开显示 (关时输出黑屏) */
+    __IO uint32_t SCROLL; /* 0x04 背景偏移: [8:0] x, [23:16] y */
+    __I uint32_t STATUS;  /* 0x08 bit0 场消隐期 */
+    __I uint32_t FRAME;   /* 0x0C 帧计数, 每帧最后一行显示完加 1 */
+} VIDEO_TypeDef;
+
+#define VIDEO_CTRL_EN (0x1UL << 0)
+#define VIDEO_STATUS_VBLANK (0x1UL << 0)
+
+/* 显存只能整字写, 读回 0 */
+#define VIDEO_PALETTE ((__O uint32_t *)0x20001000UL) /* [256] RGB565, 下标 = 调色板号 * 16 + 色号 */
+#define VIDEO_SPRITES ((__O uint32_t *)0x20002000UL) /* [64] 属性, 见 VIDEO_SPRITE() */
+#define VIDEO_MAP ((__O uint32_t *)0x20004000UL)     /* [32 行][64 列] {调色板号[11:8], 图块号[7:0]} */
+#define VIDEO_TILES ((__O uint32_t *)0x20008000UL)   /* [256 块][8 行], 左起第 i 个像素在 [4i+3:4i] */
+
+/* 精灵属性: 16x16, 由图块 tile ~ tile+3 拼成 (左上、右上、左下、右下); x、y 按 512 回绕, 可以半出屏 */
+#define VIDEO_SPRITE(x, y, tile, pal)                                                                                  \
+    ((1UL << 31) | ((uint32_t)(pal) << 26) | ((uint32_t)(tile) << 18) | (((uint32_t)(y) & 511) << 9) |                 \
+     ((uint32_t)(x) & 511))
+
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE 0x40002000UL
 #define UART1_BASE 0x40001000UL
+#define VIDEO_BASE 0x20000000UL
 
 #define SPI1 ((SPI_TypeDef *)SPI1_BASE)
 #define UART1 ((UART_TypeDef *)UART1_BASE)
+#define VIDEO ((VIDEO_TypeDef *)VIDEO_BASE)
 
 #endif

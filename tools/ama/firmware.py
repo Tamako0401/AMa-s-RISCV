@@ -18,13 +18,23 @@ SW_LIB = [
     'sw/drivers/uart.c',
     'sw/bsp/bsp.c',
     'sw/components/key/key.c',
+    'sw/components/i2c/i2c.c',
+    'sw/components/hdmi/ms7210.c',
     'sw/components/lcd/lcd_io.c',
     'sw/components/lcd/lcd.c',
     'sw/components/lcd/st7789.c',
     'sw/components/lcd/st7735.c',
     'sw/components/lcd/ili9341.c',
 ]
-SW_INC = ['sw/device', 'sw/drivers', 'sw/bsp', 'sw/components/key', 'sw/components/lcd']
+SW_INC = [
+    'sw/device',
+    'sw/drivers',
+    'sw/bsp',
+    'sw/components/key',
+    'sw/components/lcd',
+    'sw/components/i2c',
+    'sw/components/hdmi',
+]
 CFLAGS = [
     '-march=rv32i_zicsr',
     '-mabi=ilp32',

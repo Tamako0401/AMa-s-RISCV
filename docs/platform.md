@@ -30,7 +30,8 @@ Stack:
     initial sp = 0x10010000
 
 MMIO:
-    RIB slots s2 (0x20000000) and s3 (0x30000000) are free
+    RIB slot s2 (0x20000000) = video: registers + palette/sprites/map/tiles, see video.md
+    RIB slot s3 (0x30000000) is free
     RIB slot s4 (0x40000000) = peripheral bus, 4 KiB per port by addr[15:12]:
         0x40000000 unused (reads return zero, writes discarded)
         0x40001000 UART (CTRL/STATUS/BAUD/TXDATA/RXDATA at 0/4/8/C/10)

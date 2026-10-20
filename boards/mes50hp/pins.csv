@@ -58,3 +58,6 @@ LED7,F7,out
 LED8,F8,out
 UART_TX,R9,out
 UART_RX,R8,in
+HDMI_RSTN,R17,out
+HDMI_SCL,P17,out
+HDMI_SDA,P18,inout

@@ -2,6 +2,11 @@
 
 适用随板资料中的 **MES50HP / PGL50H-6IFBG484**，工具实测 PDS 2022.2-SP1-Lite。使用 50 MHz 时钟、片上 RAM、LED、板载 USB-UART 和 GMT024-8p10p-SPI 屏幕（ST7789V，240×320，只写）。
 
+## HDMI 输出
+
+MS7210 的视频口由 `mes50hp_top` 直连 (`mes50hp.fdc`, 硬件手册表 3-7), I2C 和复位经 GPIO 矩阵 (`pins.csv` 的 HDMI_*)。
+见 [docs/video.md](../../docs/video.md)。
+
 ## 下载
 
 `ama fpga program` 调用 PDS 的 `cdt_cfg_shell` 执行 `flash.tcl`: 位流转成 sfc 写进板上 QSPI flash (上电自动加载),

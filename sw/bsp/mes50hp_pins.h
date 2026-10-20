@@ -58,3 +58,6 @@
 #define PIN_LED8 56
 #define PIN_UART_TX 57
 #define PIN_UART_RX 58
+#define PIN_HDMI_RSTN 59
+#define PIN_HDMI_SCL 60
+#define PIN_HDMI_SDA 61

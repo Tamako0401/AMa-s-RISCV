@@ -29,3 +29,9 @@ runs = [{ app = "snake", defines = ["-DSNAKE_STEP_CYCLES=1000000"] }]
 tb = "coremark_tb.sv"
 rtl = "rtl/soc.f"
 runs = [{ app = "coremark", defines = ["-DITERATIONS=3", "-DMIN_SCORE=650"] }]
+
+[[test]]
+tb = "video_tb.sv"
+rtl = "rtl/soc.f"
+extra = ["tests/soc/video_sink.sv"]
+runs = [{ app = "video_demo" }]

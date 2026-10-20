@@ -3,6 +3,7 @@ rtl/utils/gen_dff.v
 rtl/utils/gen_buf.v
 rtl/utils/gen_ram.v
 rtl/utils/vld_rdy.v
+rtl/utils/dpram.v
 rtl/core/clint.v
 rtl/core/csr_reg.v
 rtl/core/divider.v
@@ -27,4 +28,6 @@ rtl/perips/ram.v
 rtl/perips/spi.v
 rtl/perips/gpio_matrix.v
 rtl/perips/uart.v
+rtl/perips/video_render.v
+rtl/perips/video.v
 rtl/soc_top/soc_top.v

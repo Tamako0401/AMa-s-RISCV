@@ -11,7 +11,7 @@ flowchart LR
     UPLOAD --> MON["monitor<br/>串口终端"]
     RTL["rtl/ + boards/ + sw/boot/"] --> FPGA["fpga build<br/>vivado / pds_shell → 位流<br/>(只带 bootloader)"]
     FPGA --> PROG["fpga program<br/>写进 flash 并运行"]
-    APP --> SIM["sim<br/>verilator 跑 soc_top<br/>窗口显示屏幕, 终端显示串口"]
+    APP --> SIM["sim<br/>verilator 跑 soc_top<br/>窗口显示屏幕和 HDMI, 终端显示串口"]
     TOML["tests/*/tests.toml<br/>sw/app/*/test/"] --> TEST["test<br/>编译 → 仿真 → 看退出码"]
 ```
 
@@ -21,7 +21,7 @@ flowchart LR
 | --- | --- | --- |
 | `build <程序>` | `sw/` 各层 + `sw/app/<程序>/` + `sw/boot/` | `build/fw/<板>/<程序>/` 下 app.elf、boot.elf、rom.hex |
 | `run` / `upload <程序>` | 同上 | 板子上跑起来 |
-| `sim <程序>` | 同上 (按盘古编译, 不带 bootloader) + `sim/` 外壳 | 窗口显示屏幕, 终端显示串口; 在窗口里打字 = 往串口发字符; 结束时截图 `build/sim/<程序>.png` |
+| `sim <程序>` | 同上 (按盘古编译, 不带 bootloader) + `sim/` 外壳 | 窗口显示屏幕和 HDMI, 终端显示串口; 在窗口里打字 = 往串口发字符; 结束时截图 `build/sim/<程序>-lcd.png`、`-hdmi.png` |
 | `test [路径]` | `tests.toml`、`sw/app/*/test/` | 每个测试一行 PASS/FAIL, 日志在 `build/test/` |
 | `fpga build [--app <程序>]` | bootloader + `rtl/` + `boards/<板>/` | `build/fpga/<板>/` 下的位流, 上电等下载; 加 `--app` 把程序固化进去 (`build/fpga/<板>-<程序>/`), 上电直接运行 |
 | `fpga program [--app <程序>] [--once]` | 上面的位流 | 写进板上 flash (上电自动加载) 并马上运行; `--once` 只下载到 FPGA, 断电就丢 |

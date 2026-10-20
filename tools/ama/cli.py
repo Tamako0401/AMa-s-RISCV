@@ -183,6 +183,7 @@ def sim_binary(out):
     sources = [
         'boards/mes50hp/mes50hp_top.v',
         'tests/soc/st7789_model.sv',
+        'tests/soc/video_sink.sv',
         'sim/uart_rx.sv',
         'sim/uart_tx.sv',
         'sim/sim_top.sv',
@@ -217,8 +218,8 @@ def sim_binary(out):
 
 @cli.command()
 def sim(app: str = App):
-    """在仿真里运行 sw/app/ 下的程序, 窗口显示屏幕, 终端显示串口。"""
-    from sim.view import W, H, show, save_png
+    """在仿真里运行 sw/app/ 下的程序, 窗口显示屏幕和 HDMI, 终端显示串口。"""
+    from sim.view import SCREENS, show, save_png
 
     check_app(app)
     out = ROOT / 'build/sim'
@@ -226,25 +227,29 @@ def sim(app: str = App):
     rom = out / f'{app}.hex'
     write_hex(elf_to_rom(elf), rom)
     binary = sim_binary(out)
-    frame = out / f'{app}.frame'
-    frame.write_bytes(bytes(W * H * 2))
+    frames = {name: out / f'{app}.{name}' for name in SCREENS}
+    for name, (w, h, _) in SCREENS.items():
+        frames[name].write_bytes(bytes(w * h * 2))
     keys = out / f'{app}.keys'
     keys.write_bytes(b'')
     step(f'仿真 {app}: 在窗口里打字 = 串口输入; 关窗口或 Ctrl+C 结束')
     process = subprocess.Popen(
-        [str(binary), f'+rom={rom}', f'+frame={frame}', f'+keys={keys}'], cwd=ROOT, start_new_session=True
+        [str(binary), f'+rom={rom}', f'+frame={frames["lcd"]}', f'+video={frames["hdmi"]}', f'+keys={keys}'],
+        cwd=ROOT,
+        start_new_session=True,
     )
     try:
-        show(frame, keys, process)
+        show(frames, keys, process)
     except KeyboardInterrupt:
         pass
     finally:
         if process.poll() is None:
             process.terminate()
         process.wait()
-        png = out / f'{app}.png'
-        save_png(frame, png)
-        print(f'屏幕截图: {png.relative_to(ROOT)}')
+        for name, frame in frames.items():
+            png = out / f'{app}-{name}.png'
+            save_png(frame, png, *SCREENS[name][:2])
+            print(f'截图: {png.relative_to(ROOT)}')
 
 
 def fpga_bit(board, app):

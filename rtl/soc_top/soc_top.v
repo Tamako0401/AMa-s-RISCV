@@ -8,7 +8,7 @@
 //       译码, 与 tests/cpu/link.ld、sw/link.ld 一致:
 //   s0 = ROM   0x0000_0000, 64 KiB, 可选 app 区写入 -- 后 2 KiB 为引导区
 //   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
-//   s2 = 保留(未接入)
+//   s2 = 视频  0x2000_0000, 寄存器和显存, 见 docs/video.md
 //   s3 = 保留(未接入)
 //   s4 = 外设子总线 0x4000_0000, 按 addr[15:12] 再分, 每个外设 4 KiB (rtl/core/periph_bus.v):
 //          0x4000_0000: 空, 读返回 0, 写被丢弃
@@ -36,7 +36,14 @@ module soc_top #(
 
     output wire [127:0] io_o,
     output wire [127:0] io_oe,
-    input  wire [127:0] io_i
+    input  wire [127:0] io_i,
+
+    // 视频输出 (640x480@60), 板子不接就留空
+    output wire video_pclk,
+    output wire video_hsync_n,
+    output wire video_vsync_n,
+    output wire video_de,
+    output wire [23:0] video_rgb
 
 );
 
@@ -62,10 +69,15 @@ module soc_top #(
     wire [3:0] s1_sel;
     wire s1_we, s1_req_valid, s1_req_ready, s1_rsp_valid, s1_rsp_ready;
 
-    // rib 从设备 2、3: 保留
-    wire [31:0] unused_s2_addr, unused_s2_wdata, unused_s3_addr, unused_s3_wdata;
-    wire [3:0] unused_s2_sel, unused_s3_sel;
-    wire unused_s2_we, unused_s2_req_valid, unused_s3_we, unused_s3_req_valid;
+    // rib 从设备 2: 视频
+    wire [31:0] s2_addr, s2_wdata, s2_rdata;
+    wire [3:0] s2_sel;
+    wire s2_we, s2_req_valid, s2_req_ready, s2_rsp_valid, s2_rsp_ready;
+
+    // rib 从设备 3: 保留
+    wire [31:0] unused_s3_addr, unused_s3_wdata;
+    wire [3:0] unused_s3_sel;
+    wire unused_s3_we, unused_s3_req_valid;
 
     // rib 从设备 4: 外设子总线 (0x4000_0000)
     wire [31:0] s4_addr, s4_wdata, s4_rdata;
@@ -162,16 +174,16 @@ module soc_top #(
         .s1_rsp_ready_o(s1_rsp_ready),
         .s1_data_i(s1_rdata),
 
-        // 从设备 2 = 保留: 不握手
-        .s2_addr_o(unused_s2_addr),
-        .s2_data_o(unused_s2_wdata),
-        .s2_sel_o(unused_s2_sel),
-        .s2_we_o(unused_s2_we),
-        .s2_req_valid_o(unused_s2_req_valid),
-        .s2_req_ready_i(1'b0),
-        .s2_rsp_valid_i(1'b0),
-        .s2_rsp_ready_o(),
-        .s2_data_i(32'h0),
+        // 从设备 2 = 视频 (0x2000_0000)
+        .s2_addr_o(s2_addr),
+        .s2_data_o(s2_wdata),
+        .s2_sel_o(s2_sel),
+        .s2_we_o(s2_we),
+        .s2_req_valid_o(s2_req_valid),
+        .s2_req_ready_i(s2_req_ready),
+        .s2_rsp_valid_i(s2_rsp_valid),
+        .s2_rsp_ready_o(s2_rsp_ready),
+        .s2_data_i(s2_rdata),
 
         // 从设备 3 = 保留: 不握手
         .s3_addr_o(unused_s3_addr),
@@ -246,6 +258,26 @@ module soc_top #(
         .req_ready_o(s1_req_ready),
         .rsp_valid_o(s1_rsp_valid),
         .rsp_ready_i(s1_rsp_ready)
+    );
+
+
+    video u_video (
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(s2_addr),
+        .data_i(s2_wdata),
+        .sel_i(s2_sel),
+        .we_i(s2_we),
+        .data_o(s2_rdata),
+        .req_valid_i(s2_req_valid),
+        .req_ready_o(s2_req_ready),
+        .rsp_valid_o(s2_rsp_valid),
+        .rsp_ready_i(s2_rsp_ready),
+        .pclk(video_pclk),
+        .hsync_n(video_hsync_n),
+        .vsync_n(video_vsync_n),
+        .de(video_de),
+        .rgb(video_rgb)
     );
 
 

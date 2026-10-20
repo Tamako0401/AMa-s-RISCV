@@ -7,7 +7,13 @@ module mes50hp_top #(
 ) (
     input wire clk,
     input wire key1_n,
-    inout wire [IO_N-1:0] io
+    inout wire [IO_N-1:0] io,
+    // HDMI 发送芯片 MS7210 的视频口 (配置口在 io 里, 见 sw/bsp/board_hdmi.h)
+    output wire hdmi_pclk,
+    output wire hdmi_hs,
+    output wire hdmi_vs,
+    output wire hdmi_de,
+    output wire [23:0] hdmi_d  // {R, G, B}
 );
     // 不用系统复位清计数器, 否则 break 会被自身复位打断。
     reg [1:0] rx_sync = 2'b11;
@@ -50,10 +56,15 @@ module mes50hp_top #(
         .UART_TX_PIN(`UART_TX_PIN),
         .UART_RX_PIN(`UART_RX_PIN)
     ) soc (
-        .clk  (clk),
+        .clk(clk),
         .rst_n(reset_pipe[15]),
-        .io_o (io_o),
+        .io_o(io_o),
         .io_oe(io_oe),
-        .io_i (io_i)
+        .io_i(io_i),
+        .video_pclk(hdmi_pclk),
+        .video_hsync_n(hdmi_hs),
+        .video_vsync_n(hdmi_vs),
+        .video_de(hdmi_de),
+        .video_rgb(hdmi_d)
     );
 endmodule
