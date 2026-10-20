@@ -1,16 +1,20 @@
-# 复制成 ama.local.toml 再改 (该文件不提交)。工具在 PATH 里就不用写，整个文件也可以没有。
+# 复制成 ama.local.toml 再改 (不提交)。全部可省, 整个文件也可以没有。
+#
+# 工具: 键名是 ama 调用的程序名, 值是替代它的命令 (字符串列表)。没写的就在 PATH 里找同名程序。
+#   可写的键: clang, riscv64-unknown-elf-gcc, cc, verilator, vivado, pds_shell
+# 替代命令必须表现得和原程序一样:
+#   - ama 在值后面追加原程序自己的参数, 替代命令要原样接受;
+#   - ama 选定当前目录 (仓库根或 build/ 下的工程目录) 再运行, 替代命令要在这个目录里读写, 认相对路径;
+#   - 输出写到 stdout/stderr, 成功返回 0, 失败返回非 0。
+# 只要版本、参数、输入相同, 不同机器上的结果就该相同; `ama doctor` 列出各工具的命令和版本。
+# Windows 路径用单引号 (TOML 字面量字符串), 反斜杠不用转义。
+# 写了不认识的键, ama 直接报错。
+#
+# vivado = ["..."]
 
-# 认不出板子时的默认板子 (ego1 或 mes50hp)
+# 认不出板子时用的板子 (ego1 或 mes50hp)
 # board = "ego1"
 
-# Vivado 命令 (EGO1 构建和下载)。带空格的路径需在命令里加引号。
-# vivado = '"C:\Xilinx\Vivado\2024.2\bin\vivado.bat"'
-# vivado = "distrobox enter vivado -- /tools/Xilinx/2025.2/Vivado/bin/vivado"
-
-# 远程命令接收工程目录绝对路径，在共享目录中进入该工程运行 pds_shell -file build.tcl。
-# pds_remote = ["pds-build"]
-# 本机 PDS 的默认位置如下；配置 pds_remote 时不使用它。
-# pds_shell = 'C:\pango\PDS_2022.2-SP1-Lite\bin\pds_shell.exe'
-
+# 运行工具前加的环境变量
 # [env]
-# DBX_CONTAINER_MANAGER = "docker"
+# NAME = "value"

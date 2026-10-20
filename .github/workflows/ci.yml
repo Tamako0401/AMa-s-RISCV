@@ -17,7 +17,7 @@ jobs:
       - name: 安装工具链
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld llvm verilator iverilog gcc-riscv64-unknown-elf python3
+          sudo apt-get install -y clang lld llvm verilator gcc-riscv64-unknown-elf python3
       - uses: astral-sh/setup-uv@v6
       - run: ./ama test
       - run: cd third_party/coremark && sha256sum -c SHA256SUMS

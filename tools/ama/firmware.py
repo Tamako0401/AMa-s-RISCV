@@ -1,7 +1,6 @@
 """固件编译、ROM 镜像和硬件版本号。"""
 import json
 import shlex
-import shutil
 import struct
 import subprocess
 import tomllib
@@ -9,6 +8,7 @@ import zlib
 from pathlib import Path
 
 from .boards import ROOT
+from .local import tool
 
 SW_LIB = ['sw/startup.S', 'sw/drivers/spi.c', 'sw/drivers/uart.c', 'sw/bsp/bsp.c',
           'sw/components/key/key.c', 'sw/components/lcd/lcd_io.c', 'sw/components/lcd/lcd.c', 'sw/components/lcd/st7789.c',
@@ -68,18 +68,17 @@ def hwid(board):
 
 
 def compiler(cc):
-    candidates = ['clang'] if cc == 'clang' else [
-        'riscv32-unknown-elf-gcc', 'riscv64-unknown-elf-gcc', 'riscv64-elf-gcc']
-    for candidate in candidates:
-        if path := shutil.which(candidate):
-            return path
-    raise SystemExit(f'找不到编译器: {", ".join(candidates)}')
+    return tool('clang' if cc == 'clang' else 'riscv64-unknown-elf-gcc')
 
 
 def run(*cmd, **kw):
     cmd = [str(c) for c in cmd]
     print('  $ ' + shlex.join(cmd), file=kw.get('stdout'), flush=True)
-    if subprocess.run(cmd, **kw).returncode:
+    try:
+        code = subprocess.run(cmd, **kw).returncode
+    except FileNotFoundError:
+        raise SystemExit(f'找不到 {cmd[0]}: 装上它, 或在 ama.local.toml 里写它的命令')
+    if code:
         raise SystemExit('上面的命令失败了')
 
 
@@ -117,10 +116,10 @@ def compile_app(app, board, cc, defines, out, **kw):
                f'-DBOARD_{board.upper()}', *defines]
     cmd = compiler(cc)
     elf = out / 'app.elf'
-    run(cmd, *options, '-T', 'sw/link.ld', *sources, *(['-lgcc'] if cc == 'gcc' else []), '-o', elf, cwd=ROOT, **kw)
+    run(*cmd, *options, '-T', 'sw/link.ld', *sources, *(['-lgcc'] if cc == 'gcc' else []), '-o', elf, cwd=ROOT, **kw)
     # clangd 需要与实际编译一致的宏和头文件路径。
     (ROOT / 'build/compile_commands.json').write_text(json.dumps([
-        {'directory': str(ROOT), 'file': src, 'arguments': [cmd, *[f for f in options if not f.startswith('-fuse-ld')], '-c', src]}
+        {'directory': str(ROOT), 'file': src, 'arguments': [*cmd, *[f for f in options if not f.startswith('-fuse-ld')], '-c', src]}
         for src in sources], ensure_ascii=False, indent=1))
     return elf
 
@@ -130,7 +129,7 @@ def build_firmware(app, board, cc, defines, boot_defines, out, **kw):
     elf = compile_app(app, board, cc, defines, out, **kw)
     boot = out / 'boot.elf'
     options = [f for f in flags(cc) if f != '-O2']
-    run(compiler(cc), *options, '-Os', '-fno-delete-null-pointer-checks', *boot_defines,
+    run(*compiler(cc), *options, '-Os', '-fno-delete-null-pointer-checks', *boot_defines,
         *[f'-I{d}' for d in SW_INC], '-T', 'sw/boot/link.ld',
         'sw/boot/startup.S', 'sw/boot/main.c', *(['-lgcc'] if cc == 'gcc' else []), '-o', boot, cwd=ROOT, **kw)
     size = max(addr + len(data) - 0xf800 for addr, data in load_segments(boot.read_bytes()) if addr < 0x10000)

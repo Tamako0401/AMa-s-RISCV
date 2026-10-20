@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 from .boards import ROOT
+from .local import tool
 from .firmware import SW_INC, build_firmware, compiler, elf_to_rom, flags, write_hex
 
 OUT = ROOT / 'build/test'
@@ -19,7 +20,7 @@ def command(args, log):
 
 def program(run, out, log):
     elf = out / 'program.elf'
-    args = [compiler('clang'), *flags('clang'), '-march=rv32im_zicsr_zifencei',
+    args = [*compiler('clang'), *flags('clang'), '-march=rv32im_zicsr_zifencei',
             '-fno-stack-protector', *[f'-I{d}' for d in SW_INC],
             *run.get('defines', []), '-T', run.get('link', 'tests/cpu/link.ld'),
             *run['program'], '-o', elf]
@@ -61,18 +62,9 @@ def simulator(test, tb, params, out, log):
     for source in [rtl] if isinstance(rtl, str) else rtl:
         sources += ['-f', source] if source.endswith('.f') else [source]
     sources += test.get('extra', []) + [tb]
-    if test.get('sim') == 'iverilog':
-        binary = out / 'sim.vvp'
-        args = ['iverilog', '-g2012', '-s', tb.stem,
-                *[f'-P{tb.stem}.{k}={v}' for k, v in params.items()], '-o', binary, *sources]
-        executable = ['vvp', binary]
-    else:
-        binary = out / 'obj/sim'
-        args = ['verilator', '--binary', '--timing', '-Wno-fatal', '--top-module', tb.stem,
-                *[f'-G{k}={v}' for k, v in params.items()], *sources,
-                '--Mdir', out / 'obj', '-o', 'sim']
-        executable = [binary]
-    return None if command(args, log) else executable
+    args = [*tool('verilator'), '--binary', '--timing', '-Wno-fatal', '--top-module', tb.stem,
+            *[f'-G{k}={v}' for k, v in params.items()], *sources, '--Mdir', out / 'obj', '-o', 'sim']
+    return None if command(args, log) else [out / 'obj/sim']
 
 
 def report(name, ok, start, path):
@@ -124,7 +116,7 @@ def host(directory):
     start = time.monotonic()
     with path.open('w') as log:
         sources = sorted(directory.glob('*.c')) + sorted(p for p in app.glob('*.c') if p.name != 'main.c')
-        ok = command(['cc', f'-I{app}', *sources, '-o', out / 'test'], log) == 0
+        ok = command([*tool('cc'), f'-I{app}', *sources, '-o', out / 'test'], log) == 0
         if ok:
             ok = command([out / 'test'], log) == 0
     return report(str(directory.relative_to(ROOT)), ok, start, path)

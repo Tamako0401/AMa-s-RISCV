@@ -7,12 +7,8 @@
 程序就是 sw/app/ 下的目录名。板子按插着的 USB 串口芯片自动识别 (FT2232 = EGO1, CP2102 = 盘古),
 识别不了时用 --board 指定。本机工具路径写在 ama.local.toml (见 ama.local.toml.example), 没有也能用。
 """
-import os
-import shlex
-import shutil
 import subprocess
 import time
-import tomllib
 from typing import Literal, Optional
 
 import typer
@@ -20,11 +16,9 @@ import typer
 
 from . import load, fpga as projects
 from .boards import ROOT, boards, gen_pins
-from .firmware import build_firmware, check_app, firmware_dir, compile_app, elf_to_rom, write_hex, hwid, variant
+from .firmware import build_firmware, check_app, firmware_dir, compile_app, elf_to_rom, run, write_hex, hwid, variant
+from .local import CONFIG, TOOLS, tool
 
-LOCAL = ROOT / 'ama.local.toml'
-CONFIG = tomllib.loads(LOCAL.read_text(encoding='utf8')) if LOCAL.exists() else {}
-os.environ.update(CONFIG.get('env', {}))
 BOARDS = boards()
 
 cli = typer.Typer(help=__doc__, no_args_is_help=True, add_completion=False,
@@ -49,13 +43,6 @@ def step(what):
 def fail(why):
     typer.secho(f'✗ {why}', fg='red', err=True)
     raise typer.Exit(1)
-
-
-def run(*cmd, **kw):
-    cmd = [str(c) for c in cmd]
-    print('  $ ' + shlex.join(cmd), flush=True)
-    if subprocess.run(cmd, cwd=ROOT, **kw).returncode:
-        fail('上面的命令失败了')
 
 
 def detect():
@@ -163,8 +150,8 @@ def sim_binary(out):
     binary = obj / 'sim'
     if not binary.exists() or any(p.stat().st_mtime_ns > binary.stat().st_mtime_ns for p in inputs):
         step('编译仿真外壳')
-        run('verilator', '--binary', '--timing', '-Wno-fatal', '--top-module', 'sim_top',
-            '-f', 'rtl/soc.f', *sources, '--Mdir', obj, '-o', 'sim', stdout=subprocess.DEVNULL)
+        run(*tool('verilator'), '--binary', '--timing', '-Wno-fatal', '--top-module', 'sim_top',
+            '-f', 'rtl/soc.f', *sources, '--Mdir', obj, '-o', 'sim', cwd=ROOT, stdout=subprocess.DEVNULL)
     return binary
 
 
@@ -174,8 +161,6 @@ def sim(app: str = App):
     from sim.view import W, H, show, save_png
 
     check_app(app)
-    if not shutil.which('verilator'):
-        fail('没找到 verilator')
     out = ROOT / 'build/sim'
     elf = compile_app(app, 'mes50hp', 'clang', ['-DSIM_CYCLE_DIV=1000'], out / app)
     rom = out / f'{app}.hex'
@@ -203,10 +188,6 @@ def fpga_bit(board, app):
     return projects.project_dir(board, app) / BOARDS[board]['bitstream']
 
 
-def vivado():
-    return shlex.split(CONFIG.get('vivado', 'vivado'))
-
-
 @fpga.command('build')
 def fpga_build(app: str = App, board: Optional[str] = BoardOpt, cc: Optional[Compiler] = CCOpt):
     """编译固件并综合出位流。"""
@@ -214,7 +195,7 @@ def fpga_build(app: str = App, board: Optional[str] = BoardOpt, cc: Optional[Com
     cc = cc or 'clang'
     elf = build_firmware(app, board, cc, [], [], firmware_dir(app, board, cc))
     out = projects.generate(board, variant(app, cc), elf.parent / 'rom.hex')
-    projects.build(board, out, CONFIG)
+    projects.build(board, out)
     bit = out / BOARDS[board]['bitstream']
     bit.with_suffix('.hwid').write_text(f'0x{hwid(board):08x}\n')
     typer.secho(f'✓ {bit.relative_to(ROOT)}; 下一步 ama fpga program {app}', fg='green')
@@ -235,7 +216,7 @@ def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
         print(f'打开 PDS → Tools → Fabric Configuration → 选择位流:\n  {bit}')
         return
     step(f'烧写 {bit.relative_to(ROOT)}')
-    result = subprocess.run([*vivado(), '-mode', 'batch', '-nojournal', '-nolog', '-source',
+    result = subprocess.run([*tool('vivado'), '-mode', 'batch', '-nojournal', '-nolog', '-source',
                              str(ROOT / 'boards/ego1/program.tcl'), '-tclargs', str(bit)],
                             cwd=bit.parent, capture_output=True, text=True)
     # 返回码不可靠 (Vivado 没真正启动时也是 0), 以 program.tcl 打印的 DONE 位为准
@@ -243,6 +224,23 @@ def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
         print(result.stdout[-2000:] + result.stderr[-2000:])
         fail('烧写失败: 检查 USB 线、板子电源, 以及有没有别的 Vivado 占着下载器')
     typer.secho('✓ 已烧写; 之后改 C 用 ama run 就行', fg='green')
+
+
+@cli.command()
+def doctor():
+    """列出 ama 用到的工具: 实际调用的命令和版本。三台机器对一下版本就知道结果该不该一样。"""
+    # pds_shell 没有查版本的参数, 只显示命令
+    flag = {'vivado': '-version', 'pds_shell': None}
+    for name in TOOLS:
+        cmd = tool(name)
+        version = '-'
+        if flag.get(name, '--version'):
+            try:
+                result = subprocess.run([*cmd, flag.get(name, '--version')], capture_output=True, text=True)
+                version = (result.stdout or result.stderr).strip().splitlines()[0]
+            except FileNotFoundError:
+                version = '找不到'
+        print(f'{name:24} {" ".join(cmd)}\n{"":24} {version}')
 
 
 gen = typer.Typer(help='生成板级文件', no_args_is_help=True)

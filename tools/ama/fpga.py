@@ -1,11 +1,11 @@
 """生成 FPGA 工程并检查综合结果。"""
 import os
-import shlex
 import shutil
 import subprocess
 from pathlib import Path
 
 from .boards import ROOT, read_board
+from . import local
 from .firmware import hwid, run
 
 
@@ -53,17 +53,15 @@ def generate(board, app, rom):
     return out
 
 
-def build(board, out, config):
+def build(board, out):
     data = read_board(board)
     tool = data['tool']
     bit = out / data['bitstream']
     bit.unlink(missing_ok=True)
     if tool == 'vivado':
-        cmd = [*shlex.split(config.get('vivado', 'vivado')), '-mode', 'batch', '-source', 'build.tcl']
-    elif 'pds_remote' in config:
-        cmd = [*config['pds_remote'], str(out)]
+        cmd = [*local.tool('vivado'), '-mode', 'batch', '-source', 'build.tcl']
     else:
-        cmd = [config.get('pds_shell', r'C:\pango\PDS_2022.2-SP1-Lite\bin\pds_shell.exe'), '-file', 'build.tcl']
+        cmd = [*local.tool('pds_shell'), '-file', 'build.tcl']
     log_path = out / f'{tool}-build.log'
     with log_path.open('w') as log:
         run(*cmd, cwd=out, stdout=log, stderr=subprocess.STDOUT)
