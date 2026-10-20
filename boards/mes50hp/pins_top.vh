@@ -1,4 +1,4 @@
-// 由 scripts/gen-pins.py 生成, 不要手改
+// 由 ama gen pins 生成, 不要手改
 `define IO_N 59
 `define UART_TX_PIN 57
 `define UART_RX_PIN 58

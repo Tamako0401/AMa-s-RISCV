@@ -1,7 +1,7 @@
 """编译 CoreMark (sw/app/coremark + third_party/coremark) 并在 rtl/soc_top 上仿真。
 
 用法: python3 scripts/coremark.py [--cc clang|gcc] [--iterations N] [--opt=-O2] [--min-score X]
-上板构建: python3 scripts/build-board.py --harvard --app coremark [--pds]
+上板构建: ./ama fpga build coremark [--board ego1|mes50hp]
 
 CoreMark 的分数 = 迭代次数 / 秒。本 CPU 的计时单位是时钟周期, 所以
     CoreMark/MHz = 迭代次数 * 1e6 / Total ticks
@@ -12,7 +12,6 @@ CoreMark 的分数 = 迭代次数 / 秒。本 CPU 的计时单位是时钟周期
 import argparse
 import math
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -20,47 +19,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'build/coremark'
 
-SOURCES = ['sw/startup.S', 'sw/drivers/uart.c', 'sw/bsp/bsp.c',
-           'sw/app/coremark/core_portme.c', 'sw/app/coremark/ee_printf.c',
-           'third_party/coremark/core_list_join.c', 'third_party/coremark/core_main.c',
-           'third_party/coremark/core_matrix.c', 'third_party/coremark/core_state.c',
-           'third_party/coremark/core_util.c']
-INCLUDES = ['sw/device', 'sw/drivers', 'sw/bsp', 'sw/app/coremark', 'third_party/coremark']
-# 打开乘除法 (M 扩展): CPU 支持 (tests/cpu/extensions.S 验过), CoreMark 里乘法很多
-MARCH = 'rv32im_zicsr'
-
-
-def compiler(cc):
-    if cc == 'clang':
-        candidates = ['clang']
-    else:
-        candidates = ['riscv32-unknown-elf-gcc', 'riscv64-unknown-elf-gcc', 'riscv64-elf-gcc']
-    for candidate in candidates:
-        if path := shutil.which(candidate):
-            return path
-    raise SystemExit(f'找不到编译器: {", ".join(candidates)}')
-
-
-def cflags(iterations, opt='-O2', cc='clang'):
-    """CoreMark 的编译选项。FLAGS_STR 会原样打印在结果里 (CoreMark 要求报告编译选项)。"""
-    perf = opt.split()
-    target = ['--target=riscv32-unknown-elf', '-fuse-ld=lld'] if cc == 'clang' else []
-    return [*target, f'-march={MARCH}', '-mabi=ilp32',
-            *perf, '-nostdlib', '-ffreestanding', '-fno-builtin',
-            '-msmall-data-limit=0', '-mno-relax',
-            f'-DITERATIONS={iterations}', f'-DFLAGS_STR="{" ".join(perf)} -march={MARCH}"',
-            *[f'-I{ROOT / i}' for i in INCLUDES], '-T', ROOT / 'sw/link.ld']
+sys.path.insert(0, str(ROOT / 'tools'))
+from ama.firmware import compile_app, elf_to_rom, write_hex  # noqa: E402
 
 
 def run(*args, **kw):
-    return subprocess.run([shutil.which(str(args[0])) or str(args[0]), *map(str, args[1:])],
-                          cwd=ROOT, check=True, **kw)
-
-
-def build(elf, iterations, opt='-O2', cc='clang'):
-    libs = ['-lgcc'] if cc == 'gcc' else []
-    run(compiler(cc), *cflags(iterations, opt, cc), *[ROOT / s for s in SOURCES],
-        *libs, '-o', elf)
+    return subprocess.run([str(a) for a in args], cwd=ROOT, check=True, **kw)
 
 
 def score(output):
@@ -109,11 +73,9 @@ def main():
     if args.min_score is not None and (not math.isfinite(args.min_score) or args.min_score < 0):
         parser.error('--min-score 必须是非负有限数')
     BUILD.mkdir(parents=True, exist_ok=True)
-    sys.path.insert(0, str(ROOT / 'scripts'))
-    from elf2hex import elf_to_rom, write_hex
-
-    elf = BUILD / 'coremark-sim.elf'
-    build(elf, args.iterations, args.opt, args.cc)
+    elf = compile_app('coremark', 'mes50hp', args.cc,
+                      ['-UITERATIONS', f'-DITERATIONS={args.iterations}', *args.opt.split(), '-UFLAGS_STR',
+                       f'-DFLAGS_STR="{args.opt} -march=rv32im_zicsr"'], BUILD)
     rom = BUILD / 'coremark-sim.hex'
     write_hex(elf_to_rom(elf), rom)
 

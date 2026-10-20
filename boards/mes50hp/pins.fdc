@@ -1,4 +1,4 @@
-# 由 scripts/gen-pins.py 生成, 不要手改
+# 由 ama gen pins 生成, 不要手改
 define_attribute {p:io[0]} {PAP_IO_DIRECTION} {INOUT}
 define_attribute {p:io[0]} {PAP_IO_LOC} {AB13}
 define_attribute {p:io[0]} {PAP_IO_VCCIO} {3.3}

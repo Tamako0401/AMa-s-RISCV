@@ -1,4 +1,4 @@
-# 由 scripts/gen-pins.py 生成, 不要手改
+# 由 ama gen pins 生成, 不要手改
 set_property PACKAGE_PIN B16 [get_ports {io[0]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {io[0]}]
 set_property SLEW SLOW [get_ports {io[0]}]

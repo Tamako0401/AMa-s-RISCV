@@ -15,12 +15,11 @@ from pathlib import Path
 import serial
 from serial.tools import list_ports, miniterm
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from elf2hex import load_segments  # noqa: E402
-from hwid import hwid  # noqa: E402
+from .firmware import load_segments, hwid
+from .boards import boards
 
 APP_SIZE = 0xF800           # ROM 里 bootloader 之前的部分
-USB = {(0x0403, 0x6010): 'ego1', (0x10C4, 0xEA60): 'mes50hp'}
+USB = {tuple(data['usb']): name for name, data in boards().items()}
 
 
 def app_image(elf):

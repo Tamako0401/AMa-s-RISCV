@@ -1,16 +1,16 @@
-# 复制成 ama.local.toml 再改 (该文件不提交)。工具在 PATH 里就不用写, 整个文件也可以没有。
+# 复制成 ama.local.toml 再改 (该文件不提交)。工具在 PATH 里就不用写，整个文件也可以没有。
 
 # 认不出板子时的默认板子 (ego1 或 mes50hp)
 # board = "ego1"
 
-# Vivado 命令 (EGO1 构建和下载)。Windows 例子:
-# vivado = 'C:\Xilinx\Vivado\2024.2\bin\vivado.bat'
-# Linux 装在 distrobox 容器里的例子:
+# Vivado 命令 (EGO1 构建和下载)。带空格的路径需在命令里加引号。
+# vivado = '"C:\Xilinx\Vivado\2024.2\bin\vivado.bat"'
 # vivado = "distrobox enter vivado -- /tools/Xilinx/2025.2/Vivado/bin/vivado"
-# 需要的环境变量写在 [env] 里 (不要写成 "env X=1 命令", distrobox 那样会什么都不做):
+
+# 远程命令接收工程目录绝对路径，在共享目录中进入该工程运行 pds_shell -file build.tcl。
+# pds_remote = ["pds-build"]
+# 本机 PDS 的默认位置如下；配置 pds_remote 时不使用它。
+# pds_shell = 'C:\pango\PDS_2022.2-SP1-Lite\bin\pds_shell.exe'
+
 # [env]
 # DBX_CONTAINER_MANAGER = "docker"
-
-# PDS 不在本机时, 代跑 "build-board.py <参数> --pds" 的脚本 (比如在虚拟机里跑)。
-# 本机装了 PDS 就不要写这一项; PDS 不在默认位置时设环境变量 PDS_SHELL。
-# pds_build = "pds-build"

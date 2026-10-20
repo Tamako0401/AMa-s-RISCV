@@ -1,0 +1,9 @@
+tool = "pds"
+top = "mes50hp_top.v"
+constraints = ['mes50hp.fdc', 'pins.fdc']
+usb = [0x10C4, 0xEA60]                  # 板载 CP2102
+bitstream = "generate_bitstream/mes50hp_top.sbit"
+family = "Logos"
+device = "PGL50H"
+speedgrade = "-6"
+package = "FBG484"

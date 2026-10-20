@@ -1,15 +1,24 @@
-"""从板级引脚表生成约束和软硬件共用的编号。"""
-from pathlib import Path
+"""板级配置与引脚生成。"""
 import csv
-import sys
+import tomllib
+from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
-def main():
-    board = sys.argv[1]
+
+def read_board(name):
+    return tomllib.loads((ROOT / 'boards' / name / 'board.toml').read_text())
+
+
+def boards():
+    return {p.parent.name: read_board(p.parent.name) for p in sorted((ROOT / 'boards').glob('*/board.toml'))}
+
+
+def gen_pins(board):
+    vivado = read_board(board)['tool'] == 'vivado'
     path = ROOT / 'boards' / board
     pins = list(csv.DictReader((path / 'pins.csv').open()))
-    note = '由 scripts/gen-pins.py 生成, 不要手改'
+    note = '由 ama gen pins 生成, 不要手改'
     vh = [f'// {note}', f'`define IO_N {len(pins)}']
     for name in ['UART_TX', 'UART_RX']:
         n = next(i for i, pin in enumerate(pins) if pin['name'] == name)
@@ -25,7 +34,7 @@ def main():
     for i, pin in enumerate(pins):
         port = f'io[{i}]'
         output = pin['dir'] in ['inout', 'out']
-        if board == 'ego1':
+        if vivado:
             lines += [f"set_property PACKAGE_PIN {pin['pad']} [get_ports {{{port}}}]",
                       f'set_property IOSTANDARD LVCMOS33 [get_ports {{{port}}}]']
             if output:
@@ -38,7 +47,5 @@ def main():
             if output:
                 attrs += [('DRIVE', '8'), ('SLEW', 'SLOW')]
             lines += [f'define_attribute {{p:{port}}} {{PAP_IO_{key}}} {{{value}}}' for key, value in attrs]
-    (path / ('pins.xdc' if board == 'ego1' else 'pins.fdc')).write_text('\n'.join(lines) + '\n')
+    (path / ('pins.xdc' if vivado else 'pins.fdc')).write_text('\n'.join(lines) + '\n')
 
-if __name__ == '__main__':
-    main()

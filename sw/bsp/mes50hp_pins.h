@@ -1,4 +1,4 @@
-/* 由 scripts/gen-pins.py 生成, 不要手改 */
+/* 由 ama gen pins 生成, 不要手改 */
 #define PIN_J8_3 0
 #define PIN_J8_4 1
 #define PIN_J8_5 2

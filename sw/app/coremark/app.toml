@@ -1,0 +1,8 @@
+sources = [
+  "third_party/coremark/core_list_join.c", "third_party/coremark/core_main.c",
+  "third_party/coremark/core_matrix.c", "third_party/coremark/core_state.c",
+  "third_party/coremark/core_util.c",
+]
+include = ["third_party/coremark"]
+# ITERATIONS=0 让实机自行选择跑满 10 秒的次数。
+cflags = ['-march=rv32im_zicsr', '-DITERATIONS=0', '-DFLAGS_STR="-O2 -march=rv32im_zicsr"']

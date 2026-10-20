@@ -1,7 +1,7 @@
 """编译并运行 LCD 点亮测试。
 
 把 sw/ 下的真实 C 程序(默认 sw/app/lcd_demo)用 clang 编译、按 sw/link.ld 链接,
-用 scripts/elf2hex.py 转成 ROM 的 hex 镜像, 再跑在 rtl/soc_top 上; st7789_model 挂在真实 SPI
+用 ama.firmware 转成 ROM 的 hex 镜像, 再跑在 rtl/soc_top 上; st7789_model 挂在真实 SPI
 引脚上, 从引脚重建画面, 测试台核对关键像素。
 
 依赖 Python 3、clang(--target=riscv32-unknown-elf)、ld.lld、llvm-objcopy、
@@ -14,6 +14,9 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
+from ama.firmware import elf_to_rom, write_hex  # noqa: E402
+
 BUILD = ROOT / 'build/lcd'
 
 ROM_BYTES = 65536          # 与 rtl/soc_top/soc_top.v 的 u_rom 一致
@@ -53,9 +56,9 @@ def build_app(name):
         *[f'-I{i}' for i in SW_INCLUDES],
         '-T', 'sw/link.ld', *SW_SOURCES, f'sw/app/{name}/main.c', '-o', elf)
 
-    # ELF -> ROM 镜像由 scripts/elf2hex.py 单独负责; RAM 不预装 (.data 由 startup.S 从 ROM 拷)
+    # RAM 不预装，.data 由 startup.S 从 ROM 拷。
     rom_hex = BUILD / f'{name}.rom.hex'
-    run(sys.executable, 'scripts/elf2hex.py', elf, rom_hex, '--size', ROM_BYTES)
+    write_hex(elf_to_rom(elf, size=ROM_BYTES), rom_hex)
     return rom_hex
 
 

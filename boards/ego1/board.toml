@@ -1,0 +1,6 @@
+tool = "vivado"
+top = "ego1_top.v"
+constraints = ['ego1.xdc', 'pins.xdc']
+usb = [0x0403, 0x6010]                  # FT2232: 接口 0 是 JTAG, 接口 1 是串口
+bitstream = "ego1_top.bit"
+part = "xc7a35tcsg324-1"
