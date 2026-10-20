@@ -16,7 +16,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 | --- | --- | --- |
 | 平时改了 C | `./ama run snake` | 编译, 经串口 bootloader 下载到板子运行, 再显示串口输出 (Ctrl+] 退出)。几秒 |
 | 只编译 / 只下载 / 只看串口 | `./ama build snake` / `./ama upload snake` / `./ama monitor` | |
-| 改了 `rtl/`、`boards/`、`sw/boot/` | `./ama fpga build` 然后 `./ama fpga program` | 出只带 bootloader 的位流, 写进板上 flash, 上电自动加载。几分钟; `--once` 只下载一次 (断电丢) |
+| 改了 `rtl/`、`boards/`、`sw/boot/` | `./ama fpga build -b mes50hp` 然后 `./ama fpga program` | 出只带 bootloader 的位流, 写进板上 flash, 上电自动加载。几分钟; `--once` 只下载一次 (断电丢) |
 | 没有板子 | `./ama sim snake` | sw/app 下的程序跑在 soc_top 上, 窗口显示屏幕和 HDMI 画面, 终端显示串口; 关窗口或 Ctrl+C 结束, 截图在 build/sim/<程序>-lcd.png、-hdmi.png |
 
 - 程序就是 `sw/app/<名字>/`, 目录下的 .c 一起编译。

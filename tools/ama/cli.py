@@ -2,7 +2,7 @@
 
 平时改了 C:  ama run <程序>   编译, 经串口下载到板子运行, 再显示串口输出 (几秒)
 
-改了 rtl/、boards/、sw/boot/ 之后:  ama fpga build, 然后 ama fpga program (几分钟)
+改了 rtl/、boards/、sw/boot/ 之后:  ama fpga build -b <板>, 然后 ama fpga program (几分钟)
 
 程序就是 sw/app/ 下的目录名。板子按插着的 USB 串口芯片自动识别 (FT2232 = EGO1, CP2102 = 盘古),
 识别不了时用 --board 指定。本机工具路径写在 ama.local.toml (见 ama.local.toml.example), 没有也能用。
@@ -43,6 +43,8 @@ cli.add_typer(fpga, name='fpga')
 
 App = typer.Argument(..., help='sw/app/ 下的程序名')
 BoardOpt = typer.Option(None, '--board', '-b', help='ego1 或 mes50hp; 不写就按插着的串口芯片识别')
+# 只和构建产物有关、不碰板子的命令, 板子必须写明
+BuildBoardOpt = typer.Option(..., '--board', '-b', help='ego1 或 mes50hp')
 PortOpt = typer.Option(None, '--port', '-p', help='串口; 不写就自动找')
 AppOpt = typer.Option(
     None, '--app', help='把这个程序固化进位流, 上电直接运行; 不写则位流只带 bootloader, 程序用 ama run 下载'
@@ -115,7 +117,7 @@ def do_upload(app, board, port, force):
     if hw != hwid(board) and not force:
         fail(
             f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{hwid(board):08x} 不一致 (rtl/、boards/、sw/boot/ 改过):\n'
-            f'  先 ama fpga build, ama fpga program; 或者加 --force 照样下载'
+            f'  先 ama fpga build -b {board}, ama fpga program -b {board}; 或者加 --force 照样下载'
         )
     start = time.monotonic()
     load.download(ser, image)
@@ -253,6 +255,11 @@ def sim(app: str = App):
             print(f'截图: {png.relative_to(ROOT)}')
 
 
+def check_board(board):
+    if board not in BOARDS:
+        fail(f'没有板子 {board} (有: {", ".join(BOARDS)})')
+
+
 def fpga_bit(board, app):
     return projects.project_dir(board, app) / BOARDS[board]['bitstream']
 
@@ -262,9 +269,9 @@ def app_arg(app):
 
 
 @fpga.command('build')
-def fpga_build(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
+def fpga_build(board: str = BuildBoardOpt, app: Optional[str] = AppOpt):
     """综合出位流。"""
-    board, _ = pick_board(board)
+    check_board(board)
     if app:
         rom = build_firmware(app, board, [], [], firmware_dir(app, board)).parent / 'rom.hex'
     else:
@@ -279,14 +286,10 @@ def fpga_build(app: Optional[str] = AppOpt, board: Optional[str] = BoardOpt):
 
 
 @fpga.command('report')
-def fpga_report(
-    board: str = typer.Option(..., '--board', '-b', help='ego1 或 mes50hp'),
-    app: Optional[str] = AppOpt,
-):
+def fpga_report(board: str = BuildBoardOpt, app: Optional[str] = AppOpt):
     """打印上次 fpga build 的资源 (每个模块 + 全片) 和时序, 不重新综合。
     读的是工具自己的报告: PDS 的 synthesize/*.snr、report_timing/*.rtr, Vivado 的 utilization*.rpt、timing_summary.rpt。"""
-    if board not in BOARDS:
-        fail(f'没有板子 {board} (有: {", ".join(BOARDS)})')
+    check_board(board)
     out = projects.project_dir(board, app)
     if not out.exists():
         fail(f'还没有构建过, 先 ama fpga build{app_arg(app)} --board {board}')
