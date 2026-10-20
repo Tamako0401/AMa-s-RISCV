@@ -8,6 +8,7 @@
 识别不了时用 --board 指定。本机工具路径写在 ama.local.toml (见 ama.local.toml.example), 没有也能用。
 """
 
+import shutil
 import subprocess
 import time
 from typing import Optional
@@ -305,6 +306,19 @@ def doctor():
             except FileNotFoundError:
                 version = '找不到'
         print(f'{name:24} {" ".join(cmd)}\n{"":24} {version}')
+
+
+@cli.command()
+def new(app: str = typer.Argument(..., help='新程序名, 成为 sw/app/ 下的目录名')):
+    """从模板 sw/app/hello 复制出一个新程序 (两块板的接线都带上)。"""
+    target = ROOT / 'sw/app' / app
+    if target.exists():
+        fail(f'sw/app/{app} 已经存在')
+    shutil.copytree(ROOT / 'sw/app/hello', target)
+    for path in target.rglob('*'):
+        if path.is_file():
+            path.write_text(path.read_text().replace('hello', app))
+    typer.secho(f'✓ sw/app/{app}; 下一步 ama sim {app} 或 ama run {app}', fg='green')
 
 
 gen = typer.Typer(help='生成板级文件', no_args_is_help=True)

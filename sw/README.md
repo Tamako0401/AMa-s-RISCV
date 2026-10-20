@@ -16,6 +16,7 @@ boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), �
 
 | 程序 | 说明 |
 | --- | --- |
+| hello | 新程序的模板: `ama new <程序>` 复制它 (串口打招呼、画色块、LED 闪) |
 | [selftest](app/selftest/README.md) | 板级自检, 烧进位流的默认程序 |
 | snake | 贪吃蛇, 按键或串口 wasd 控制 |
 | coremark | CoreMark 跑分 (见下) |
@@ -26,7 +27,7 @@ components 和 bsp 里 (现在只有 `components/lcd/lcd_io.c`), 程序里只用
 
 ## 编译
 
-新程序: 建 `sw/app/<程序>/main.c`, 目录下所有 .c 和 `boards/<板>/` 下的 .c 一起编译。
+新程序: `./ama new <程序>` (从 `app/hello` 复制)。目录下所有 .c 和 `boards/<板>/` 下的 .c 一起编译。
 
 上板和仿真用仓库根目录的 `./ama` (`./ama --help`), 如 `./ama run snake`、`./ama sim snake`, 见根目录 README。
 

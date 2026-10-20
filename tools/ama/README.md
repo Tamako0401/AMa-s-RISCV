@@ -25,6 +25,7 @@ flowchart LR
 | `test [路径]` | `tests.toml`、`sw/app/*/test/` | 每个测试一行 PASS/FAIL, 日志在 `build/test/` |
 | `fpga build <程序>` | rom.hex + `rtl/` + `boards/<板>/` | `build/fpga/<板>-<程序>/` 下的位流 |
 | `fpga program <程序>` | 上面的位流 | EGO1 直接烧; 盘古打印 PDS 里的操作步骤 |
+| `new <程序>` | 模板 `sw/app/hello/` | `sw/app/<程序>/`: main.c + 两块板的 `boards/<板>/app_board.h`, 直接能编 |
 | `gen pins <板>` | `boards/<板>/pins.csv` | 引脚约束、`pins_top.vh`、`sw/bsp/<板>_pins.h` |
 | `doctor` | `ama.local.toml` | 每个外部工具实际调用的命令和版本 |
 | `lint` / `fmt` | Python、C、Verilog 源码 | 问题列表; 加 `--fix` 直接改文件 |
