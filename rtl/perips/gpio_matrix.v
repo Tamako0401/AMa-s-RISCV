@@ -42,7 +42,6 @@ module gpio_matrix #(
     assign uart_rx_o = func_in_sel[0] < IO_N ? io_q1[func_in_sel[0][6:0]] : 1'b1;
     assign spi_miso_o = func_in_sel[1] < IO_N ? io_q1[func_in_sel[1][6:0]] : 1'b0;
 
-    integer n;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             io_q0 <= 0;
@@ -69,8 +68,6 @@ module gpio_matrix #(
         if (!rst_n) begin
             gpio_out <= 0;
             gpio_enable <= 0;
-            for (n = 0; n < 128; n = n + 1)
-            func_out_sel[n] <= (n < IO_N && n == UART_TX_PIN) ? 8'd1 : 8'd0;
             func_in_sel[0] <= UART_RX_PIN[7:0];
             func_in_sel[1] <= 8'hff;
         end else if (wen) begin
@@ -83,8 +80,15 @@ module gpio_matrix #(
                     4: gpio_enable[{word, 5'b0}+:32] <= (enable_w | data_i) & valid_w;
                     5: gpio_enable[{word, 5'b0}+:32] <= enable_w & ~data_i;
                 endcase
-            if (is_out_sel && pin < IO_N) func_out_sel[pin] <= data_i[7:0];
             if (is_in_sel) func_in_sel[addr_i[2]] <= data_i[7:0];
+        end
+    end
+
+    // 每个引脚一段: 循环里对数组做非阻塞赋值, 旧版 verilator (5.020) 不支持
+    for (genvar g = 0; g < 128; g = g + 1) begin : g_out_sel
+        always @(posedge clk or negedge rst_n) begin
+            if (!rst_n) func_out_sel[g] <= (g < IO_N && g == UART_TX_PIN) ? 8'd1 : 8'd0;
+            else if (wen && is_out_sel && pin == g && g < IO_N) func_out_sel[g] <= data_i[7:0];
         end
     end
 
