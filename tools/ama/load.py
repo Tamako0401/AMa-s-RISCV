@@ -1,11 +1,4 @@
-"""经串口 bootloader 把程序下载到板子上运行, 然后留在串口上显示程序输出 (Ctrl+] 退出)。
-
-协议见 docs/bootloader.md。板子由串口芯片识别: FT2232 = EGO1, CP2102 = 盘古 MES50HP。
-
-用法: python3 scripts/load.py <程序.elf> [串口] [--force]
-    --force  板上位流的硬件版本号和本地源码对不上时也照样下载
-以后并进 ama run。
-"""
+"""经串口 bootloader 把程序下载到板子 (协议见 docs/bootloader.md)。"""
 
 import struct
 import sys
@@ -13,14 +6,10 @@ import time
 import zlib
 from pathlib import Path
 
-import serial
-from serial.tools import list_ports, miniterm
 
-from .firmware import load_segments, hwid
-from .boards import boards
+from .firmware import load_segments
 
 APP_SIZE = 0xF800  # ROM 里 bootloader 之前的部分
-USB = {tuple(data['usb']): name for name, data in boards().items()}
 
 
 def app_image(elf):
@@ -33,16 +22,6 @@ def app_image(elf):
     for addr, data in segments:
         image[addr : addr + len(data)] = data
     return bytes(image)
-
-
-def find_board(port):
-    """返回 (串口, 板名); port 为 None 时自动找"""
-    for p in sorted(list_ports.comports(), key=lambda p: p.device, reverse=True):
-        board = USB.get((p.vid, p.pid))
-        # FT2232 有两个口, 串口是编号大的那个 (接口 0 是 JTAG), 所以倒序找第一个
-        if board and (port is None or p.device == port):
-            return p.device, board
-    sys.exit(f'没找到板子的串口{f" {port}" if port else ""} (FT2232 = EGO1, CP2102 = 盘古)')
 
 
 def enter_bootloader(ser):
@@ -76,34 +55,3 @@ def download(ser, image):
             print(f'校验失败: 电脑 0x{crc:08x}, 板子 0x{board_crc:08x}, 重试')
     sys.exit('下载失败')
 
-
-def main(argv):
-    force = '--force' in argv
-    args = [a for a in argv if a != '--force']
-    if not args:
-        sys.exit(__doc__)
-    image = app_image(args[0])
-    port, board = find_board(args[1] if len(args) > 1 else None)
-    ser = serial.Serial(port, 115200, timeout=0.3)
-    hw = enter_bootloader(ser)
-    local = hwid(board)
-    if hw != local and not force:
-        sys.exit(
-            f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{local:08x} 不一致: '
-            f'先重新构建、烧写位流, 或者加 --force 照样下载'
-        )
-    start = time.monotonic()
-    download(ser, image)
-    ser.write(b'G')
-    print(f'{board} {port}: 下载 {len(image)} 字节, {time.monotonic() - start:.1f} 秒. 以下是程序输出, Ctrl+] 退出')
-    ser.timeout = None
-    term = miniterm.Miniterm(ser, echo=False)
-    term.set_rx_encoding('utf-8')
-    term.set_tx_encoding('utf-8')
-    term.start()
-    term.join(True)
-    term.close()
-
-
-if __name__ == '__main__':
-    main(sys.argv[1:])

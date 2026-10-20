@@ -10,6 +10,7 @@
 
 用仓库根目录的 `ama`。它由 [uv](https://docs.astral.sh/uv/) 运行, 第一次会自动装好依赖 (typer、pyserial);
 Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` 看全部命令。
+每个命令做什么、规则和代码结构见 [tools/ama/README.md](tools/ama/README.md)。
 
 | 什么时候 | 命令 | 说明 |
 | --- | --- | --- |
@@ -20,7 +21,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - 程序就是 `sw/app/<名字>/`, 目录下的 .c 一起编译。
 - 板子按插着的 USB 串口芯片识别 (FT2232 = EGO1, CP2102 = 盘古), 认不出时加 `--board ego1` 或 `--board mes50hp`。
 - 下载时会核对板上位流和本地源码的硬件版本号, 对不上会提示先 `fpga build`、`fpga program`。原理见 [bootloader](docs/bootloader.md)。
-- Vivado/PDS 不在 PATH 时, 参考 `ama.local.toml.example` 写本机配置。盘古的下载器只能在 PDS 图形界面里用, `fpga program` 会告诉你选哪个文件。
+- 工具不在 PATH 或名字不同时, 参考 `ama.local.toml.example` 写本机配置, `./ama doctor` 核对。盘古的下载器只能在 PDS 图形界面里用, `fpga program` 会告诉你选哪个文件。
 - 接线见 [boards/ego1/README.md](boards/ego1/README.md)、[boards/mes50hp/README.md](boards/mes50hp/README.md); 引脚怎么分配见 [GPIO 矩阵](docs/gpio-matrix.md)。
 
 ## 仓库导航
