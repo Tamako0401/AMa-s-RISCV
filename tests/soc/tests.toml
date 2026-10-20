@@ -4,7 +4,7 @@ rtl = "rtl/soc.f"
 runs = [
   { program = ["tests/soc/soc_smoke.S"], plusargs = ["+stores=19"] },
   { program = ["tests/soc/soc_data.S"], plusargs = ["+stores=1"] },
-  { program = ["tests/soc/soc_spi.S"], plusargs = ["+stores=13", "+check_spi"] },
+  { program = ["tests/soc/soc_spi.S"], plusargs = ["+stores=17", "+check_spi"] },
   { program = ["tests/soc/soc_uart.S"], plusargs = ["+stores=7", "+check_uart"] },
 ]
 

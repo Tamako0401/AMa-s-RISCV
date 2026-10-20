@@ -41,7 +41,8 @@ def build(board, out):
 def execute(data, out, args):
     path = out / f'{data["tool"]}-build.log'
     with path.open('w') as log:
-        run(*args, cwd=out, stdout=log, stderr=subprocess.STDOUT)
+        if run(*args, cwd=out, stdout=log, stderr=subprocess.STDOUT, check=False).returncode:
+            raise SystemExit(f'{data["tool"]} 失败, 看日志 {path}')
     return path, path.read_text(errors='replace')
 
 
@@ -65,6 +66,7 @@ def vivado_generate(board, data, out, sources, top, hardware_id):
         'route_design',
         'report_timing_summary -file timing_summary.rpt',
         'report_utilization -file utilization.rpt',
+        'report_utilization -hierarchical -hierarchical_depth 3 -file utilization_modules.rpt',
         'set wns [get_property SLACK [get_timing_paths -delay_type max]]',
         'if {$wns < 0} {error "Timing failed: WNS = $wns ns"}',
         f'write_bitstream -force {data["bitstream"]}',
@@ -78,6 +80,14 @@ def vivado_build(data, out):
         raise SystemExit(f'Vivado 没有读取固件初始化文件，检查 {log_path}')
     if not (out / data['bitstream']).exists():
         raise SystemExit(f'Vivado 没有生成位流，检查 {log_path}')
+    # 表格: | 实例 (每层缩进两格) | 模块 | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs |
+    rows = []
+    for line in (out / 'utilization_modules.rpt').read_text().splitlines():
+        cells = [c for c in line.split('|')[1:-1]]
+        if len(cells) > 6 and cells[2].strip().isdigit():
+            name = cells[0].rstrip()
+            rows.append(((len(name) - len(name.lstrip())) // 2 - 1, name.strip(), cells[2].strip(), cells[6].strip()))
+    print_modules(rows)
 
 
 def pds_generate(board, data, out, sources, top, hardware_id):
@@ -113,6 +123,24 @@ def pds_build(data, out):
     timing = out / 'report_timing' / f'{Path(data["top"]).stem}.rtr'
     if 'All Constraints Met.' not in timing.read_text(errors='replace'):
         raise SystemExit(f'PDS 时序没有满足约束，检查 {timing}')
+    # 综合报告里的 "Device Utilization Summary Of Each Module": | 实例 (每层缩进两格, 带 +) | LUT | FF | ...
+    report = out / 'synthesize' / f'{Path(data["top"]).stem}.snr'
+    table = report.read_text(encoding='gbk', errors='replace').split('Summary Of Each Module')[1]
+    rows = []
+    for line in table.split('\n\n')[0].splitlines():
+        cells = line.split('|')[1:-1]
+        if len(cells) > 2 and cells[1].strip().isdigit():
+            name = cells[0].rstrip()
+            rows.append(((len(name) - len(name.lstrip(' +'))) // 2, name.strip(' +'), cells[1].strip(), cells[2].strip()))
+    print_modules(rows)
+
+
+def print_modules(rows):
+    """按模块的资源表, 只显示前三层 (顶层 / soc / soc 里的模块和核里的模块)。"""
+    print(f'{"模块":28} {"LUT":>6} {"FF":>6}')
+    for depth, name, lut, ff in rows:
+        if depth <= 3:
+            print(f'{"  " * depth + name:28} {lut:>6} {ff:>6}')
 
 
 BACKENDS = {'vivado': (vivado_generate, vivado_build), 'pds': (pds_generate, pds_build)}

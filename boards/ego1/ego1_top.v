@@ -76,19 +76,10 @@ module ego1_top #(
         .UART_TX_PIN(`UART_TX_PIN),
         .UART_RX_PIN(`UART_RX_PIN)
     ) soc (
-        .clk(clk50),
+        .clk  (clk50),
         .rst_n(reset_pipe[15]),
-        .io_o(io_o),
+        .io_o (io_o),
         .io_oe(io_oe),
-        .io_i(io_i),
-        .uart_rx(1'b1),
-        .uart_tx(),
-        .led(),
-        .spi_mosi(),
-        .spi_miso(1'b0),
-        .spi_ss(),
-        .spi_clk(),
-        .lcd_dc(),
-        .lcd_rst_n()
+        .io_i (io_i)
     );
 endmodule

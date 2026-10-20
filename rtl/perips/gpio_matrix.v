@@ -85,12 +85,16 @@ module gpio_matrix #(
     end
 
     // 每个引脚一段: 循环里对数组做非阻塞赋值, 旧版 verilator (5.020) 不支持
-    for (genvar g = 0; g < 128; g = g + 1) begin : g_out_sel
-        always @(posedge clk or negedge rst_n) begin
-            if (!rst_n) func_out_sel[g] <= (g < IO_N && g == UART_TX_PIN) ? 8'd1 : 8'd0;
-            else if (wen && is_out_sel && pin == g && g < IO_N) func_out_sel[g] <= data_i[7:0];
+    // genvar 单独声明: for 里直接声明是 SystemVerilog 写法, PDS 按 Verilog 解析会报错
+    genvar g;
+    generate
+        for (g = 0; g < 128; g = g + 1) begin : g_out_sel
+            always @(posedge clk or negedge rst_n) begin
+                if (!rst_n) func_out_sel[g] <= (g < IO_N && g == UART_TX_PIN) ? 8'd1 : 8'd0;
+                else if (wen && is_out_sel && pin == g && g < IO_N) func_out_sel[g] <= data_i[7:0];
+            end
         end
-    end
+    endgenerate
 
     integer p;
     always @(*) begin

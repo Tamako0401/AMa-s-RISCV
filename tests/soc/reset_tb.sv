@@ -10,17 +10,11 @@ module reset_tb;
     reg rst_n = 0;
 
     soc_top u_soc (
-        .clk(clk),
+        .clk  (clk),
         .rst_n(rst_n),
-        .uart_rx(1'b1),
-        .uart_tx(),
-        .led(),
-        .spi_mosi(),
-        .spi_miso(1'b0),
-        .spi_ss(),
-        .spi_clk(),
-        .lcd_dc(),
-        .lcd_rst_n()
+        .io_o (),
+        .io_oe(),
+        .io_i (128'b0)
     );
 
     // 观察数据总线上对 tohost 的写

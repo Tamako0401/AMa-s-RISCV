@@ -25,20 +25,11 @@ module snake_tb;
         .UART_TX_PIN(`PIN_UART_TX),
         .UART_RX_PIN(`PIN_UART_RX)
     ) u_soc (
-        .clk(clk),
+        .clk  (clk),
         .rst_n(rst_n),
-        .io_o(io_o),
+        .io_o (io_o),
         .io_oe(io_oe),
-        .io_i(io_i),
-        .uart_rx(1'b1),
-        .uart_tx(),
-        .led(),
-        .spi_mosi(),
-        .spi_miso(1'b0),
-        .spi_ss(),
-        .spi_clk(),
-        .lcd_dc(),
-        .lcd_rst_n()
+        .io_i (io_i)
     );
     st7789_model #(
         .W(W),

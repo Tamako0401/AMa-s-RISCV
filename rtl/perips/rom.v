@@ -26,7 +26,7 @@
 
 // 指令存储器(ROM)从设备
 //
-// 总线接口与 perips/gpio.v、perips/uart.v 以及 rib 的从设备端口逐位对应:
+// 总线接口与 perips/gpio_matrix.v、perips/uart.v 以及 rib 的从设备端口逐位对应:
 //     addr_i / data_i / sel_i / we_i / data_o
 //     req_valid_i / req_ready_o / rsp_valid_o / rsp_ready_i
 //

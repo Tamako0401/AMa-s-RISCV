@@ -10,7 +10,7 @@
  UART_TX ───────────┘                                    │
 ```
 
-实现在 `rtl/perips/gpio_matrix.v`, 挂在外设子总线第 3 口 `0x4000_3000`。
+实现在 `rtl/perips/gpio_matrix.v`, 映射到 `0x4000_3000`。
 
 ## 引脚表: 每块板一张
 

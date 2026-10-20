@@ -14,3 +14,5 @@
 | sw/ (main.c 自检, lcd_main.c 屏幕演示, gpio.h 旧 GPIO 驱动) | sw/board/ |
 | tests/board_lcd_tb.sv | tests/board/ |
 | tests/board_reset*.{c,sv} (KEY1 后 .data 不恢复的缺陷复现) | tests/directed/ |
+
+rtl/perips/gpio.v 已删, 需要时从 git 历史取。

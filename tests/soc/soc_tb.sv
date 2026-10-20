@@ -38,12 +38,34 @@ module soc_tb;
     assign dv   = u_soc.u_core.dbus_req_valid_o;
     assign dr   = u_soc.u_core.dbus_req_ready_i;
 
-    reg uart_rx_line = 1;  // 串口空闲为高
-    soc_top u_soc (
-        .clk     (clk),
-        .rst_n   (rst_n),
-        .uart_rx (uart_rx_line),
-        .spi_miso(1'b0)           // 本测试不驱动 SPI 设备
+    `include "boards/mes50hp/pins_top.vh"
+    reg uart_rx_line = 1;
+    wire [127:0] io_o;
+    wire [127:0] io_i = {127'b0, uart_rx_line} << `UART_RX_PIN;
+    wire uart_tx = io_o[`UART_TX_PIN];
+    wire spi_clk = io_o[`PIN_J8_27];
+    wire spi_mosi = io_o[`PIN_J8_28];
+    wire [2:0] controls = {io_o[`PIN_J8_23], io_o[`PIN_J8_26], io_o[`PIN_J8_25]};
+    wire [7:0] leds = {
+        io_o[`PIN_LED8],
+        io_o[`PIN_LED7],
+        io_o[`PIN_LED6],
+        io_o[`PIN_LED5],
+        io_o[`PIN_LED4],
+        io_o[`PIN_LED3],
+        io_o[`PIN_LED2],
+        io_o[`PIN_LED1]
+    };
+    soc_top #(
+        .IO_N(`IO_N),
+        .UART_TX_PIN(`UART_TX_PIN),
+        .UART_RX_PIN(`UART_RX_PIN)
+    ) u_soc (
+        .clk  (clk),
+        .rst_n(rst_n),
+        .io_o (io_o),
+        .io_oe(),
+        .io_i (io_i)
     );
 
     // UART: 从 uart_tx 引脚解码字节(不看内部寄存器), 收到两个字节后从 uart_rx 发 0x3C。
@@ -53,17 +75,17 @@ module soc_tb;
     integer uart_tx_bytes = 0;
     reg [7:0] uart_byte;
     integer bit_clks, b;
-    always @(negedge u_soc.uart_tx)
+    always @(negedge uart_tx)
         if (rst_n && check_uart) begin
             bit_clks = u_soc.u_uart.uart_baud[15:0] + 1;
             repeat (bit_clks / 2) @(posedge clk);
-            if (u_soc.uart_tx !== 1'b0) $fatal(1, "UART start bit");
+            if (uart_tx !== 1'b0) $fatal(1, "UART start bit");
             for (b = 0; b < 8; b = b + 1) begin
                 repeat (bit_clks) @(posedge clk);
-                uart_byte[b] = u_soc.uart_tx;
+                uart_byte[b] = uart_tx;
             end
             repeat (bit_clks) @(posedge clk);
-            if (u_soc.uart_tx !== 1'b1) $fatal(1, "UART stop bit");
+            if (uart_tx !== 1'b1) $fatal(1, "UART stop bit");
             if (uart_byte !== (uart_tx_bytes == 0 ? 8'h41 : 8'h5a))
                 $fatal(1, "UART TX byte %0d got=%h", uart_tx_bytes, uart_byte);
             uart_tx_bytes = uart_tx_bytes + 1;
@@ -88,7 +110,7 @@ module soc_tb;
         if (rst_n) begin
             if (sel_cnt > 3'd1) $fatal(1, "rib selected %0d slaves at once", sel_cnt);
             if (rsp_cnt > 2'd1) $fatal(1, "rib routed a response to both masters");
-            if (check_spi && dv && dr && !dwe && da == 32'h40000004) begin
+            if (check_spi && dv && dr && !dwe && da == 32'h40003000) begin
                 case (gpio_checks)
                     0: expected_controls = 3'b101;
                     1: expected_controls = 3'b011;
@@ -97,21 +119,20 @@ module soc_tb;
                     4: expected_controls = 3'b111;
                     default: $fatal(1, "Unexpected GPIO read");
                 endcase
-                if ({u_soc.spi_ss, u_soc.lcd_dc, u_soc.lcd_rst_n} !== expected_controls)
+                if (controls !== expected_controls)
                     $fatal(1, "GPIO-controlled screen pins at checkpoint %0d", gpio_checks);
                 gpio_checks = gpio_checks + 1;
             end
         end
 
-    always @(u_soc.spi_clk)
+    always @(spi_clk)
         if (rst_n && check_spi) begin
-            if ({u_soc.spi_ss, u_soc.lcd_dc, u_soc.lcd_rst_n} !== 3'b011)
-                $fatal(1, "CS/DC/RST_N changed during SPI clocks");
+            if (controls !== 3'b011) $fatal(1, "CS/DC/RST_N changed during SPI clocks");
             spi_edges = spi_edges + 1;
             // This program uses mode 0. Decode actual pins to verify CPU byte
             // stores reach the serial data path, not only the register/status path.
-            if (u_soc.spi_clk) spi_byte = {spi_byte[6:0], u_soc.spi_mosi};
-            if (!u_soc.spi_clk && spi_edges % 16 == 0) begin
+            if (spi_clk) spi_byte = {spi_byte[6:0], spi_mosi};
+            if (!spi_clk && spi_edges % 16 == 0) begin
                 if (spi_byte !== (spi_edges == 16 ? 8'ha5 : 8'h3c))
                     $fatal(1, "SoC MOSI byte got=%h at edge %0d", spi_byte, spi_edges);
             end
@@ -154,8 +175,8 @@ module soc_tb;
                 $fatal(1, "Store count %0d expected %0d", stores, expected_stores);
             if (check_spi && (gpio_checks != 5 || spi_edges != 32))
                 $fatal(1, "SPI/GPIO checkpoints=%0d clocks=%0d", gpio_checks, spi_edges);
-            if (check_uart && (uart_tx_bytes != 2 || u_soc.led !== 8'ha5))
-                $fatal(1, "UART bytes=%0d led=%h", uart_tx_bytes, u_soc.led);
+            if (check_uart && (uart_tx_bytes != 2 || leds !== 8'ha5))
+                $fatal(1, "UART bytes=%0d led=%h", uart_tx_bytes, leds);
             $display("PASS SoC %s cycles=%0d stores=%0d", rom_path, cycles, stores);
             $finish;
         end

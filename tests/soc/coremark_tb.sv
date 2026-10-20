@@ -11,21 +11,21 @@ module coremark_tb;
 
     reg clk = 0;
     always #10 clk = ~clk;  // 50 MHz, 与板载时钟相同
-    reg  rst_n = 0;
-    wire uart_tx;
+    reg rst_n = 0;
+    `include "boards/mes50hp/pins_top.vh"
+    wire [127:0] io_o;
+    wire uart_tx = io_o[`UART_TX_PIN];
 
-    soc_top u_soc (
-        .clk(clk),
+    soc_top #(
+        .IO_N(`IO_N),
+        .UART_TX_PIN(`UART_TX_PIN),
+        .UART_RX_PIN(`UART_RX_PIN)
+    ) u_soc (
+        .clk  (clk),
         .rst_n(rst_n),
-        .uart_rx(1'b1),
-        .uart_tx(uart_tx),
-        .led(),
-        .spi_mosi(),
-        .spi_miso(1'b0),
-        .spi_ss(),
-        .spi_clk(),
-        .lcd_dc(),
-        .lcd_rst_n()
+        .io_o (io_o),
+        .io_oe(),
+        .io_i (128'b1 << `UART_RX_PIN)
     );
 
     // 观察数据总线上对 tohost 的写

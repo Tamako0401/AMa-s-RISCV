@@ -4,7 +4,7 @@
 用途是让 AXI 接口的厂商控制器（例如 DDR3 控制器）能挂进 RIB 的地址空间，
 让 CPU 像访问普通存储器一样访问它。
 
-RIB 从设备侧的端口命名与 `rtl/perips/spi.v`、`rtl/perips/gpio.v` 完全一致，
+RIB 从设备侧的端口命名与 `rtl/perips/spi.v`、`rtl/perips/gpio_matrix.v` 完全一致，
 因此它可以像普通外设一样接进 RIB 的任意从设备槽位。
 
 ## 为什么只发单拍事务
@@ -70,7 +70,7 @@ RIB 的 `sel_i` 是**按 32 位字对齐**的字节通道掩码。AXI 侧不使�
 1. 在 PDS 的 IP 生成器里确认控制器 IP 的**接口类型**（AXI4-Lite / AXI4 / native）、
    **数据位宽**和**是否与 CPU 同频**。
 2. 按上表设置 `axi_bridge` 的参数，把 AXI 侧直接连到 IP 的从设备端口。
-3. 在 `rtl/soc_top/soc_top.v` 里把这个桥接进 RIB 的一个空闲槽位。`s0` ROM、`s1` RAM、`s4` 外设子总线（GPIO/UART/SPI 在
+3. 在 `rtl/soc_top/soc_top.v` 里把这个桥接进 RIB 的一个空闲槽位。`s0` ROM、`s1` RAM、`s4` 外设子总线（GPIO 矩阵/UART/SPI/SYSCTL 在
    `rtl/core/periph_bus.v` 下按 `addr[15:12]` 再分），**`s2`（`0x2000_0000`）与
    `s3`（`0x3000_0000`）空闲**，适合放大容量设备。注意 RIB 一共只有 `s0`~`s4`
    五档，细粒度外设应挂到 `s4` 的子总线，而不是各占一档。

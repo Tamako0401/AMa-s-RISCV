@@ -1,14 +1,20 @@
-/* RIB integration: persistent CR1, write-to-send DR, GPIO BSRR control.
+/* RIB integration: persistent CR1, write-to-send DR, GPIO matrix control.
  * SPI 0x40002000: CR1/CR2/SR/DR at 0/4/8/C.
- * GPIO 0x40000000: CTRL/DATA/BSRR at 0/4/8; pins 0=CS, 1=DC, 2=RST_N.
+ * Matrix 0x40003000: OUT/W1TS/W1TC/ENABLE at 0/0x10/0x20/0x30.
+ * Board pins: 20=CS, 23=DC, 22=RST_N, 24=SCK, 25=MOSI.
  * The testbench checks the external control pins and exactly 32 SCK edges.
  * Independent four-mode/full-duplex timing tests are in reusable/spi_tb.sv.
  */
 .section .text.init
 .globl _start
 _start:
+    li t0, 0x40000000
+    li t1, -1
+    sw t1, 0(t0)                 /* removed GPIO page must discard writes and return zero */
+    lw t1, 0(t0)
+    bnez t1, fail
     li s0, 0x40002000
-    li s2, 0x40000000
+    li s2, 0x40003000
     lw t1, 0(s0)
     li t2, 4
     bne t1, t2, fail
@@ -23,28 +29,35 @@ _start:
     lw t1, 8(s0)
     bne t1, t2, fail
 
-    li t1, 5
-    sw t1, 8(s2)                 /* preload CS=1, RST_N=1 before output mode */
-    li t1, 0x15
-    sw t1, 0(s2)                 /* pins 0/1/2 output */
-    lw t1, 4(s2)
-    li t2, 5
+    li t1, 2
+    sw t1, 0x260(s2)             /* route SCK to J8_27 */
+    li t1, 3
+    sw t1, 0x264(s2)             /* route MOSI to J8_28 */
+    li t1, 0x00500000
+    sw t1, 0x10(s2)              /* preload CS=1, RST_N=1 before output mode */
+    li t1, 0x00d00000
+    sw t1, 0x30(s2)
+    lw t1, 0(s2)
+    li t2, 0x00500000
     bne t1, t2, fail
-    li t1, 0x00010002
-    sw t1, 8(s2)                 /* one write: CS=0, DC=1 */
-    lw t1, 4(s2)
-    li t2, 6
+    li t1, 0x00800000
+    sw t1, 0x10(s2)              /* DC=1 */
+    li t1, 0x00100000
+    sw t1, 0x20(s2)              /* CS=0 */
+    lw t1, 0(s2)
+    li t2, 0x00c00000
     bne t1, t2, fail
-    li t1, 4
-    sb t1, 10(s2)                /* upper BSRR byte clears RST_N */
-    lw t1, 4(s2)
-    li t2, 2
+    li t1, 0x40
+    sb t1, 0x22(s2)              /* byte store clears RST_N */
+    lw t1, 0(s2)
+    li t2, 0x00800000
     bne t1, t2, fail
-    sh t1, 8(s2)                 /* setting DC must preserve RST_N=0 */
-    li t1, 4
-    sh t1, 8(s2)                 /* lower BSRR halfword releases RST_N */
-    lw t1, 4(s2)
-    li t2, 6
+    li t1, 0x80
+    sh t1, 0x12(s2)              /* setting DC must preserve RST_N=0 */
+    li t1, 0x40
+    sh t1, 0x12(s2)              /* halfword store releases RST_N */
+    lw t1, 0(s2)
+    li t2, 0x00c00000
     bne t1, t2, fail
 
     li s3, 0x7c                  /* MSTR=1, SPE=1, BR=7 (/256), mode 0 */
@@ -80,10 +93,10 @@ complete:
     lw t1, 8(s0)
     li t2, 2
     bne t1, t2, fail
-    li t1, 1
-    sw t1, 8(s2)                 /* release CS only after BSY=0 */
-    lw t1, 4(s2)
-    li t2, 7
+    li t1, 0x00100000
+    sw t1, 0x10(s2)              /* release CS only after BSY=0 */
+    lw t1, 0(s2)
+    li t2, 0x00d00000
     bne t1, t2, fail
     lw t1, 0(s0)
     bne t1, s3, fail              /* SPE/configuration did not self-clear */

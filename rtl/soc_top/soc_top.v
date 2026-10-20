@@ -6,14 +6,12 @@
 //   s2 = 保留(未接入)
 //   s3 = 保留(未接入)
 //   s4 = 外设子总线 0x4000_0000, 按 addr[15:12] 再分, 每个外设 4 KiB (rtl/core/periph_bus.v):
-//          0x4000_0000  GPIO  -- CTRL / DATA / BSRR
+//          0x4000_0000: 空, 读返回 0, 写被丢弃
 //          0x4000_1000  UART  -- 偏移 0/4/8/C/10: 控制/状态/分频/TX/RX
 //          0x4000_2000  SPI   -- CR1 / CR2 / SR / DR, 见 docs/spi.md
 //          0x4000_3000  GPIO 矩阵, 见 docs/gpio-matrix.md
 //          0x4000_4000  SYSCTL -- HW_ID / ROM_WE
 //          0x4000_5000 以后: 空, 读返回 0, 写被丢弃
-// GPIO outputs 0/1/2 drive CS / DC / RST_N; unconfigured pins use safe levels.
-// GPIO 8~15 驱动 led[0..7], 配置为输出且数据为 1 时点亮.
 //
 // 未命中任何 rib 从设备的地址不会握手(RIB 没有错误响应通道), 访问会一直等待。
 module soc_top #(
@@ -31,17 +29,6 @@ module soc_top #(
     input wire clk,
     input wire rst_n,
 
-    input  wire       uart_rx,  // 空闲为高
-    output wire       uart_tx,
-    output wire [7:0] led,
-
-    // SPI data/clock; LCD control pins are driven by GPIO below.
-    output wire         spi_mosi,   // 控制器输出、设备输入
-    input  wire         spi_miso,   // 控制器输入、设备输出
-    output wire         spi_ss,     // 片选, 低有效
-    output wire         spi_clk,
-    output wire         lcd_dc,     // LCD 命令/数据选择: 0=命令, 1=数据
-    output wire         lcd_rst_n,  // LCD 复位, 低有效
     output wire [127:0] io_o,
     output wire [127:0] io_oe,
     input  wire [127:0] io_i
@@ -77,14 +64,14 @@ module soc_top #(
     wire [3:0] s4_sel;
     wire s4_we, s4_req_valid, s4_req_ready, s4_rsp_valid, s4_rsp_ready;
 
-    // 子总线各口, 口号见文件头; 第 k 口占 [k*32 +: 32] / [k*4 +: 4] / [k]
-    localparam PERIPH_N = 5;
-    localparam P_GPIO   = 0, P_UART = 1, P_SPI = 2, P_MATRIX = 3, P_SYSCTL = 4;
+    // 子总线各口从 UART 开始; 第 k 口占 [k*32 +: 32] / [k*4 +: 4] / [k]
+    localparam PERIPH_N = 4;
+    localparam P_UART   = 0, P_SPI = 1, P_MATRIX = 2, P_SYSCTL = 3;
     wire [PERIPH_N*32-1:0] p_addr, p_wdata, p_rdata;
     wire [PERIPH_N*4-1:0] p_sel;
     wire [PERIPH_N-1:0] p_we, p_req_valid, p_req_ready, p_rsp_valid, p_rsp_ready;
 
-    wire [31:0] gpio_ctrl, gpio_data;
+    wire uart_tx, spi_mosi, spi_clk;
     wire matrix_uart_rx, matrix_spi_miso;
     wire rom_we;
 
@@ -243,12 +230,13 @@ module soc_top #(
 
 
     // 外设子总线 (rib 从设备 4)
+    // 保持外设 MMIO 地址不变, 同时让旧 GPIO 页落入子总线的空地址范围。
     periph_bus #(
         .N(PERIPH_N)
     ) u_periph_bus (
         .clk(clk),
         .rst_n(rst_n),
-        .addr_i(s4_addr),
+        .addr_i(s4_addr - 32'h1000),
         .data_i(s4_wdata),
         .sel_i(s4_sel),
         .we_i(s4_we),
@@ -282,7 +270,7 @@ module soc_top #(
         .rsp_valid_o(p_rsp_valid[P_SPI]),
         .rsp_ready_i(p_rsp_ready[P_SPI]),
         .spi_mosi(spi_mosi),
-        .spi_miso(IO_N == 0 ? spi_miso : matrix_spi_miso),
+        .spi_miso(matrix_spi_miso),
         .spi_clk(spi_clk)
     );
 
@@ -302,7 +290,7 @@ module soc_top #(
         .rsp_valid_o(p_rsp_valid[P_UART]),
         .rsp_ready_i(p_rsp_ready[P_UART]),
         .tx_pin(uart_tx),
-        .rx_pin(IO_N == 0 ? uart_rx : matrix_uart_rx)
+        .rx_pin(matrix_uart_rx)
     );
 
     gpio_matrix #(
@@ -347,35 +335,5 @@ module soc_top #(
         .rsp_ready_i(p_rsp_ready[P_SYSCTL]),
         .rom_we(rom_we)
     );
-
-    // GPIO (0x4000_0000)
-    gpio u_gpio (
-        .clk(clk),
-        .rst_n(rst_n),
-        .addr_i(p_addr[P_GPIO*32+:32]),
-        .data_i(p_wdata[P_GPIO*32+:32]),
-        .sel_i(p_sel[P_GPIO*4+:4]),
-        .we_i(p_we[P_GPIO]),
-        .data_o(p_rdata[P_GPIO*32+:32]),
-        .req_valid_i(p_req_valid[P_GPIO]),
-        .req_ready_o(p_req_ready[P_GPIO]),
-        .rsp_valid_o(p_rsp_valid[P_GPIO]),
-        .rsp_ready_i(p_rsp_ready[P_GPIO]),
-        .io_pin_i(2'b00),
-        .reg_ctrl(gpio_ctrl),
-        .reg_data(gpio_data)
-    );
-    // Initialize DATA/BSRR before enabling output directions. GPIO retains its
-    // existing mode encoding: 0 high-Z, 1 output, 2 input (not STM32 MODER).
-    assign spi_ss = gpio_ctrl[1:0] == 2'b01 ? gpio_data[0] : 1'b1;
-    assign lcd_dc = gpio_ctrl[3:2] == 2'b01 ? gpio_data[1] : 1'b0;
-    assign lcd_rst_n = gpio_ctrl[5:4] == 2'b01 ? gpio_data[2] : 1'b1;
-
-    genvar i;
-    generate
-        for (i = 0; i < 8; i = i + 1) begin : g_led
-            assign led[i] = gpio_ctrl[(8+i)*2+:2] == 2'b01 && gpio_data[8+i];
-        end
-    endgenerate
 
 endmodule

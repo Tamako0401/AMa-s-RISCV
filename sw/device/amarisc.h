@@ -46,17 +46,6 @@ typedef struct {
 #define SPI_SR_BSY_Msk (0x1UL << SPI_SR_BSY_Pos)
 #define SPI_SR_BSY SPI_SR_BSY_Msk
 
-/* ---------------- GPIO: CTRL 编码不是 STM32 MODER ---------------- */
-typedef struct {
-    __IO uint32_t CTRL; /* 0x00 每引脚 2 位, 取值见 GPIO_MODE_* */
-    __IO uint32_t DATA; /* 0x04 输出数据 / 输入采样 */
-    __O uint32_t BSRR;  /* 0x08 低 16 位写 1 置位, 高 16 位写 1 清零; 读为 0 */
-} GPIO_TypeDef;
-
-#define GPIO_MODE_HIZ 0x0UL
-#define GPIO_MODE_OUTPUT 0x1UL
-#define GPIO_MODE_INPUT 0x2UL
-
 /* ---------------- UART: 8N1, 无 FIFO ---------------- */
 typedef struct {
     __IO uint32_t CTRL;   /* 0x00 bit0 发送使能, bit1 接收使能 */
@@ -89,11 +78,9 @@ typedef struct {
 
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE 0x40002000UL
-#define GPIO_BASE 0x40000000UL
 #define UART1_BASE 0x40001000UL
 
 #define SPI1 ((SPI_TypeDef *)SPI1_BASE)
-#define GPIO ((GPIO_TypeDef *)GPIO_BASE)
 #define UART1 ((UART_TypeDef *)UART1_BASE)
 
 #endif

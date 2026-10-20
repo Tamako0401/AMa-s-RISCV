@@ -24,9 +24,11 @@ Stack:
 MMIO:
     RIB slots s2 (0x20000000) and s3 (0x30000000) are free
     RIB slot s4 (0x40000000) = peripheral bus, 4 KiB per port by addr[15:12]:
-        0x40000000 GPIO (pins 0..2 = CS/DC/RST_N, pins 8..15 = led[0..7]; CTRL/DATA/BSRR)
+        0x40000000 unused (reads return zero, writes discarded)
         0x40001000 UART (CTRL/STATUS/BAUD/TXDATA/RXDATA at 0/4/8/C/10)
         0x40002000 SPI  (CR1/CR2/SR/DR at 0/4/8/C)
+        0x40003000 GPIO matrix (all board pins, including UART/SPI)
+        0x40004000 SYSCTL (HW_ID/ROM_WE)
     CPU/SoC tests reserve RAM word 0x10000000 for completion
 
 Interrupt:
