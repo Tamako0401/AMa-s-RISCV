@@ -1,6 +1,6 @@
 # RIB ↔ AXI 协议桥
 
-`rtl/core/axi_bridge.v`（2026-10-01 新增）把 **RIB** 与 **AXI4 / AXI4-Lite** 对接，
+`rtl/core/axi_bridge.v` 把 **RIB** 与 **AXI4 / AXI4-Lite** 对接，
 用途是让 AXI 接口的厂商控制器（例如 DDR3 控制器）能挂进 RIB 的地址空间，
 让 CPU 像访问普通存储器一样访问它。
 
@@ -15,9 +15,7 @@ RIB 从设备侧的端口命名与 `rtl/perips/spi.v`、`rtl/perips/gpio.v` 完�
 | 兼容两种从设备 | 单拍（`len=0`、`burst=INCR`）的 AXI4 语义与 AXI4-Lite 一致 |
 | 简化实现 | 不用处理 burst 拆包、窄传输首末拍、`rlast` 序列 |
 
-代价是**用不上 DDR3 的 burst 带宽**。当前这不是瓶颈：SPI 只有 3 MB/s 量级，
-而 RIB 一次事务 4 字节、DDR3 一次 burst 32 字节，两者都远快于 SPI。
-将来若要吃满 DDR3 带宽，需要先让 RIB 支持 burst。
+代价是**用不上 DDR3 的 burst 带宽**。将来若要吃满 DDR3 带宽，需要先让 RIB 支持 burst。
 
 ## 字节使能的处理方式
 
@@ -72,8 +70,7 @@ RIB 的 `sel_i` 是**按 32 位字对齐**的字节通道掩码。AXI 侧不使�
 1. 在 PDS 的 IP 生成器里确认控制器 IP 的**接口类型**（AXI4-Lite / AXI4 / native）、
    **数据位宽**和**是否与 CPU 同频**。
 2. 按上表设置 `axi_bridge` 的参数，把 AXI 侧直接连到 IP 的从设备端口。
-3. 在 `rtl/soc_top/soc_top.v` 里把这个桥接进 RIB 的一个空闲槽位。截至 2026-10-02
-   的映射是：`s0` ROM、`s1` RAM、`s4` 外设子总线（GPIO/UART/SPI 在
+3. 在 `rtl/soc_top/soc_top.v` 里把这个桥接进 RIB 的一个空闲槽位。`s0` ROM、`s1` RAM、`s4` 外设子总线（GPIO/UART/SPI 在
    `rtl/core/periph_bus.v` 下按 `addr[15:12]` 再分），**`s2`（`0x2000_0000`）与
    `s3`（`0x3000_0000`）空闲**，适合放大容量设备。注意 RIB 一共只有 `s0`~`s4`
    五档，细粒度外设应挂到 `s4` 的子总线，而不是各占一档。
@@ -83,8 +80,6 @@ RIB 的 `sel_i` 是**按 32 位字对齐**的字节通道掩码。AXI 侧不使�
 
 ## 仿真怎么回归
 
-厂商 IP 不能在 iverilog 里跑，所以用行为模型顶替：
-
 | 文件 | 作用 |
 | --- | --- |
 | `tests/reusable/axi_slave_model.sv` | AXI4 从设备模型：一块字存储器 + 可配置读写延迟 + 可注入 `SLVERR` |
@@ -93,17 +88,7 @@ RIB 的 `sel_i` 是**按 32 位字对齐**的字节通道掩码。AXI 侧不使�
 模型会对 burst（`arlen/awlen != 0`）直接 `$fatal`，**把它当断言用**：这正是
 我们期望 `axi_bridge` 永远不会发出的东西。
 
-运行：
-
-```text
-iverilog -g2012 -s axi_bridge_tb -o build/reusable/axi_bridge_tb.vvp \
-    -f rtl/reusable.f tests/reusable/axi_slave_model.sv tests/reusable/axi_bridge_tb.sv
-vvp build/reusable/axi_bridge_tb.vvp
-```
-
-或走 `nu --no-config-file scripts/test-reusable.nu`。
-
-## 验证范围（2026-10-01）
+## 验证范围
 
 覆盖并已通过（47 个用例）：
 

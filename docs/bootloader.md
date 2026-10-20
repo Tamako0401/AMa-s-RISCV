@@ -1,7 +1,6 @@
 # 串口 bootloader
 
 目的: 改了 C 不用重新综合。位流里固化一个小引导程序, 电脑经串口把新程序写进 ROM 再运行, 几秒完成。
-位流因此和 app 无关, 每块板只在改了 rtl/、boards/、sw/boot/ 之后才需要重新构建。
 
 ## 存储布局
 
@@ -29,7 +28,7 @@ ROM 64 KiB
 
 | 偏移 | 名字 | 说明 |
 |---|---|---|
-| 0x0 | HW_ID | 只读, soc_top 参数 HW_ID (构建时由 `scripts/hwid.py` 算出) |
+| 0x0 | HW_ID | 只读, soc_top 参数 HW_ID |
 | 0x4 | ROM_WE | 写 1 允许写 ROM app 区, 写 0 禁止; 复位为 0 |
 
 app 平时 ROM_WE = 0, 野指针写 ROM 会被丢弃, 和以前一样。只有 bootloader 会打开它。
@@ -42,7 +41,7 @@ RX 回到高电平后按现在的方式同步释放。正常数据里最长的�
 
 ## bootloader 固件 (sw/boot/)
 
-自带链接脚本和启动代码, 直接访问 UART/sysctl 寄存器, 不链接 sw/drivers (这样 hwid 只需要看 sw/boot/)。
+自带链接脚本和启动代码, 直接访问 UART/sysctl 寄存器, 不链接 sw/drivers。
 编译后必须不超过 2 KiB。
 
 ```
@@ -57,7 +56,6 @@ RX 回到高电平后按现在的方式同步释放。正常数据里最长的�
        → 对上回 'K', 否则回 'E' + 板子算出的 CRC32(4)
        → 长度超过 app 区大小: 不写, 直接回 'E' + 0xFFFFFFFF
   'G'  → 跳到 0x0000
-  收数据途中超过 BYTE_TIMEOUT_MS (100 ms) 没有新字节, 或收到未知命令: 放弃, 回到等 0x7F
 ```
 
 - 跳转前不复位外设: app 的启动代码和 uart_init 会重新初始化。
@@ -78,20 +76,9 @@ RX 回到高电平后按现在的方式同步释放。正常数据里最长的�
  │←────────── app 的输出
 ```
 
-- 电脑先检查版本和 HW_ID: 版本不是 1 就停; HW_ID 和 `scripts/hwid.py <板>` 不一致就提示位流旧了 (仍可强制下载)。
 - 发 0x7F 后 200 ms 内没收到握手: 重发一次 break + 0x7F, 还不行就报错 (多半是板上位流没有 bootloader 或串口选错)。
 - 收到 'E': 重发一次 'W', 还不行就报错。
 
 ## 电脑端
 
-`scripts/load.py <程序.elf> [串口] [--force]`: 握手、检查、下载、跳转, 然后保持串口打开显示 app 输出 (Ctrl+] 退出)。
 板子按串口芯片识别 (FT2232 = EGO1, CP2102 = 盘古)。镜像长度补到 4 的倍数再发, CRC 按补齐后的数据算。
-以后并进 ama 的 `run`。
-
-## 构建
-
-`scripts/build-board.py --harvard`:
-- 编译 sw/boot/ 得到 bootloader 镜像, 检查不超过 2 KiB;
-- app 镜像检查不超过 62 KiB;
-- 拼成一个 64 KiB 的 ROM 初值 hex;
-- `HW_ID = hwid.py <板>` 传给顶层参数。

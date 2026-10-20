@@ -27,8 +27,6 @@ UART_TX, T4,   out
 UART_RX, N5,   in
 ```
 
-`scripts/gen-pins.py <板>` 从表生成三份文件 (生成的文件提交进仓库, 不用每次构建都跑):
-
 | 生成的文件 | 内容 |
 |---|---|
 | `boards/<板>/pins.xdc` 或 `pins.fdc` | 每个管脚的约束, 端口名 `io[编号]` |

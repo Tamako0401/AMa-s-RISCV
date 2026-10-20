@@ -1,6 +1,6 @@
 # SPI 与屏幕 GPIO
 
-2026-09-30 将 SPI 改为 STM32F1/F4 风格的寄存器子集：主机、8 位、MSB 先发，支持四种 CPOL/CPHA 模式。模块只产生 SCK/MOSI 并采样 MISO，CS、屏幕 DC 和 RST_N 由 GPIO 控制。
+STM32F1/F4 风格的寄存器子集：主机、8 位、MSB 先发，支持四种 CPOL/CPHA 模式。模块只产生 SCK/MOSI 并采样 MISO，CS、屏幕 DC 和 RST_N 由 GPIO 控制。
 
 ## 寄存器
 
@@ -49,38 +49,4 @@ TXE 不代表线上发送完成。最后一个字节的第八个后沿结束后�
 - SPE=0 时允许预装一个发送字节，TXE=0、BSY=0；设置 SPE 后开始发送。禁用时不要提交第二个字节，否则写请求会等待，单主设备软件无法越过该请求再使能 SPI。
 - 系统复位清除配置、发送队列、接收缓冲、错误标志及未消费的总线响应。
 
-## GPIO 接线
-
-`rtl/soc_top/soc_top.v` 在 RIB 的 s4 接入 GPIO，基址 `0x40000000`。其 CTRL/DATA 偏移和模式编码保持原样，新增 BSRR；输入脚在该顶层接零，当前只引出以下三个输出。
-
-| GPIO 位 | 顶层端口 | 未配置成输出时的电平 |
-| --- | --- | --- |
-| 0 | spi_ss / CS_N | 1，未选中 |
-| 1 | lcd_dc | 0，命令 |
-| 2 | lcd_rst_n | 1，释放复位 |
-
-| GPIO 偏移 | 名称 | 行为 |
-| --- | --- | --- |
-| `0x00` | CTRL | 每两位控制一个引脚：0 高阻、1 输出、2 输入；不是 STM32 MODER 编码 |
-| `0x04` | DATA | 低 16 位输出数据/两个输入脚采样，保留已有接口 |
-| `0x08` | BSRR | 写低 16 位中的 1 置位；写高 16 位中的 1 清零；同一位同时置位/清零时置位优先；读取为零 |
-
-BSRR 支持字、半字、字节使能；例如向 `GPIO+0x0a` 写半字是复位对应引脚。操作一个屏幕引脚不会覆盖另外两个引脚。
-
-初始化时先用 BSRR 设置 CS_N=1、RST_N=1，再写 CTRL=`0x15` 将前三个引脚配置成输出，避免输出默认值意外选中或复位屏幕。
-
-一次数据传输的顺序：配置 CR1 → BSRR 拉低 CS、设置 DC → 等 TXE、写 DR → 等 BSY=0 → BSRR 释放 CS。屏幕复位脉宽和命令/数据边界仍由具体屏幕驱动按控制器手册处理。
-
-## 验证与迁移
-
-- `nu --no-config-file scripts/test-reusable.nu`：组件、GPIO BSRR/背压，以及 SPI 的独立引脚收发测试。
-- `nu --no-config-file scripts/test-spi.nu --modelsim`：在独立库中运行 SPI 与 GPIO/UART 测试；失败或未到达 PASS 返回非零状态。
-- `python scripts/test-soc.py`：CPU 经 RIB 使用新 SPI 和 GPIO，核对 CS/DC/RST_N 的五组实际引脚电平、两个字节的 32 个 SCK 边沿、引脚解码的 A5/3C 数据，以及寄存器语义。
-
 SPI 测试覆盖四种模式 × 八档分频、00/FF/交替数据、独立 MISO 注入、发送缓冲满时等待、响应背压、RXNE/OVR、同拍读取/接收完成、配置写等待和传输中复位。它证明数字仿真行为，不证明真实屏幕、电气时序或 FPGA 上板结果。
-
-2026-09-30：Icarus 和 ModelSim 10.5b 均通过 32 组模式/分频、四种模式各三个连续字节及上述边界测试，GPIO/UART 测试通过；三个 SoC 程序通过，MES50HP 最小系统的配置启动和 KEY1 重启 UART/回显/LED 仿真通过。本次未做新 SPI 的 PDS 布局布线或实机屏幕验证。
-
-本次接口不兼容旧 CTRL/DATA/STATUS/DC 布局：旧 DATA=`+4` 迁到 DR=`+0x0c`；启动位不再存在；CPHA 从旧 bit2 迁到 bit0，SPE 为 bit6；CS/DC/RST_N 改为 GPIO 控制。旧测试程序已同步迁移。
-
-2026-10-02：MES50HP 板级系统（`rtl/soc/minimal_soc.v`）已接入同一 SPI，地址同为 `0x40002000`，GPIO 位 0/1/2 同样为 CS_N/DC/RST_N，LED 移到 GPIO 位 8–15 与 `soc_top` 一致；MISO 接地，背光在顶层固定点亮。SPI 的 DR/CR1 写背压会 Stall SoC 数据口，这是板级系统相对 UART/GPIO 新增的唯一非始终就绪外设。目标屏幕为 GMT024-8p10p-SPI（ST7789V，240×320），初始化序列对齐厂商例程；板级构建与验收见 [板级文档](../boards/mes50hp/README.md)。

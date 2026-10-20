@@ -6,12 +6,8 @@
 
 - 比赛：2026 全国大学生嵌入式芯片与系统设计竞赛，FPGA 创新设计赛道，紫光同创选题一“基于紫光同创 RISCV 指令集 CPU 设计”。不要与集创赛的紫光同创杯或其他年份赛题混淆。
 - 本仓库：https://github.com/Tamako0401/AMa-s-RISCV
-- 用户原定的初赛路线：基于 https://github.com/JerryYin777/FPGA_Competition-RISC-V_Processor-in-PGL22G 修改 CPU，曾希望增加流水级数；2026-09-27 团队进一步强调先确定应用，再围绕瓶颈优化，不能继续把加深流水当作唯一目标。
-- 上述参考仓库是基于 tinyriscv 的旧参赛移植工程，不是已确认的 2026 官方参考设计。
 - 初赛使用远程 FPGA 平台：http://www.logicmatrixsemi.com:5174/ 。用户的板卡借用申请未批准。
-- 用户于 2026-09-27 确认已从小眼睛科技购买盘古 50K 开发板主体（PGL50H 芯片）、USB 下载器、MES-ADDA-V1.1 和 SPI 显示器。“SIP”是此前的笔误。屏幕于 2026-10-02 核实为 GMT024-8p10p-SPI（ST7789V，240×320）；不得误用 PG2L50H 或 PGL22G 工程。
 - 团队三人：用户主负责 PDS，数字电路基础较少；另两位组员有一些数字电路基础。
-- 2026-09-29 用户确认实体板已到货，并提供随板资料目录 `E:/2026FPGA创新设计竞赛紫光同创杯资料包/盘古50K开发板资料`。其中 MES50HP 手册和示例对应 PGL50H-6IFBG484；KEY1 与重新加载配置键不同。
 
 ## 原始依据
 
@@ -38,33 +34,9 @@
 
 当前提出的应用方向是带图形输出的嵌入式游戏系统，并探索移植 SuperTux v0.1.3。它是待验证目标，不是已完成成果；完整游戏移植、采用其素材的自写小游戏、单纯显示图片必须明确区分。“图形输出是创新点”是团队当前设想，不能据此宣称独创或已获赛事认可。
 
-当前工程建议是先复现原版，再实现 IF/ID/EX/MEM/WB 五级顺序流水，以前递、停顿、冲刷、访存等待及性能对比为主要工作；先完成基础系统，再考虑更多级数、Cache、预测或 AI。该建议未经用户明确接受，不得写成既定设计。
-
 建议分工也尚待团队认领：用户负责 PDS/板级集成和硬件测量；组员 A 负责 CPU 微架构与 RTL；组员 B 负责验证、SoC 接口、软件与 CoreMark。后续以用户实际安排为准。
 
-## 已核查的代码背景（2026-09-25 快照，执行前复核）
-
-- 本仓库核查提交：`482f766fdce4fcfd5cab88650f762199e42f4d03`。当时已有软件启动/链接文件、平台约定和基础 RTL 练习，未发现完整 CPU/SoC/PDS 工程。不得把学习实验描述为已完成的参赛 CPU。
-- 参考仓库核查分支 `main`，提交 `00a3334d7c98f57a6d429a5e18910a7e2e88390b`。不要混用其 `main`、`master` 或其他 tinyriscv 版本而假设接口相同。
-- 本仓库 `docs/platform.md` 与 `sw/link.ld` 使用复位/链接地址 `0x80000000`、64 KiB RAM、栈顶 `0x80010000`；原 v0 暂无 MMIO/中断/CSR。这是学习阶段配置，正式参赛方案需重新对齐。
-- 参考 `source/core/defines.v` 使用复位地址 `0x0`；总线与顶层对应 ROM/RAM/timer/UART/GPIO 窗口起点依次为 `0x00000000`、`0x10000000`、`0x20000000`、`0x30000000`、`0x40000000`。地址窗口大小不等于真实存储容量。
-- 参考 `ram1`/`ram2` 实际 IP 配置为 32 位数据、14/13 位字地址，分别对应 64/32 KiB。不要仅依据包装模块 DP 或宏推定容量及读延迟。
-- 参考 PDS 工程记录 `2020.3-Lite`、Logos/PGL22G/MBG324/-6，选中顶层 `tinyriscv_soc_top`。另外存在 PLL 包装 `source/top.v`，但不在该工程列出的源文件中；有 PLL 文件不代表实际使用 PLL。
-- 当前软件构建用 riscv64 前缀工具加 `-march=rv32i -mabi=ilp32`，与赛题工具名称不同；需核对实际 RV32 输出及正式测评接受情况。
-
-上述内容只是源码检查，尚不证明参考版本或本仓库已经通过仿真、综合、时序、上板或 CoreMark。
-
-后续状态更新（2026-09-27 复核）：用户已核对并授权提交第一批移植；八个基础/外设 RTL 文件及组件测试、来源记录已分三次本地提交：`460128b`、`14891a0`、`2ea5906`。完整 CPU/SoC/PDS 尚未接入。继续前读 `docs/third-party.md`，尤其 GPIO/UART 的响应始终就绪条件和暂缓移植清单；执行 `scripts/test-reusable.nu` 可复验。组件回归通过，用户还提供过 ModelSim 外设测试 PASS 截图；这些不证明完整 CPU 或上板已通过。Git 状态和推送情况执行前重新检查。
-
 ## 开源复用与设计边界
-
-最新状态（2026-09-28）：完整紫光版 CPU 功能基线已接入，入口 `rtl/core/tinyriscv_core.v`，清单 `rtl/cpu.f`，接口/修改/验证说明见 `docs/cpu-baseline.md`。不依赖板卡 IP 的 CPU + 仿真存储器可运行汇编及 C 自检。取指改为保守的单笔事务和响应缓冲，访存、返回 PC、JALR 等已修正；不得把它称为原版性能复现或流水性能优化。复位和 64 KiB RAM 继续使用 `0x80000000`；测试邮箱不代表正式 MMIO。SoC 外设集成、PGL50H 工程、官方 ISA 回归、CoreMark 和上板仍未完成。软件测试与执行入口见 `scripts/test-cpu.nu` / `scripts/test-cpu.py`；支持 Icarus 和 ModelSim。Git 提交状态继续以实时检查为准。
-
-后续状态（2026-09-29）：新增 `rtl/soc/minimal_soc.v`、`boards/mes50hp/`、`sw/board/` 和 `scripts/build-board.py`，完成片上 64 KiB RAM + UART/GPIO 的最小 SoC。UART/GPIO 地址分别为 `0x30000000`/`0x40000000`。详见 `boards/mes50hp/README.md`。系统仿真及 PDS 2022.2-SP1-Lite 的 50 MHz 布局布线时序已通过，正确位流位于 `build/mes50hp/generate_bitstream/mes50hp_top.sbit`；实机下载、串口和 LED 仍待用户核对。PDS 须从生成目录启动，否则程序镜像可能找不到；不要使用 `invalid-first-run` 中的诊断生成物。DDR、显示、ADDA 未接入，不宣称已上板成功。
-
-后续状态（2026-10-02）：用户确认 LED 上板测试已成功。SPI 屏已核实为 GMT024-8p10p-SPI（ST7789V，240×320，排针 GND/VCC/SCL/SDA/RESET/AO/CS/BL，LVCMOS33）；FPGA 引脚取自厂商例程 `8-ADDA+SPI显示实验/display_test.fdc`：SCL=W8、SDA=V7、CS=V9、AO=T8、RESET=U8、BL=U9。板级系统已接入 SPI（`0x40002000`，MISO 接地，BL 顶层固定点亮），GPIO 位 0/1/2 控屏、位 8–15 控 LED，与通用 RIB SoC 一致；ST7789 初始化序列逐值对齐厂商例程（INVOFF、模式 3，COLMOD 写同义的 0x55）。板级固件 `sw/board/lcd_main.c` + `scripts/build-board.py --lcd`；引脚级画面仿真 `tests/board/board_lcd_tb.sv` 通过。实机屏幕验收仍未做。另新增 GitHub Actions CI（`.github/workflows/ci.yml`）跑全部 Icarus/Verilator 仿真回归；ModelSim、PDS、实机验收仍依赖本地。
-
-后续状态（2026-10-08）：LCD 六引脚约束（W8/V7/V9/T8/U8/U9）与厂商 `display_test.fdc` 逐位复核一致，核对报告见 `docs/lcd-pin-constraints.md`。位流固化到板上 QSPI Flash（W25Q128/GD25Q128/XT25BF128 三选一，接 PGL50H 专用配置脚，勿在 FDC 约束）流程：PDS Fabric Configuration → Boundary Scan 右键 PGL50H → Scan Outer Flash（Logos 烧 Flash 的前置步骤；报 `Flash id is 0x0` 时在 File→Connect To Server 向导把 TCK 降到最低重扫）→ Operations→Convert File 把 `.sbit` 转 `.sfc`（Flash 选 WINBOND W25Q128，三颗指令兼容）→ flash 挂链后右键 Program 烧 `.sfc` → 断电或按"重新加载配置"键自举验收。用户首次固化时 Scan Outer Flash 报 ID 0x0 失败待复查，固化尚未验收成功。同日 `build-board.py` 改为按变体分目录：LED/串口 bring-up 在 `build/mes50hp/`（`--pds`），LCD 演示在 `build/mes50hp-lcd/`（`--lcd --pds`），两个目录各自是独立 PDS 工程（PDS 以启动目录区分工程），位流同名不同目录，均已当日重建通过、50 MHz 时序满足。注意：此前 build/mes50hp 里遗留的 .sfc 实为 LCD 固件所转，已删除，固化前须从目标目录的 .sbit 重新 Convert。
 
 - 将“源代码授权允许复用”“比赛接受二次设计”“团队具有可说明的贡献”分别判断。
 - 已查看的 tinyriscv 核心、总线和外设文件带 Apache-2.0 声明。复用时逐项确认授权，保留适用声明、许可证及 NOTICE，标明修改。不得把整库一概认定为 Apache-2.0。
