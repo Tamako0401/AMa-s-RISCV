@@ -136,21 +136,12 @@ def compile_app(app, board, defines, out, **kw):
     cmd = compiler()
     elf = out / 'app.elf'
     run(*cmd, *options, '-T', 'sw/link.ld', *sources, '-lgcc', '-o', elf, cwd=ROOT, **kw)
-    # clangd 需要与实际编译一致的宏和头文件路径。
-    (ROOT / 'build/compile_commands.json').write_text(
-        json.dumps(
-            [
-                {
-                    'directory': str(ROOT),
-                    'file': src,
-                    'arguments': [*cmd, *options, '-c', src],
-                }
-                for src in sources
-            ],
-            ensure_ascii=False,
-            indent=1,
-        )
-    )
+    # clangd 需要与实际编译一致的宏和头文件路径; 合并而不是覆盖, 别的程序的文件也能跳转
+    database = ROOT / 'build/compile_commands.json'
+    entries = {e['file']: e for e in json.loads(database.read_text())} if database.exists() else {}
+    for src in sources:
+        entries[src] = {'directory': str(ROOT), 'file': src, 'arguments': [*cmd, *options, '-c', src]}
+    database.write_text(json.dumps(list(entries.values()), ensure_ascii=False, indent=1))
     return elf
 
 
