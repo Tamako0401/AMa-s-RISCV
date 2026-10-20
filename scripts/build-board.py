@@ -23,7 +23,7 @@ import coremark  # noqa: E402
 from hwid import hwid  # noqa: E402
 from elf2hex import load_segments  # noqa: E402
 
-# sw/ layered sources for the Harvard soc_top (keep in step with justfile sw_lib)
+# sw/ layered sources for the Harvard soc_top (keep in step with SW_LIB in ama)
 SW_LIB = ['sw/startup.S','sw/drivers/spi.c','sw/drivers/uart.c','sw/bsp/bsp.c','sw/components/lcd/lcd_io.c',
           'sw/components/lcd/lcd.c','sw/components/lcd/st7789.c','sw/components/lcd/st7735.c']
 SW_INC = ['sw/device','sw/drivers','sw/bsp','sw/components/lcd']

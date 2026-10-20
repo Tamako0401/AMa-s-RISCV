@@ -21,7 +21,7 @@ mkdir build && cd build && ../configure --prefix=$HOME/.local/spike && make -j &
 
 ```text
 python scripts/test-cpu.py                                   # 编译固件和 cpu-0-0.vvp
-SPIKE=~/.local/spike/bin/spike scripts/difftest.bash boot    # 或 just difftest boot
+SPIKE=~/.local/spike/bin/spike scripts/difftest.bash boot
 ```
 
 固件名：`smoke alu boot memory extensions`，默认 `smoke`。日志在 `build/difftest/` 下。

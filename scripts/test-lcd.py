@@ -18,7 +18,7 @@ BUILD = ROOT / 'build/lcd'
 
 ROM_BYTES = 65536          # 与 rtl/soc_top/soc_top.v 的 u_rom 一致
 
-# sw/ 的分层源码, 与 justfile 的 sw_lib 保持一致
+# sw/ 的分层源码, 与 ama 的 SW_LIB 保持一致
 SW_SOURCES = [
     'sw/startup.S',
     'sw/drivers/spi.c',

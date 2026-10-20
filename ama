@@ -12,6 +12,7 @@
 程序就是 sw/app/ 下的目录名。板子按插着的 USB 串口芯片自动识别 (FT2232 = EGO1, CP2102 = 盘古),
 识别不了时用 --board 指定。本机工具路径写在 ama.local.toml (见 ama.local.toml.example), 没有也能用。
 """
+import json
 import os
 import shlex
 import shutil
@@ -38,28 +39,26 @@ os.environ.update(CONFIG.get('env', {}))
 BOARDS = {
     'ego1': {
         'usb': (0x0403, 0x6010),                # FT2232: 接口 0 是 JTAG, 接口 1 是串口
-        'fpga_app': 'ego1_check',               # 位流里固化的默认程序 (重新烧位流后先跑它)
         'bit': 'build/ego1-harvard-{app}/ego1_top.bit',
     },
     'mes50hp': {
         'usb': (0x10C4, 0xEA60),                # 板载 CP2102
-        'fpga_app': 'board_check',
         'bit': 'build/mes50hp-harvard-{app}/generate_bitstream/mes50hp_top_matrix.sbit',
     },
 }
 
 # 和 scripts/build-board.py --harvard 的固件同一套源文件和编译选项
 SW_LIB = ['sw/startup.S', 'sw/drivers/spi.c', 'sw/drivers/uart.c', 'sw/bsp/bsp.c',
-          'sw/components/lcd/lcd_io.c', 'sw/components/lcd/lcd.c', 'sw/components/lcd/st7789.c',
+          'sw/components/key/key.c', 'sw/components/lcd/lcd_io.c', 'sw/components/lcd/lcd.c', 'sw/components/lcd/st7789.c',
           'sw/components/lcd/st7735.c', 'sw/components/lcd/ili9341.c']
-SW_INC = ['sw/device', 'sw/drivers', 'sw/bsp', 'sw/components/lcd']
+SW_INC = ['sw/device', 'sw/drivers', 'sw/bsp', 'sw/components/key', 'sw/components/lcd']
 CFLAGS = ['--target=riscv32-unknown-elf', '-march=rv32i_zicsr', '-mabi=ilp32', '-O2',
           '-nostdlib', '-ffreestanding', '-fno-builtin', '-Wall', '-Wextra',
           '-msmall-data-limit=0', '-mno-relax', '-fuse-ld=lld']
 
 # 有测试台的程序: 测试台 (tests/soc/<名>.sv) 和仿真专用的编译宏。仿真用盘古的接线
 SIMS = {
-    'lcd_demo': ('lcd_tb', []),
+    'selftest': ('lcd_tb', []),
     'reset_check': ('reset_tb', []),
     'snake': ('snake_tb', ['-DSNAKE_STEP_CYCLES=1000000']),     # 走一步的间隔要够发一个串口字符
 }
@@ -132,9 +131,17 @@ def compile_app(app, board, defines=(), out=None):
     if app == 'coremark':
         coremark.build(elf, 0)          # ITERATIONS=0: CoreMark 自己挑一个跑满 10 秒的次数
     else:
-        sources = SW_LIB + sorted(str(p.relative_to(ROOT)) for p in (ROOT / 'sw/app' / app).glob('*.c'))
-        run(coremark.compiler('clang'), *CFLAGS, *[f'-I{d}' for d in SW_INC],
-            f'-DBOARD_{board.upper()}', *defines, '-T', 'sw/link.ld', *sources, '-o', elf)
+        # app 自己的源文件, 加上本板的接线 (sw/app/<app>/boards/<板>/, 有才加)
+        dirs = [ROOT / 'sw/app' / app, ROOT / 'sw/app' / app / 'boards' / board]
+        sources = SW_LIB + sorted(str(p.relative_to(ROOT)) for d in dirs for p in d.glob('*.c'))
+        inc = SW_INC + [str(dirs[1].relative_to(ROOT))] if dirs[1].is_dir() else SW_INC
+        flags = [*CFLAGS, *[f'-I{d}' for d in inc], f'-DBOARD_{board.upper()}', *defines]
+        cc = coremark.compiler('clang')
+        run(cc, *flags, '-T', 'sw/link.ld', *sources, '-o', elf)
+        # 给编辑器 (clangd) 用: 记下这次每个文件的编译命令, 跳转和报错就和真实编译一致
+        (ROOT / 'build/compile_commands.json').write_text(json.dumps(
+            [{'directory': str(ROOT), 'file': src, 'arguments': [cc, *[f for f in flags if not f.startswith('-fuse-ld')], '-c', src]} for src in sources],
+            ensure_ascii=False, indent=1))
     return elf
 
 
@@ -223,8 +230,8 @@ def sim(app: str = typer.Argument(..., help=f'有测试台的程序: {", ".join(
     run(obj / 'sim', f'+rom={rom}')
 
 
-def fpga_bit(board):
-    return ROOT / BOARDS[board]['bit'].format(app=BOARDS[board]['fpga_app'])
+def fpga_bit(board, app):
+    return ROOT / BOARDS[board]['bit'].format(app=app)
 
 
 def vivado():
@@ -232,11 +239,11 @@ def vivado():
 
 
 @fpga.command('build')
-def fpga_build(board: Optional[str] = BoardOpt):
-    """综合出位流 (EGO1 用 Vivado, 盘古用 PDS)。位流里固化 bootloader 和一个默认程序。"""
+def fpga_build(app: str = App, board: Optional[str] = BoardOpt):
+    """综合出位流 (EGO1 用 Vivado, 盘古用 PDS)。位流里固化 bootloader 和 <程序>, 上电先跑它。"""
+    check_app(app)
     board, _ = pick_board(board)
-    app = BOARDS[board]['fpga_app']
-    step(f'综合 {board} 位流 (默认程序 {app}, 几分钟)')
+    step(f'综合 {board} 位流 (固化 {app}, 几分钟)')
     start = time.monotonic()
     if board == 'ego1':
         os.environ['VIVADO'] = shlex.join(vivado())
@@ -247,21 +254,21 @@ def fpga_build(board: Optional[str] = BoardOpt):
     else:
         run(sys.executable, 'scripts/build-board.py', '--harvard', '--app', app, '--pds')
     # 记下这个位流是用哪个版本的源码构建的, program 时比对, 免得烧进过期的位流
-    fpga_bit(board).with_suffix('.hwid').write_text(f'0x{hwid(board):08x}\n')
-    typer.secho(f'✓ {fpga_bit(board).relative_to(ROOT)} ({time.monotonic() - start:.0f} 秒); '
-                f'下一步 ama fpga program', fg='green')
+    fpga_bit(board, app).with_suffix('.hwid').write_text(f'0x{hwid(board):08x}\n')
+    typer.secho(f'✓ {fpga_bit(board, app).relative_to(ROOT)} ({time.monotonic() - start:.0f} 秒); '
+                f'下一步 ama fpga program {app}', fg='green')
 
 
 @fpga.command('program')
-def fpga_program(board: Optional[str] = BoardOpt):
-    """把位流烧进 FPGA (断电会丢, 重新上电要再烧)。"""
+def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
+    """把固化了 <程序> 的位流烧进 FPGA (断电会丢, 重新上电要再烧)。"""
     board, _ = pick_board(board)
-    bit = fpga_bit(board)
+    bit = fpga_bit(board, app)
     if not bit.exists():
-        fail(f'还没有位流, 先 ama fpga build --board {board}')
+        fail(f'还没有位流, 先 ama fpga build {app} --board {board}')
     stamp = bit.with_suffix('.hwid')
     if not stamp.exists() or int(stamp.read_text(), 0) != hwid(board):
-        fail(f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build --board {board}')
+        fail(f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build {app} --board {board}')
     if board == 'mes50hp':
         # 紫光的下载器没有命令行入口, 只能在 PDS 图形界面里下载
         print(f'打开 PDS → Tools → Fabric Configuration → 选择位流:\n  {bit}')

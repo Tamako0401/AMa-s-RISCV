@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include "amarisc.h"
-#include "io.h"
 
 #ifdef BOARD_EGO1
 #include "ego1_pins.h"
@@ -36,5 +35,7 @@ static inline uint32_t bsp_ms_to_cycles(uint32_t ms)
 {
     return ms * DELAY_CYCLES_PER_MS;
 }
+
+// 实际两个板子的外设资源差异较大. 此处不强制统一bsp遮蔽.
 
 #endif

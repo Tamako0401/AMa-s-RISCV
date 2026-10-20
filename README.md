@@ -83,7 +83,7 @@ MES50HP 工程生成到 `build/mes50hp/build.pds`，SRAM 配置文件为 `build/
 
 实机验收：串口设为 **115200 / 8N1 / 无流控**，打开串口后按 KEY1；观察 `AMA CPU PASS`、CPU 驱动的 LED 移动图案；关闭本地回显并发送单个 `Z`，核对回显，再按 KEY1 验证重启。完整接线、引脚和下载步骤见 [板级文档](boards/mes50hp/README.md)。
 
-当前自动回归用 LLVM 生成 RV32 ELF；`justfile` 另有 GCC/Spike 学习入口。正式测评还需对齐赛题指定的 `riscv32-unknown-elf-gcc` 和 CoreMark v1.0，设置迭代数并运行不少于 10 秒，不能以本地自检代替跑分。
+当前自动回归用 LLVM 生成 RV32 ELF。正式测评还需对齐赛题指定的 `riscv32-unknown-elf-gcc` 和 CoreMark v1.0，设置迭代数并运行不少于 10 秒，不能以本地自检代替跑分。
 
 ## 仓库导航
 

@@ -1,5 +1,6 @@
 /* 为 components/lcd 实现 lcd_io.h: 屏幕引脚经 GPIO 矩阵, 数据走 SPI1 */
 #include "bsp.h"
+#include "io.h"
 #include "spi.h"
 #include "lcd_io.h"
 

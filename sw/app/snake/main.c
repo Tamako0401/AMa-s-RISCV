@@ -1,6 +1,10 @@
 #include "lcd.h"
+#include "shield_lcd.h"
 #include "bsp.h"
+#include "io.h"
 #include "uart.h"
+#include "key.h"
+#include "app_board.h"          /* 本板的按键表、LED、read_settings: boards/<板>/ */
 
 #include "snake.h"
 
@@ -8,51 +12,15 @@
 #define SNAKE_STEP_CYCLES (150UL * DELAY_CYCLES_PER_MS)
 #endif
 
-#ifdef BOARD_EGO1
-#define KEY_UP PIN_S4
-#define KEY_LEFT PIN_S3
-#define KEY_START PIN_S2
-#define KEY_RIGHT PIN_S0
-#define KEY_DOWN PIN_S1
-#define LED_WRAP PIN_LD2_0          /* 挨着拨码开关 SW0 */
-#define LED_UART PIN_LD2_1
-#else
-#define KEY_UP PIN_KEY7
-#define KEY_LEFT PIN_KEY5
-#define KEY_START PIN_KEY2
-#define KEY_RIGHT PIN_KEY8
-#define KEY_DOWN PIN_KEY6
-#define KEY_UART PIN_KEY3
-#define KEY_WRAP PIN_KEY4
-#define LED_UART PIN_LED3           /* 灯号和按键号一致 */
-#define LED_WRAP PIN_LED4
-#endif
-
 static snake_t snake;
 static uint16_t cell_size;
 
 static int uart_on = 1, wrap = 1;
 
-/* 按下那一刻返回 1, 按住不重复 */
-static int key_edge(uint32_t pin, int *last)
+/* 读设置 (各板实现不同, 见 boards/<板>/app_board.c), LED 显示当前状态 */
+static void update_settings(void)
 {
-    int now = io_read(pin);
-    int hit = now && !*last;
-    *last = now;
-    return hit;
-}
-
-/* 穿墙、串口控制两个开关: EGO1 用拨码开关 (拨上 = 开), 盘古的按键每按一下切换; LED 显示当前状态 */
-static void read_settings(void)
-{
-#ifdef BOARD_EGO1
-    wrap = io_read(PIN_SW0);
-    uart_on = io_read(PIN_SW1);
-#else
-    static int uart_last, wrap_last;
-    if (key_edge(KEY_UART, &uart_last)) uart_on = !uart_on;
-    if (key_edge(KEY_WRAP, &wrap_last)) wrap = !wrap;
-#endif
+    read_settings(&uart_on, &wrap);
     io_write(LED_WRAP, wrap);
     io_write(LED_UART, uart_on);
 }
@@ -60,10 +28,10 @@ static void read_settings(void)
 /* 读按键和串口, 返回最新方向; 开局/暂停键 (或串口 p、空格) 按下时置 *start, 按了方向键置 *moved */
 static snake_dir_t read_input(snake_dir_t dir, int *start, int *moved)
 {
-    static int start_last;
     snake_dir_t old = dir;
     char c;
-    read_settings();
+    key_ticks(keys, KEY_N);
+    update_settings();
     while (uart_getc(CONSOLE_UART, &c)) {
         if (!uart_on)
             continue;
@@ -76,11 +44,11 @@ static snake_dir_t read_input(snake_dir_t dir, int *start, int *moved)
         }
         *moved |= c != 'p' && c != ' ';
     }
-    if (key_edge(KEY_START, &start_last)) *start = 1;
-    if (io_read(KEY_UP))    dir = SNAKE_UP;
-    if (io_read(KEY_DOWN))  dir = SNAKE_DOWN;
-    if (io_read(KEY_LEFT))  dir = SNAKE_LEFT;
-    if (io_read(KEY_RIGHT)) dir = SNAKE_RIGHT;
+    if (key_rose(&keys[K_START])) *start = 1;
+    if (key_status(&keys[K_UP]))    dir = SNAKE_UP;
+    if (key_status(&keys[K_DOWN]))  dir = SNAKE_DOWN;
+    if (key_status(&keys[K_LEFT]))  dir = SNAKE_LEFT;
+    if (key_status(&keys[K_RIGHT])) dir = SNAKE_RIGHT;
     *moved |= dir != old;
     return dir;
 }
@@ -96,13 +64,7 @@ static void draw_cell(snake_cell_t cell, uint16_t color)
 int main(void)
 {
     uart_init(CONSOLE_UART, SYSCLK_HZ, 115200);
-#ifdef BOARD_EGO1
-    lcd_init_st7735(&(lcd_pins_t){ .sck = PIN_J5_1, .mosi = PIN_J5_2, .rst = PIN_J5_3,
-                                   .dc = PIN_J5_4, .bl = PIN_J5_5, .cs = PIN_J5_6 });
-#else
-    lcd_init_st7789(&(lcd_pins_t){ .sck = PIN_J8_27, .mosi = PIN_J8_28, .cs = PIN_J8_23,
-                                   .dc = PIN_J8_26, .rst = PIN_J8_25, .bl = PIN_J8_24 });
-#endif
+    shield_lcd_init();
     cell_size = lcd_width() == 128 ? 8 : 10;
     snake_cols = 0;
     snake_rows = 0;

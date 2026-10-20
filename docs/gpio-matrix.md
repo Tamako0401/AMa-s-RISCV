@@ -10,8 +10,7 @@
  UART_TX ───────────┘                                    │
 ```
 
-新建 `rtl/perips/gpio_matrix.v`, 挂在外设子总线第 3 口 `0x4000_3000`。旧的 `gpio.v` (0x4000_0000) 不动;
-迁移完成后 `sw/` 不再使用它, 删不删以后再定。
+实现在 `rtl/perips/gpio_matrix.v`, 挂在外设子总线第 3 口 `0x4000_3000`。
 
 ## 引脚表: 每块板一张
 
@@ -95,33 +94,11 @@ void io_connect_out(uint32_t pin, uint32_t sig);       /* 外设信号 -> 引脚
 void io_connect_in(uint32_t sig, uint32_t pin);        /* 引脚 -> 外设信号 */
 ```
 
-例: 屏幕接在 EGO1 的 J5-1~6
+例: 点亮 LED、读按键
 
 ```c
-/* 屏幕驱动自己把 SCK/MOSI 接到 SPI, RST/DC/BL/CS 用普通 GPIO */
-lcd_init_st7735(&(lcd_pins_t){ .sck = PIN_J5_1, .mosi = PIN_J5_2, .rst = PIN_J5_3,
-                               .dc = PIN_J5_4, .bl = PIN_J5_5, .cs = PIN_J5_6 });
+io_dir(PIN_LED1, IO_OUTPUT);
+io_write(PIN_LED1, io_read(PIN_KEY2));    /* 按着 KEY2 时 LED1 亮 */
 ```
 
-用哪块屏由 app 调哪个 `lcd_init_xxx` 决定, 屏幕宽高由驱动初始化时给出, 不再靠编译宏。
-
-## soc_top 的改动
-
-- 外设子总线 N 从 3 改 4, 第 3 口接矩阵。
-- 新端口 `io_o / io_oe / io_i [127:0]`, 新参数 `IO_N`、`UART_TX_PIN`、`UART_RX_PIN`。
-- UART 和 SPI 的对外信号同时接矩阵和旧端口; 旧端口 (`uart_tx`、`spi_*`、`lcd_*`、`led`) 保留, 旧板级顶层和测试台照常工作。
-
-## 迁移范围
-
-| 文件 | 改动 |
-|---|---|
-| `sw/drivers/gpio.h` | 换成 `io.h` (旧文件留着直到没人用) |
-| `sw/bsp/bsp.h` | 引脚用丝印名 |
-| `sw/components/lcd/lcd_io.c` (原 `bsp/bsp_lcd.c`) | 屏幕引脚由 app 传入; 屏幕不属于板子, 移出 bsp |
-| `sw/app/*`、`sw/board/lcd_main.c` | 点灯、读按键改用 `io_*` |
-| `boards/ego1/`、`boards/mes50hp/` | 新顶层接 `io_*`, 约束由引脚表生成。盘古新建 `mes50hp_top_matrix.v`, 旧顶层不动 |
-| `scripts/build-board.py` | 去掉 `BOARD_EGO1`/`LCD_W`/`LCD_H`, 改为 `-DBOARD=<板>` 选引脚头文件 |
-| `scripts/test-lcd.py` | 撤回这次的改动 |
-| 用屏幕或 GPIO 的测试台 | 屏幕模型 / 检查点改接到 `io_*` 的对应引脚, 改动尽量小 |
-
-不动: `rtl/perips/gpio.v`、`rtl/soc/minimal_soc.v`。
+外设引脚由用它的驱动自己接, 比如屏幕驱动把 SCK/MOSI 接到 SPI (`io_connect_out`), CS/DC/RST/背光当普通 GPIO 翻转。
