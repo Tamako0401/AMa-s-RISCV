@@ -34,8 +34,9 @@
 // RESET_PC 默认 = 哈佛式指令存储器(ROM)基址 0x0000_0000, 见 docs/cpu-baseline.md。
 // FETCH_DEPTH 必须是 2 的幂。
 //
-// STALL_WINDOW: 流水线停顿时允许的预取窗口。停顿时没有指令被消费，深预取只是
-// 让取指和访存抢同一条总线(RIB 固定取指优先)，反而拉长访存延迟，所以压小。
+// STALL_WINDOW: 流水线停顿时允许的预取窗口。soc_top 的取指已走 ROM 专用口,
+// 不再和访存抢总线, 这个上限在当前 SoC 上不影响结果; 如果取指和数据共用一条
+// 单笔事务总线, 把它调小(例如 2)可以避免取指把访存挤在总线外。
 module ifu #(
     parameter [31:0] RESET_PC = 32'h00000000,
     parameter FETCH_DEPTH = 4,

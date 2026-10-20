@@ -14,6 +14,12 @@ module memory_tb;
     wire [31:0] rom_rdata;
     wire rom_rdy, rom_rspv;
 
+    // ROM 取指口
+    reg [31:0] romi_addr = 0;
+    reg romi_vld = 0, romi_rspr = 1;
+    wire [31:0] romi_rdata;
+    wire romi_rdy, romi_rspv;
+
     // RAM 端口
     reg [31:0] ram_addr = 0, ram_wdata = 0;
     reg [3:0] ram_sel = 0;
@@ -35,7 +41,13 @@ module memory_tb;
         .req_valid_i(rom_vld),
         .req_ready_o(rom_rdy),
         .rsp_valid_o(rom_rspv),
-        .rsp_ready_i(rom_rspr)
+        .rsp_ready_i(rom_rspr),
+        .i_addr_i(romi_addr),
+        .i_data_o(romi_rdata),
+        .i_req_valid_i(romi_vld),
+        .i_req_ready_o(romi_rdy),
+        .i_rsp_valid_o(romi_rspv),
+        .i_rsp_ready_i(romi_rspr)
     );
 
     ram #(
@@ -83,6 +95,26 @@ module memory_tb;
         end
     endtask
 
+    // 一次 ROM 取指口读; 与数据口完全独立
+    task rom_ifetch(input [31:0] off);
+        begin
+            @(negedge clk);
+            romi_addr = off;
+            romi_vld = 1'b1;
+            #1;
+            if (romi_rdy !== 1'b1) $fatal(1, "ROM ifetch request not ready");
+            @(posedge clk);
+            #1;
+            if (romi_rspv !== 1'b1) $fatal(1, "ROM ifetch missing response");
+            result = romi_rdata;
+            @(negedge clk);
+            romi_vld = 1'b0;
+            @(posedge clk);
+            #1;
+            if (romi_rspv) $fatal(1, "ROM ifetch unexpected extra response");
+        end
+    endtask
+
     // 一次 RAM 访问
     task ram_access(input bit wr, input [31:0] off, input [31:0] value, input [3:0] lanes);
         begin
@@ -122,6 +154,37 @@ module memory_tb;
         rom_access(1'b1, 32'h0, 32'hDEADBEEF, 4'b1111);
         rom_access(1'b0, 32'h0, 32'h0, 4'b1111);
         if (result !== 32'hA5A50000) $fatal(1, "ROM is not read-only: %h", result);
+
+        // ---- ROM 取指口: 与数据口共享存储体 ----
+        for (i = 0; i < 8; i = i + 1) begin
+            rom_ifetch(i * 4);
+            if (result !== (32'hA5A50000 + i)) $fatal(1, "ROM ifetch word %0d = %h", i, result);
+        end
+
+        // ---- ROM 两个口同拍访问: 互不阻塞, 各自返回自己的地址 ----
+        @(negedge clk);
+        rom_addr = 32'h8;
+        rom_wdata = 32'h0;
+        rom_sel = 4'b1111;
+        rom_we = 1'b0;
+        rom_vld = 1'b1;
+        romi_addr = 32'h4;
+        romi_vld = 1'b1;
+        #1;
+        if (rom_rdy !== 1'b1 || romi_rdy !== 1'b1)
+            $fatal(1, "ROM ports not independent: data_rdy=%b ifetch_rdy=%b", rom_rdy, romi_rdy);
+        @(posedge clk);
+        #1;
+        if (rom_rspv !== 1'b1 || romi_rspv !== 1'b1)
+            $fatal(1, "ROM ports missing response: data=%b ifetch=%b", rom_rspv, romi_rspv);
+        if (rom_rdata !== 32'hA5A50002 || romi_rdata !== 32'hA5A50001)
+            $fatal(1, "ROM concurrent read wrong: data=%h ifetch=%h", rom_rdata, romi_rdata);
+        @(negedge clk);
+        rom_vld = 1'b0;
+        romi_vld = 1'b0;
+        @(posedge clk);
+        #1;
+        if (rom_rspv || romi_rspv) $fatal(1, "ROM response not cleared");
 
         // ---- RAM: 读出 $readmemh 载入的初值(必须在任何写之前) ----
         for (i = 0; i < 8; i = i + 1) begin

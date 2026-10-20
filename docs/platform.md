@@ -13,6 +13,14 @@ Reset vector:
 ROM (instruction):
     0x00000000 - 0x0000ffff
     64 KiB
+    fetch port: read-only, wired directly to the CPU ibus (not through RIB)
+    data port:  RIB slave 0, used for rodata/constants and bootloader writes
+
+Fetch/data paths:
+    ibus -> ROM fetch port          (dedicated, 1-cycle, no arbitration)
+    dbus -> RIB master 1 -> ROM data port / RAM / peripheral bus
+    RIB master 0 is unused
+    => code must live in the ROM window; soc_top cannot fetch from RAM
 
 RAM (data):
     0x10000000 - 0x1000ffff
