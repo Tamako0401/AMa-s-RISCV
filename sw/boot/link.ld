@@ -1,7 +1,8 @@
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
+INCLUDE sw/memory.ld
 MEMORY {
-    ROM (rx) : ORIGIN = 0xF800, LENGTH = 2K
+    ROM (rx) : ORIGIN = _boot_start, LENGTH = _boot_size
     RAM (rw) : ORIGIN = 0x1000FC00, LENGTH = 1K
 }
 _stack_top = ORIGIN(RAM) + LENGTH(RAM);

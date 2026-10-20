@@ -14,4 +14,4 @@ runs = [{ app = "selftest" }]
 tb = "boot_tb.sv"
 rtl = "rtl/soc.f"
 extra = ["boards/mes50hp/mes50hp_top.v"]
-runs = [{ app = "selftest", program = ["sw/startup.S", "tests/board/boot_app.c"], link = "sw/link.ld", defines = ["-DNEW_APP"] }]
+runs = [{ app = "selftest", program = ["sw/startup.S", "tests/board/boot_app.c"], link = "sw/link.ld", ram_init = false, defines = ["-DNEW_APP"] }]

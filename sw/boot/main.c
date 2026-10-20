@@ -2,7 +2,8 @@
 
 #define HW_ID (*(volatile uint32_t *)0x40004000)
 #define ROM_WE (*(volatile uint32_t *)0x40004004)
-#define APP_SIZE 0xf800u
+extern char _app_size[];
+#define APP_SIZE ((uint32_t)_app_size)
 
 static uint32_t cycles(void)
 {

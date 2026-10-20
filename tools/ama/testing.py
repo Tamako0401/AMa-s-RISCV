@@ -40,7 +40,7 @@ def program(run, out, log):
     ram = bytearray(b'\xa5' * 65536)
     ram[:4] = bytes(4)
     # sw 的链接脚本把数据初值放在 ROM, 必须由真实 startup 拷贝。
-    if run.get('link') != 'sw/link.ld':
+    if run.get('ram_init', True):
         ram[:] = elf_to_rom(elf, base=0x10000000)
         ram[:4] = bytes(4)
     write_hex(rom, out / 'program-rom.hex')
@@ -97,10 +97,15 @@ def simulator(test, tb, params, out, log):
 
 
 def report(name, ok, start, path):
-    print(f'{"PASS" if ok else "FAIL"} {name} ({time.monotonic() - start:.2f}s)', flush=True)
+    lines = path.read_text(errors='replace').splitlines()
+    values = ' '.join(line.removeprefix('[result]').strip() for line in lines if line.startswith('[result]'))
+    print(
+        f'{"PASS" if ok else "FAIL"} {name} ({time.monotonic() - start:.2f}s)' + (f' {values}' if values else ''),
+        flush=True,
+    )
     if not ok:
         print(f'  日志: {path.relative_to(ROOT)}')
-        print('\n'.join(path.read_text(errors='replace').splitlines()[-30:]), flush=True)
+        print('\n'.join(lines[-30:]), flush=True)
     return ok
 
 

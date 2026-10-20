@@ -7,9 +7,7 @@ import zlib
 from pathlib import Path
 
 
-from .firmware import load_segments
-
-APP_SIZE = 0xF800  # ROM 里 bootloader 之前的部分
+from .firmware import APP_SIZE, load_segments
 
 
 def app_image(elf):
@@ -54,4 +52,3 @@ def download(ser, image):
             (board_crc,) = struct.unpack('<I', ser.read(4))
             print(f'校验失败: 电脑 0x{crc:08x}, 板子 0x{board_crc:08x}, 重试')
     sys.exit('下载失败')
-

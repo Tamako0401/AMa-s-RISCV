@@ -16,8 +16,8 @@ module uart_reset_tb;
     wire uart_tx;
     `include "boards/mes50hp/pins_top.vh"
     wire [`IO_N-1:0] io;
-    assign io[`UART_RX_PIN] = 1'b1;
-    assign uart_tx = io[`UART_TX_PIN];
+    assign io[`PIN_UART_RX] = 1'b1;
+    assign uart_tx = io[`PIN_UART_TX];
     mes50hp_top #(
         .MEM_FILE("")
     ) dut (

@@ -1,6 +1,7 @@
 """固件编译、ROM 镜像和硬件版本号。"""
 
 import json
+import re
 import shlex
 import struct
 import subprocess
@@ -35,9 +36,17 @@ CFLAGS = [
     '-Wextra',
     '-msmall-data-limit=0',
     '-mno-relax',
+    # 不让 GNU ld 把 ELF 头放进加载段: 否则 bootloader 的段从 0xF000 开始, 拼 ROM 时会被丢掉
+    '-Wl,--nmagic',
 ]
 
 PT_LOAD = 1
+
+ROM_SIZE, BOOT_SIZE = (
+    int(re.search(rf'{name} = (0x[0-9a-f]+);', (ROOT / 'sw/memory.ld').read_text())[1], 16)
+    for name in ['_rom_size', '_boot_size']
+)
+APP_SIZE = ROM_SIZE - BOOT_SIZE
 
 
 def load_segments(elf):
@@ -54,12 +63,14 @@ def load_segments(elf):
     return segments
 
 
-def elf_to_rom(elf_path, base=0x0, size=65536):
+def elf_to_rom(elf_path, base=0x0, size=ROM_SIZE):
     """ELF -> size 字节的 ROM 镜像。超出 ROM 的段报错前先确认它确实不属于 ROM。"""
     image = bytearray(b'\xa5' * size)
     for addr, data in load_segments(Path(elf_path).read_bytes()):
-        if not base <= addr < base + size:
+        if addr + len(data) <= base or addr >= base + size:
             continue  # RAM 等其它窗口的段, 不进 ROM 镜像
+        if addr < base:
+            raise SystemExit(f'{elf_path}: 0x{addr:08x} 起的段跨进了 0x{base:08x} 起的 ROM 区')
         offset = addr - base
         if offset + len(data) > size:
             raise SystemExit(f'{elf_path}: 0x{addr:08x} 起 {len(data)} 字节超出 ROM ({size} 字节)')
@@ -74,12 +85,20 @@ def write_hex(image, hex_path):
     )
 
 
-SUFFIXES = {'.v', '.vh', '.sv', '.xdc', '.fdc', '.csv', '.c', '.h', '.S', '.ld'}
+SUFFIXES = {'.v', '.vh', '.sv', '.xdc', '.fdc', '.csv', '.c', '.h', '.S', '.ld', '.f', '.toml'}
 
 
 def hwid(board):
     crc = 0
-    for top in ['rtl', f'boards/{board}', 'sw/boot', 'sw/device', 'sw/bsp/bsp.h']:
+    for top in [
+        'rtl',
+        f'boards/{board}',
+        'sw/boot',
+        'sw/device',
+        'sw/bsp/bsp.h',
+        f'sw/bsp/{board}_pins.h',
+        'sw/memory.ld',
+    ]:
         for path in sorted((ROOT / top).rglob('*')) if (ROOT / top).is_dir() else [ROOT / top]:
             if path.suffix in SUFFIXES and path.is_file():
                 crc = zlib.crc32(path.relative_to(ROOT).as_posix().encode(), crc)
@@ -146,7 +165,7 @@ def compile_app(app, board, defines, out, **kw):
 
 
 def build_firmware(app, board, defines, boot_defines, out, **kw):
-    """app + bootloader -> out/rom.hex (app 在 0..0xF800, bootloader 在 0xF800..0x10000)"""
+    """app + bootloader -> out/rom.hex, 分区见 sw/memory.ld。"""
     elf = compile_app(app, board, defines, out, **kw)
     boot = out / 'boot.elf'
     options = [f for f in CFLAGS if f != '-O2']
@@ -167,8 +186,8 @@ def build_firmware(app, board, defines, boot_defines, out, **kw):
         cwd=ROOT,
         **kw,
     )
-    size = max(addr + len(data) - 0xF800 for addr, data in load_segments(boot.read_bytes()) if addr < 0x10000)
-    if size > 2048:
+    size = max(addr + len(data) - APP_SIZE for addr, data in load_segments(boot.read_bytes()) if addr < ROM_SIZE)
+    if size > BOOT_SIZE:
         raise SystemExit(f'bootloader too large: {size} bytes')
-    write_hex(elf_to_rom(elf, size=0xF800) + elf_to_rom(boot, base=0xF800, size=2048), out / 'rom.hex')
+    write_hex(elf_to_rom(elf, size=APP_SIZE) + elf_to_rom(boot, base=APP_SIZE, size=BOOT_SIZE), out / 'rom.hex')
     return elf

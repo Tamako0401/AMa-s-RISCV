@@ -1,9 +1,16 @@
-# 把位流下载到 JTAG 链上的第一块 xc7a35t (SRAM 配置, 断电丢失)
-# 用法: vivado -mode batch -source program.tcl -tclargs <位流>
+# 把位流下载到指定器件 (SRAM 配置, 断电丢失)
+# 用法: vivado -mode batch -source program.tcl -tclargs <位流> <part>
 open_hw_manager
 connect_hw_server -allow_non_jtag
 open_hw_target
-set dev [lindex [get_hw_devices xc7a35t*] 0]
+# 硬件管理器的 PART 只有芯片型号, board.toml 还带封装和速度等级。
+set devices {}
+foreach device [get_hw_devices] {
+    if {[string match "[get_property PART $device]*" [lindex $argv 1]]} {
+        lappend devices $device
+    }
+}
+set dev [lindex $devices 0]
 current_hw_device $dev
 set_property PROGRAM.FILE [file normalize [lindex $argv 0]] $dev
 program_hw_devices $dev

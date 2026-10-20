@@ -34,6 +34,7 @@ flowchart LR
 
 ## 规则
 
+- **ROM 分区**: 只在 `sw/memory.ld` 定义; 两份链接脚本和 ama 都从它读; RTL (rom.v 写保护、板级顶层 RESET_PC) 另有同值常量。
 - **一个编译器**: 固件只用 `riscv64-unknown-elf-gcc`。电脑端测试 (`sw/app/*/test/`) 在电脑上运行, 用电脑的 `cc`。
 - **本机工具**: ama 调用的外部程序都按名字找, 本机名字或位置不同时在 `ama.local.toml` 里写替代命令,
   规则见 [`ama.local.toml.example`](../../ama.local.toml.example)。
@@ -41,7 +42,8 @@ flowchart LR
   `app.toml` (`sources`、`include`、`cflags`)。
 - **测试**: 每个测试目录一个 `tests.toml`, 一个 `[[test]]` 是一个测试台, 判定只看仿真退出码 (0 = PASS)。
   字段: `tb`、`rtl`、`extra`、`params` (每组编译一次)、`runs` (每项运行一次: `app` 或 `program`、`defines`、
-  `plusargs`、`link`)、`expect = "fail"`。
+  `plusargs`、`link`、`ram_init` (默认 true: 从 ELF 预填 RAM; false: 由固件 startup 从 ROM 初始化))、`expect = "fail"`。
+  测试台输出的 `[result]` 行内容会附在该测试的 PASS/FAIL 行后面。
 - **sim 是一块虚拟的盘古板**: `sim/sim_top.sv` 例化真实的 `mes50hp_top`, 屏幕模型和串口接在板子的脚上
   (`pins_top.vh` 里的 `PIN_<名字>`), 固件按盘古编译。
 

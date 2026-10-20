@@ -10,12 +10,26 @@ module board_tb;
     // defparam (dut.soc.MEM_FILE), Icarus accepts both forms.
     `include "boards/mes50hp/pins_top.vh"
     wire [`IO_N-1:0] io;
-    assign io[`UART_RX_PIN] = uart_rx;
-    assign uart_tx = io[`UART_TX_PIN];
+    assign io[`PIN_UART_RX] = uart_rx;
+    assign uart_tx = io[`PIN_UART_TX];
     assign {lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl} = {
-        io[24], io[25], io[20], io[23], io[22], io[21]
+        io[`PIN_J8_27],
+        io[`PIN_J8_28],
+        io[`PIN_J8_23],
+        io[`PIN_J8_26],
+        io[`PIN_J8_25],
+        io[`PIN_J8_24]
     };
-    assign led = io[56:49];
+    assign led = {
+        io[`PIN_LED8],
+        io[`PIN_LED7],
+        io[`PIN_LED6],
+        io[`PIN_LED5],
+        io[`PIN_LED4],
+        io[`PIN_LED3],
+        io[`PIN_LED2],
+        io[`PIN_LED1]
+    };
     mes50hp_top #(
         .MEM_FILE("")
     ) dut (

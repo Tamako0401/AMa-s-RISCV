@@ -8,9 +8,11 @@ ENTRY(_start)       /* 指定程序入口是符号_start. (定义在启动汇编
  * (tests/cpu/link.ld 会把 RAM 窗口的第 0 个字留给回归测试台的"结束信箱",
  *  因此那边可用 RAM 从 +4 开始; 本文件面向实机程序, 不保留该信箱.)
  */
+INCLUDE sw/memory.ld
+
 MEMORY              /* 声明内存 */
 {
-    ROM (rx)  : ORIGIN = 0x00000000, LENGTH = 62K /* 后 2K 留给 bootloader */
+    ROM (rx)  : ORIGIN = 0x00000000, LENGTH = _app_size
     RAM (rwx) : ORIGIN = 0x10000000, LENGTH = 64K
     /* 必须和实际使用的硬件相匹配. */
 }

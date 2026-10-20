@@ -165,8 +165,14 @@ def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt):
 
 def sim_binary(out):
     obj = out / 'obj'
-    sources = ['boards/mes50hp/mes50hp_top.v', 'tests/soc/st7789_model.sv', 'sim/uart_rx.sv', 'sim/uart_tx.sv', 'sim/sim_top.sv']
-    inputs = [ROOT / p for p in sources + ['rtl/soc.f', 'boards/mes50hp/pins_top.vh']]
+    sources = [
+        'boards/mes50hp/mes50hp_top.v',
+        'tests/soc/st7789_model.sv',
+        'sim/uart_rx.sv',
+        'sim/uart_tx.sv',
+        'sim/sim_top.sv',
+    ]
+    inputs = [ROOT / p for p in sources + ['rtl/soc.f', 'boards/mes50hp/pins_top.vh', 'sw/memory.ld']]
     inputs += [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().split() if not p.startswith('+')]
     inputs += list((ROOT / 'rtl').rglob('*.vh'))
     binary = obj / 'sim'
@@ -210,7 +216,9 @@ def sim(app: str = App):
     keys = out / f'{app}.keys'
     keys.write_bytes(b'')
     step(f'仿真 {app}: 在窗口里打字 = 串口输入; 关窗口或 Ctrl+C 结束')
-    process = subprocess.Popen([str(binary), f'+rom={rom}', f'+frame={frame}', f'+keys={keys}'], cwd=ROOT, start_new_session=True)
+    process = subprocess.Popen(
+        [str(binary), f'+rom={rom}', f'+frame={frame}', f'+keys={keys}'], cwd=ROOT, start_new_session=True
+    )
     try:
         show(frame, keys, process)
     except KeyboardInterrupt:
@@ -244,6 +252,7 @@ def fpga_build(app: str = App, board: Optional[str] = BoardOpt):
 def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
     """把固化了 <程序> 的位流烧进 FPGA (断电会丢, 重新上电要再烧)。"""
     board, _ = pick_board(board)
+    data, _ = projects.backend(board)
     bit = fpga_bit(board, app)
     if not bit.exists():
         fail(f'还没有位流, 先 ama fpga build {app} --board {board}')
@@ -252,7 +261,7 @@ def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
         fail(
             f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build {app} --board {board}'
         )
-    if BOARDS[board]['tool'] == 'pds':
+    if data['tool'] == 'pds':
         # 紫光的下载器没有命令行入口, 只能在 PDS 图形界面里下载
         print(f'打开 PDS → Tools → Fabric Configuration → 选择位流:\n  {bit}')
         return
@@ -265,9 +274,10 @@ def fpga_program(app: str = App, board: Optional[str] = BoardOpt):
             '-nojournal',
             '-nolog',
             '-source',
-            str(ROOT / 'boards/ego1/program.tcl'),
+            str(ROOT / 'boards' / board / 'program.tcl'),
             '-tclargs',
             str(bit),
+            data['part'],
         ],
         cwd=bit.parent,
         capture_output=True,

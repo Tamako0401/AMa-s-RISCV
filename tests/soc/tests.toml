@@ -17,7 +17,7 @@ runs = [{ app = "selftest" }]
 [[test]]
 tb = "reset_tb.sv"
 rtl = "rtl/soc.f"
-runs = [{ program = ["sw/startup.S", "tests/soc/reset_check.c"], link = "sw/link.ld" }]
+runs = [{ program = ["sw/startup.S", "tests/soc/reset_check.c"], link = "sw/link.ld", ram_init = false }]
 
 [[test]]
 tb = "snake_tb.sv"

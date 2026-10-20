@@ -94,7 +94,7 @@ void portable_fini(core_portable *p)
             score++;
         }
     }
-    ee_printf("CoreMark/MHz: %lu.%03lu\n", (unsigned long)(score / 1000), (unsigned long)(score % 1000));
+    ee_printf("[result] CoreMark/MHz %lu.%03lu\n", (unsigned long)(score / 1000), (unsigned long)(score % 1000));
 #ifdef MIN_SCORE
     if (score < MIN_SCORE)
         coremark_errors++;

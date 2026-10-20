@@ -14,8 +14,8 @@ module boot_tb;
     always #10 clk = ~clk;
     reg key1_n = 1, uart_rx = 1;
     wire [`IO_N-1:0] io;
-    wire uart_tx = io[`UART_TX_PIN];
-    assign io[`UART_RX_PIN] = uart_rx;
+    wire uart_tx = io[`PIN_UART_TX];
+    assign io[`PIN_UART_RX] = uart_rx;
     mes50hp_top #(
         .MEM_FILE(""),
         .HW_ID(ID),
@@ -124,7 +124,7 @@ module boot_tb;
     initial begin
         if (!$value$plusargs("program_rom=%s", program_path)) $fatal(1, "Missing program ROM");
         $readmemh(program_path, program_rom);
-        length = 16'hf800;
+        length = 32'hf800;
         while (program_rom[(length-1)>>2][((length-1)&3)*8+:8] == 8'ha5) length = length - 1;
         for (n = 0; n < length; n = n + 1) app[n] = program_rom[n>>2][(n&3)*8+:8];
         // 下载尾部刻意不对齐, 覆盖协议的补零。
@@ -156,7 +156,7 @@ module boot_tb;
         expect_word(APP_CRC);
         $display("PASS boot: bad CRC returns readback CRC");
         send_byte("W");
-        send_word(32'hf801);
+        send_word((32'hf800 + 1));
         send_word(0);
         expect_byte("E");
         expect_word(32'hffffffff);

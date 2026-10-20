@@ -38,14 +38,14 @@ module lcd_tb;
 
     `include "boards/mes50hp/pins_top.vh"
     wire [127:0] io_o, io_oe;
-    wire [127:0] io_i = {69'b0, 1'b1, 58'b0};
+    wire [127:0] io_i = (128'b1 << `PIN_UART_RX);
     assign {spi_clk, spi_mosi, spi_ss, lcd_dc, lcd_rst_n} = {
-        io_o[24], io_o[25], io_o[20], io_o[23], io_o[22]
+        io_o[`PIN_J8_27], io_o[`PIN_J8_28], io_o[`PIN_J8_23], io_o[`PIN_J8_26], io_o[`PIN_J8_25]
     };
     soc_top #(
         .IO_N(`IO_N),
-        .UART_TX_PIN(`UART_TX_PIN),
-        .UART_RX_PIN(`UART_RX_PIN)
+        .UART_TX_PIN(`PIN_UART_TX),
+        .UART_RX_PIN(`PIN_UART_RX)
     ) u_soc (
         .clk(clk),
         .rst_n(rst_n),
