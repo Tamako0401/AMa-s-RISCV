@@ -1,5 +1,6 @@
 /* video_demo: HDMI 出图演示。蓝底白框的背景, 左上角一个静止的球 (精灵 0), 下半屏 8 个球来回弹;
- * 右上角的小窗显示 HDMI 输入 (电脑) 的画面; 输入里找到红色标记时, 全屏对应位置画一个光标 (精灵 9)。
+ * 右上角的小窗显示 HDMI 输入 (电脑) 的画面; 输入里找到颜色标记时, 全屏对应位置画一个光标 (精灵 9)。
+ * 串口命令: c 标定 (标记放在画面正中, 取那里的颜色), + / - 调容差; 每半秒打印一次找到的点数和位置。
  * 仿真测试 tests/soc/video_tb.sv 核对静止部分、小窗和颜色跟踪结果。 */
 #include "bsp.h"
 #include "uart.h"
@@ -14,6 +15,24 @@ enum { TILE_SKY, TILE_WALL, TILE_BALL = 4 }; /* 球占 4~7 */
 enum { PAL_BG, PAL_BALL, PAL_BALL2 };
 #define BALLS 8
 #define CURSOR (1 + BALLS)
+
+static void put_num(uint32_t n)
+{
+    char buf[11];
+    int i = 10;
+    buf[i] = 0;
+    do {
+        buf[--i] = (char)('0' + n % 10);
+        n /= 10;
+    } while (n);
+    uart_puts(CONSOLE_UART, buf + i);
+}
+
+static void put_field(const char *name, uint32_t n)
+{
+    uart_puts(CONSOLE_UART, name);
+    put_num(n);
+}
 
 static uint32_t solid(uint32_t color)
 {
@@ -77,7 +96,8 @@ int main(void)
     }
     VIDEO->CTRL = VIDEO_CTRL_EN;
     video_window(VIDEO_W - 8 - 160, 8);
-    vision_color(118, 170, 10); /* 红盒子, 见 docs/vision.md 的试验结论 */
+    uint32_t cb = 118, cr = 170, tol = 10; /* 红盒子, 见 docs/vision.md 的试验结论; 上板用 c 重新标定 */
+    vision_color(cb, cr, tol);
     tohost = 1;
 
     for (uint32_t frame = 0;; frame++) {
@@ -93,8 +113,32 @@ int main(void)
                 dy[i] = -dy[i];
             video_sprite(1 + i, x[i], y[i], TILE_BALL, i & 1 ? PAL_BALL2 : PAL_BALL);
         }
+        char c;
+        while (uart_getc(CONSOLE_UART, &c)) {
+            if (c == 'c')
+                vision_center(&cb, &cr);
+            else if (c == '+' && tol < 64)
+                tol += 2;
+            else if (c == '-' && tol > 0)
+                tol -= 2;
+            else
+                continue;
+            vision_color(cb, cr, tol);
+            put_field("color cb=", cb);
+            put_field(" cr=", cr);
+            put_field(" tol=", tol);
+            uart_puts(CONSOLE_UART, "\r\n");
+        }
+
         uint32_t mx, my; /* 160x120 -> 320x240, 光标中心对准标记 */
-        if (vision_find(10, &mx, &my))
+        uint32_t n = vision_find(10, &mx, &my);
+        if (frame % 30 == 0) {
+            put_field("points=", n);
+            put_field(" x=", n ? mx : 0);
+            put_field(" y=", n ? my : 0);
+            uart_puts(CONSOLE_UART, "\r\n");
+        }
+        if (n)
             video_sprite(CURSOR, (int32_t)mx * 2 - 8, (int32_t)my * 2 - 8, TILE_BALL, PAL_BALL2);
         else
             video_sprite_hide(CURSOR);

@@ -2,11 +2,11 @@
 // 全部在输入的像素时钟下; 小窗读口和寄存器在系统时钟下。
 // 各级之间是像素流 (docs/vision.md), 换相机只换适配器, 换算法只换中间某一级。
 // 寄存器 (偏移): 0x0 COLOR 读写 {tol, cr, cb}; 0x4 COUNT / 0x8 SUM_X / 0xC SUM_Y 只读, 上一帧的颜色跟踪结果;
-//                0x10 FRAME 只读, 每出一帧结果加 1。
+//                0x10 FRAME 只读, 每出一帧结果加 1; 0x14 CENTER 只读 {Cr, Cb}, 上一帧画面正中 8x8 的平均颜色。
 module vision #(
     parameter IN_W = 640  // 输入宽度; 640x480 缩成 160x120 正好填满小窗
 ) (
-    input wire clk,   // 系统时钟, 小窗读口和寄存器
+    input wire clk,  // 系统时钟, 小窗读口和寄存器
     input wire rst_n,
     input wire [31:0] addr_i,
     input wire [31:0] data_i,
@@ -82,6 +82,7 @@ module vision #(
     reg [7:0] cb, cr, tol;
     wire [14:0] t_count;
     wire [21:0] t_sum_x, t_sum_y;
+    wire [7:0] t_center_cb, t_center_cr;
     wire t_done;
     color_track #(
         .W(160),
@@ -99,13 +100,16 @@ module vision #(
         .count(t_count),
         .sum_x(t_sum_x),
         .sum_y(t_sum_y),
+        .center_cb(t_center_cb),
+        .center_cr(t_center_cr),
         .done(t_done)
     );
 
     // 结果跨到系统时钟: done 同步过来, 翻转后再取结果 (结果保持一整帧, 这时早已稳定)
-    reg [2:0] done_s;
+    reg [ 2:0] done_s;
     reg [14:0] count;
     reg [21:0] sum_x, sum_y;
+    reg [15:0] center;
     reg [31:0] frame;
 
     // 总线: 一拍接受, 下一拍响应
@@ -122,6 +126,7 @@ module vision #(
             count <= 0;
             sum_x <= 0;
             sum_y <= 0;
+            center <= 0;
             frame <= 0;
             cb <= 0;
             cr <= 0;
@@ -131,10 +136,11 @@ module vision #(
         end else begin
             done_s <= {done_s[1:0], t_done};
             if (done_s[2] != done_s[1]) begin
-                count <= t_count;
-                sum_x <= t_sum_x;
-                sum_y <= t_sum_y;
-                frame <= frame + 1;
+                count  <= t_count;
+                sum_x  <= t_sum_x;
+                sum_y  <= t_sum_y;
+                center <= {t_center_cr, t_center_cb};
+                frame  <= frame + 1;
             end
             if (response_valid && rsp_ready_i) response_valid <= 0;
             if (fire) begin
@@ -148,6 +154,7 @@ module vision #(
                     2: data_r <= {10'b0, sum_x};
                     3: data_r <= {10'b0, sum_y};
                     4: data_r <= frame;
+                    5: data_r <= {16'b0, center};
                     default: data_r <= 0;
                 endcase
             if (fire && we_i && addr_i[11:2] == 0) {tol, cr, cb} <= data_i[23:0];

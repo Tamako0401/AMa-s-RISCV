@@ -114,12 +114,14 @@ module video_tb;
     // 颜色跟踪的模型 (同 model/color.py): 对缩小后的每个点算 Cb、Cr, 和 video_demo 设的颜色比
     localparam CB = 118, CR = 170, TOL = 10;
     task static expect_color;
-        integer wx, wy, i, r, g, b, cb, cr, n, sx, sy;
+        integer wx, wy, i, r, g, b, cb, cr, n, sx, sy, ccb, ccr;
         reg [23:0] p;
         begin
-            n  = 0;
-            sx = 0;
-            sy = 0;
+            n   = 0;
+            sx  = 0;
+            sy  = 0;
+            ccb = 0;
+            ccr = 0;
             for (wy = 0; wy < 120; wy = wy + 1)
             for (wx = 0; wx < 160; wx = wx + 1) begin
                 r = 0;
@@ -141,6 +143,14 @@ module video_tb;
                     sx = sx + wx;
                     sy = sy + wy;
                 end
+                if (wx >= 76 && wx < 84 && wy >= 56 && wy < 64) begin  // 画面正中 8x8, 标定用
+                    ccb = ccb + cb;
+                    ccr = ccr + cr;
+                end
+            end
+            if (u_soc.u_vision.center != {8'(ccr / 64), 8'(ccb / 64)}) begin
+                $display("    FAIL 画面正中颜色: %04h, 期望 Cb %0d Cr %0d", u_soc.u_vision.center, ccb / 64, ccr / 64);
+                bad = bad + 1;
             end
             if (n == 0 || u_soc.u_vision.count != n || u_soc.u_vision.sum_x != sx || u_soc.u_vision.sum_y != sy) begin
                 $display("    FAIL 颜色跟踪: 点数 %0d 坐标和 (%0d, %0d), 期望 %0d (%0d, %0d)", u_soc.u_vision.count,

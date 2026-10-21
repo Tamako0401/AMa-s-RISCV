@@ -43,10 +43,12 @@ MS7200 ──> hdmi_rx_adapter ──> box4 ──┬──> window_store ──
 | 0x08 | SUM_X | 只读, 命中点的 x 之和 (160x120 里) |
 | 0x0C | SUM_Y | 只读, 命中点的 y 之和 |
 | 0x10 | FRAME | 只读, 每出一帧结果加 1 |
+| 0x14 | CENTER | 只读, 画面正中 8x8 个点的平均颜色: `[7:0]` Cb, `[15:8]` Cr (标定用) |
 
 - 重心 = SUM / COUNT, 除法由软件做: `sw/drivers/vision.h` 的 `vision_find()`, 它会重读直到三个数来自同一帧。
 - 结果在下一帧开头锁存, 比画面晚一帧。改 COLOR 的那一帧结果可能不准。
-- 颜色怎么选: `model/color.py` 在画面上点选, 打印出 Cb、Cr; 硬件和它逐位相同。
+- 颜色怎么选: 上板时标定 (标记放在画面正中, 读 CENTER 设成目标色, `video_demo` 里是串口命令 `c`);
+  事先估计用 `model/color.py` 在画面上点选, 硬件和它逐位相同。
 
 盘古实测 (2026-10-21, `ama fpga report --board mes50hp`): 整个视觉输入 581 LUT / 493 FF / 3 DSP, 块 RAM 297 Kb
 (其中颜色跟踪 278 LUT / 2 DSP)。小窗占 288 Kb (16 块), 实际只要 154 Kb: 19200 的深度被补成了 2 的幂。

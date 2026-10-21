@@ -13,8 +13,16 @@ static inline void vision_color(uint32_t cb, uint32_t cr, uint32_t tol)
     VISION->COLOR = (tol & 255) << 16 | (cr & 255) << 8 | (cb & 255);
 }
 
-/* 上一帧的标记位置 (160x120 里的重心); 命中点少于 min_points 返回 0 (没找到) */
-static inline int vision_find(uint32_t min_points, uint32_t *x, uint32_t *y)
+/* 标定: 上一帧画面正中 8x8 的平均颜色。标记放在画面中间读一次, 再用 vision_color 设成目标 */
+static inline void vision_center(uint32_t *cb, uint32_t *cr)
+{
+    uint32_t c = VISION->CENTER;
+    *cb = c & 255;
+    *cr = c >> 8 & 255;
+}
+
+/* 上一帧的标记位置 (160x120 里的重心), 返回命中的点数; 少于 min_points 返回 0 (没找到) */
+static inline uint32_t vision_find(uint32_t min_points, uint32_t *x, uint32_t *y)
 {
     uint32_t frame, n, sx, sy;
     do { /* 读的途中出了新结果就重读, 三个数要来自同一帧 */
@@ -27,7 +35,7 @@ static inline int vision_find(uint32_t min_points, uint32_t *x, uint32_t *y)
         return 0;
     *x = sx / n;
     *y = sy / n;
-    return 1;
+    return n;
 }
 
 #endif

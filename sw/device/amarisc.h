@@ -107,6 +107,7 @@ typedef struct {
     __I uint32_t SUM_X;  /* 0x08 命中点的 x 之和 */
     __I uint32_t SUM_Y;  /* 0x0C 命中点的 y 之和 */
     __I uint32_t FRAME;  /* 0x10 每出一帧结果加 1 */
+    __I uint32_t CENTER; /* 0x14 画面正中 8x8 的平均颜色: [7:0] Cb, [15:8] Cr (标定用) */
 } VISION_TypeDef;
 
 /* ---------------- 基址 ---------------- */
