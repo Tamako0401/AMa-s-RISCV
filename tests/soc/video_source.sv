@@ -1,18 +1,18 @@
 // 视频源模型 (相当于电脑 + HDMI 接收芯片) — 仅用于仿真。
-// 自己产生 25 MHz 像素时钟, 按 640x480@60 的时序输出 de 和 RGB888。
-// 画面: 默认是 pattern() 算出的测试图; +vin=<文件> 时改为文件里的 640x480 RGB888 (每像素 3 字节, R G B)。
+// 自己产生 40 MHz 像素时钟, 按 800x600@60 (VESA) 的时序输出 de 和 RGB888 (电脑最低只给 800x600)。
+// 画面: 默认是 pattern() 算出的测试图; +vin=<文件> 时改为文件里的 800x600 RGB888 (每像素 3 字节, R G B)。
 `timescale 1ns / 1ps
 module video_source #(
-    parameter W = 640,
-    parameter H = 480,
-    parameter H_TOTAL = 800,
-    parameter V_TOTAL = 525
+    parameter W = 800,
+    parameter H = 600,
+    parameter H_TOTAL = 1056,
+    parameter V_TOTAL = 628
 ) (
     output reg pclk = 0,
     output reg de = 0,
     output reg [23:0] rgb = 0
 );
-    always #20 pclk = ~pclk;
+    always #12.5 pclk = ~pclk;
 
     reg [23:0] image[0:W*H-1];
     integer from_file = 0;

@@ -32,6 +32,7 @@ rtl/perips/uart.v
 rtl/perips/video_render.v
 rtl/perips/video.v
 rtl/vision/hdmi_rx_adapter.v
+rtl/vision/crop.v
 rtl/vision/box4.v
 rtl/vision/window_store.v
 rtl/vision/color_track.v

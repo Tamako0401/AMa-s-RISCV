@@ -1,10 +1,12 @@
-// 视觉输入 (外设子总线 0x4000_5000): 输入适配 -> 4x4 均值缩小 -> 小窗存储 / 颜色跟踪,
+// 视觉输入 (外设子总线 0x4000_5000): 输入适配 -> 裁剪 -> 4x4 均值缩小 -> 小窗存储 / 颜色跟踪,
 // 全部在输入的像素时钟下; 小窗读口和寄存器在系统时钟下。
 // 各级之间是像素流 (docs/vision.md), 换相机只换适配器, 换算法只换中间某一级。
 // 寄存器 (偏移): 0x0 COLOR 读写 {tol, cr, cb}; 0x4 COUNT / 0x8 SUM_X / 0xC SUM_Y 只读, 上一帧的颜色跟踪结果;
 //                0x10 FRAME 只读, 每出一帧结果加 1; 0x14 CENTER 只读 {Cr, Cb}, 上一帧画面正中 8x8 的平均颜色。
 module vision #(
-    parameter IN_W = 640  // 输入宽度; 640x480 缩成 160x120 正好填满小窗
+    // 输入 800x600 (电脑最低只给这个), 裁出正中 640x480, 缩成 160x120 正好填满小窗
+    parameter IN_W = 800,
+    parameter IN_H = 600
 ) (
     input wire clk,  // 系统时钟, 小窗读口和寄存器
     input wire rst_n,
@@ -46,17 +48,37 @@ module vision #(
         .out_data(a_data)
     );
 
-    wire s_valid, s_sof, s_eol;
-    wire [23:0] s_data;
-    box4 #(
-        .W(IN_W)
-    ) u_scale (
+    wire c_valid, c_sof, c_eol;
+    wire [23:0] c_data;
+    crop #(
+        .X0((IN_W - 640) / 2),
+        .Y0((IN_H - 480) / 2),
+        .W (640),
+        .H (480)
+    ) u_crop (
         .clk(vin_pclk),
         .rst_n(prst_n),
         .in_valid(a_valid),
         .in_sof(a_sof),
         .in_eol(a_eol),
         .in_data(a_data),
+        .out_valid(c_valid),
+        .out_sof(c_sof),
+        .out_eol(c_eol),
+        .out_data(c_data)
+    );
+
+    wire s_valid, s_sof, s_eol;
+    wire [23:0] s_data;
+    box4 #(
+        .W(640)
+    ) u_scale (
+        .clk(vin_pclk),
+        .rst_n(prst_n),
+        .in_valid(c_valid),
+        .in_sof(c_sof),
+        .in_eol(c_eol),
+        .in_data(c_data),
         .out_valid(s_valid),
         .out_sof(s_sof),
         .out_eol(s_eol),

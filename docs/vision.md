@@ -5,9 +5,10 @@
 同时找画面里的颜色标记, CPU 读寄存器得到它的位置。
 
 ```
-MS7200 ──> hdmi_rx_adapter ──> box4 ──┬──> window_store ──> 小窗 (video.v 读)
-  (以后: OV5640 ──> ov5640_adapter ──┘ └──> color_track ───> 寄存器 (CPU 读)
-└────────── 输入的像素时钟 vin_pclk ──────────────┘ └ 系统时钟 ┘
+MS7200 ──> hdmi_rx_adapter ──> crop ──> box4 ──┬──> window_store ──> 小窗 (video.v 读)
+                                               └──> color_track ───> 寄存器 (CPU 读)
+(以后换相机: OV5640 ──> ov5640_adapter, 接在 crop 前面)
+整条流水线在输入的像素时钟 vin_pclk 下; 小窗读口和寄存器在系统时钟下
 ```
 
 ## 像素流
@@ -30,6 +31,7 @@ MS7200 ──> hdmi_rx_adapter ──> box4 ──┬──> window_store ──
 | 模块 | 做什么 | 资源 |
 | --- | --- | --- |
 | `hdmi_rx_adapter` | MS7200 的 de + RGB -> 像素流。de 断开超过 4096 拍算场消隐, 不管同步极性 | 几十 LUT |
+| `crop` | 只留一块 (800x600 的正中 640x480), 其余丢掉 | 几十 LUT |
 | `box4` | 4x4 均值 (步长 4 的均值卷积): 横向每 4 点累加, 纵向一行 W/4 个部分和存 RAM, 满 4 行输出 | 一块 RAM |
 | `window_store` | 存成 160x120 RGB332 (每像素 1 字节); 读口在系统时钟 | 160x120x8 位 |
 | `color_track` | 每个点算 YCbCr 的 Cb、Cr, 和目标色都差不超过容差算命中; 一帧累加命中的个数和 x、y 之和 | 几个常数乘法和累加器 |
@@ -65,9 +67,9 @@ MS7200 ──> hdmi_rx_adapter ──> box4 ──┬──> window_store ──
 
 ## 输入分辨率
 
-`box4` 按 640 宽 (`vision.v` 的 `IN_W`), 640x480 正好缩成 160x120。
-电脑要把盘古当显示器输出 640x480@60: 接收芯片的 EDID 里有这个分辨率 (取自厂商例程)。
-输入更大时小窗只显示左上角一块。
+电脑把盘古当显示器, 要设成 800x600@60: EDID 里虽然有 640x480, 但 macOS / Windows 对外接屏最低只给 800x600。
+`crop` 裁出正中 640x480 (四周各丢 80 / 60 像素), `box4` 再缩成 160x120; 输入分辨率是 `vision.v` 的 `IN_W`、`IN_H`。
+要不丢视野可以改成 5x5 均值 (800/5 = 160), 但除以 25 要乘常数, 先没做。
 
 ## 芯片
 
@@ -92,7 +94,7 @@ MS7200 ──> hdmi_rx_adapter ──> box4 ──┬──> window_store ──
 
 ## 仿真
 
-- `tests/soc/video_source.sv`: 按 640x480@60 时序送测试图 (红色横向渐变、绿色纵向渐变、蓝色棋盘格);
-  `+vin=<文件>` 改送 640x480 的原始 RGB888 图。
+- `tests/soc/video_source.sv`: 按 800x600@60 时序送测试图 (红色横向渐变、绿色纵向渐变、蓝色棋盘格);
+  `+vin=<文件>` 改送 800x600 的原始 RGB888 图。
 - `ama sim` 里 HDMI 输入接它; `video_tb` 核对小窗里是测试图 4x4 均值后的结果,
   颜色跟踪的点数和坐标和与测试台里的模型 (同 `model/color.py`) 一致。

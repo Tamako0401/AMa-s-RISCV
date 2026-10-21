@@ -1,5 +1,6 @@
 // 视频测试台: sw/app/video_demo 跑在 SoC 上, video_sink 从视频输出端口收画面, 核对背景、精灵、放大和时序;
-// video_source 往视觉输入送测试图, 核对小窗里是 4x4 均值缩小后的图, 颜色跟踪的结果和下面的模型一致。
+// video_source 往视觉输入送 800x600 测试图, 核对小窗里是正中 640x480 经 4x4 均值缩小后的图,
+// 颜色跟踪的结果和下面的模型一致。
 // 结束判定同 lcd_tb: 程序准备好后写 tohost (RAM 0x1000_0000) = 1; 之后再收一整帧来核对。
 `timescale 1ns / 1ps
 module video_tb;
@@ -86,6 +87,8 @@ module video_tb;
         end
     endtask
 
+    localparam CROP_X = 80, CROP_Y = 60;  // 800x600 裁出正中 640x480 (vision.v)
+
     // 小窗 (wx, wy) 应是输入图 4x4 块的均值, 存成 RGB332 再按 video.v 的方式扩回 RGB888
     localparam WIN_X = 152, WIN_Y = 8;
     task static expect_window(input integer wx, input integer wy);
@@ -97,7 +100,7 @@ module video_tb;
             g = 0;
             b = 0;
             for (i = 0; i < 16; i = i + 1) begin
-                p = u_src.pattern(wx * 4 + i % 4, wy * 4 + i / 4);
+                p = u_src.pattern(CROP_X + wx * 4 + i % 4, CROP_Y + wy * 4 + i / 4);
                 r = r + p[23:16];
                 g = g + p[15:8];
                 b = b + p[7:0];
@@ -128,7 +131,7 @@ module video_tb;
                 g = 0;
                 b = 0;
                 for (i = 0; i < 16; i = i + 1) begin
-                    p = u_src.pattern(wx * 4 + i % 4, wy * 4 + i / 4);
+                    p = u_src.pattern(CROP_X + wx * 4 + i % 4, CROP_Y + wy * 4 + i / 4);
                     r = r + p[23:16];
                     g = g + p[15:8];
                     b = b + p[7:0];
