@@ -32,6 +32,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 | `rtl/core/`、`rtl/cpu.f` | CPU 核与独立文件清单 |
 | `rtl/perips/`、`rtl/utils/`、`rtl/reusable.f` | 外设、通用工具和组件清单 |
 | `rtl/soc_top/`、`rtl/soc.f` | 通用 RIB SoC |
+| `model/` | 视觉算法的 Python 试验和参考模型 (硬件的标准答案) |
 | `experiments/` | 数字逻辑学习实验 |
 | `third_party/`、`LICENSES/` | 来源清单、Spike 补丁和适用许可证 |
 
