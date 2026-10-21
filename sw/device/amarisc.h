@@ -100,13 +100,24 @@ typedef struct {
     ((1UL << 31) | ((uint32_t)(pal) << 26) | ((uint32_t)(tile) << 18) | (((uint32_t)(y) & 511) << 9) |                 \
      ((uint32_t)(x) & 511))
 
+/* ---------------- 视觉输入: 颜色跟踪, 见 docs/vision.md ---------------- */
+typedef struct {
+    __IO uint32_t COLOR; /* 0x00 目标颜色和容差: [7:0] Cb, [15:8] Cr, [23:16] 容差 */
+    __I uint32_t COUNT;  /* 0x04 上一帧命中的点数 (160x120 里) */
+    __I uint32_t SUM_X;  /* 0x08 命中点的 x 之和 */
+    __I uint32_t SUM_Y;  /* 0x0C 命中点的 y 之和 */
+    __I uint32_t FRAME;  /* 0x10 每出一帧结果加 1 */
+} VISION_TypeDef;
+
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE 0x40002000UL
 #define UART1_BASE 0x40001000UL
 #define VIDEO_BASE 0x20000000UL
+#define VISION_BASE 0x40005000UL
 
 #define SPI1 ((SPI_TypeDef *)SPI1_BASE)
 #define UART1 ((UART_TypeDef *)UART1_BASE)
 #define VIDEO ((VIDEO_TypeDef *)VIDEO_BASE)
+#define VISION ((VISION_TypeDef *)VISION_BASE)
 
 #endif

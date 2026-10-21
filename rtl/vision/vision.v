@@ -1,10 +1,22 @@
-// 视觉输入: 输入适配 -> 4x4 均值缩小 -> 小窗存储, 全部在输入的像素时钟下; 只有小窗的读口在系统时钟下。
+// 视觉输入 (外设子总线 0x4000_5000): 输入适配 -> 4x4 均值缩小 -> 小窗存储 / 颜色跟踪,
+// 全部在输入的像素时钟下; 小窗读口和寄存器在系统时钟下。
 // 各级之间是像素流 (docs/vision.md), 换相机只换适配器, 换算法只换中间某一级。
+// 寄存器 (偏移): 0x0 COLOR 读写 {tol, cr, cb}; 0x4 COUNT / 0x8 SUM_X / 0xC SUM_Y 只读, 上一帧的颜色跟踪结果;
+//                0x10 FRAME 只读, 每出一帧结果加 1。
 module vision #(
     parameter IN_W = 640  // 输入宽度; 640x480 缩成 160x120 正好填满小窗
 ) (
-    input wire clk,   // 系统时钟, 小窗读口
+    input wire clk,   // 系统时钟, 小窗读口和寄存器
     input wire rst_n,
+    input wire [31:0] addr_i,
+    input wire [31:0] data_i,
+    input wire [3:0] sel_i,
+    input wire we_i,
+    output wire [31:0] data_o,
+    input wire req_valid_i,
+    output wire req_ready_o,
+    output wire rsp_valid_o,
+    input wire rsp_ready_i,
 
     input wire vin_pclk,
     input wire vin_de,
@@ -65,4 +77,80 @@ module vision #(
         .raddr(win_raddr),
         .rdata(win_rdata)
     );
+
+    // 颜色跟踪的设置在系统时钟下写, 像素时钟下直接用 (改的那一帧结果可能不准)
+    reg [7:0] cb, cr, tol;
+    wire [14:0] t_count;
+    wire [21:0] t_sum_x, t_sum_y;
+    wire t_done;
+    color_track #(
+        .W(160),
+        .H(120)
+    ) u_color (
+        .clk(vin_pclk),
+        .rst_n(prst_n),
+        .in_valid(s_valid),
+        .in_sof(s_sof),
+        .in_eol(s_eol),
+        .in_data(s_data),
+        .cb(cb),
+        .cr(cr),
+        .tol(tol),
+        .count(t_count),
+        .sum_x(t_sum_x),
+        .sum_y(t_sum_y),
+        .done(t_done)
+    );
+
+    // 结果跨到系统时钟: done 同步过来, 翻转后再取结果 (结果保持一整帧, 这时早已稳定)
+    reg [2:0] done_s;
+    reg [14:0] count;
+    reg [21:0] sum_x, sum_y;
+    reg [31:0] frame;
+
+    // 总线: 一拍接受, 下一拍响应
+    reg response_valid;
+    reg [31:0] data_r;
+    assign req_ready_o = rst_n && (!response_valid || rsp_ready_i);
+    assign rsp_valid_o = response_valid;
+    assign data_o = data_r;
+    wire fire = req_valid_i && req_ready_o;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            done_s <= 0;
+            count <= 0;
+            sum_x <= 0;
+            sum_y <= 0;
+            frame <= 0;
+            cb <= 0;
+            cr <= 0;
+            tol <= 0;
+            response_valid <= 0;
+            data_r <= 0;
+        end else begin
+            done_s <= {done_s[1:0], t_done};
+            if (done_s[2] != done_s[1]) begin
+                count <= t_count;
+                sum_x <= t_sum_x;
+                sum_y <= t_sum_y;
+                frame <= frame + 1;
+            end
+            if (response_valid && rsp_ready_i) response_valid <= 0;
+            if (fire) begin
+                response_valid <= 1;
+                data_r <= 0;
+            end
+            if (fire && !we_i)
+                case (addr_i[11:2])
+                    0: data_r <= {8'b0, tol, cr, cb};
+                    1: data_r <= {17'b0, count};
+                    2: data_r <= {10'b0, sum_x};
+                    3: data_r <= {10'b0, sum_y};
+                    4: data_r <= frame;
+                    default: data_r <= 0;
+                endcase
+            if (fire && we_i && addr_i[11:2] == 0) {tol, cr, cb} <= data_i[23:0];
+        end
+    end
 endmodule

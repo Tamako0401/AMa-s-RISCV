@@ -34,5 +34,6 @@ rtl/perips/video.v
 rtl/vision/hdmi_rx_adapter.v
 rtl/vision/box4.v
 rtl/vision/window_store.v
+rtl/vision/color_track.v
 rtl/vision/vision.v
 rtl/soc_top/soc_top.v

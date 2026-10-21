@@ -1,5 +1,5 @@
 // 视频测试台: sw/app/video_demo 跑在 SoC 上, video_sink 从视频输出端口收画面, 核对背景、精灵、放大和时序;
-// video_source 往视觉输入送测试图, 核对小窗里是 4x4 均值缩小后的图。
+// video_source 往视觉输入送测试图, 核对小窗里是 4x4 均值缩小后的图, 颜色跟踪的结果和下面的模型一致。
 // 结束判定同 lcd_tb: 程序准备好后写 tohost (RAM 0x1000_0000) = 1; 之后再收一整帧来核对。
 `timescale 1ns / 1ps
 module video_tb;
@@ -111,13 +111,54 @@ module video_tb;
         end
     endtask
 
+    // 颜色跟踪的模型 (同 model/color.py): 对缩小后的每个点算 Cb、Cr, 和 video_demo 设的颜色比
+    localparam CB = 118, CR = 170, TOL = 10;
+    task static expect_color;
+        integer wx, wy, i, r, g, b, cb, cr, n, sx, sy;
+        reg [23:0] p;
+        begin
+            n  = 0;
+            sx = 0;
+            sy = 0;
+            for (wy = 0; wy < 120; wy = wy + 1)
+            for (wx = 0; wx < 160; wx = wx + 1) begin
+                r = 0;
+                g = 0;
+                b = 0;
+                for (i = 0; i < 16; i = i + 1) begin
+                    p = u_src.pattern(wx * 4 + i % 4, wy * 4 + i / 4);
+                    r = r + p[23:16];
+                    g = g + p[15:8];
+                    b = b + p[7:0];
+                end
+                r  = r / 16;
+                g  = g / 16;
+                b  = b / 16;
+                cb = (32768 - 43 * r - 85 * g + 128 * b) / 256;
+                cr = (32768 + 128 * r - 107 * g - 21 * b) / 256;
+                if (cb - CB <= TOL && CB - cb <= TOL && cr - CR <= TOL && CR - cr <= TOL) begin
+                    n  = n + 1;
+                    sx = sx + wx;
+                    sy = sy + wy;
+                end
+            end
+            if (n == 0 || u_soc.u_vision.count != n || u_soc.u_vision.sum_x != sx || u_soc.u_vision.sum_y != sy) begin
+                $display("    FAIL 颜色跟踪: 点数 %0d 坐标和 (%0d, %0d), 期望 %0d (%0d, %0d)", u_soc.u_vision.count,
+                         u_soc.u_vision.sum_x, u_soc.u_vision.sum_y, n, sx, sy);
+                bad = bad + 1;
+            end
+        end
+    endtask
+
     localparam [23:0] SKY = 24'h000084, WALL = 24'hFFFFFF, RED = 24'hFF0000, YELLOW = 24'hFFFF00;
 
     initial begin
-        integer frames;
+        integer frames, results;
         @(posedge seen);
-        frames = u_sink.frames;
+        frames  = u_sink.frames;
+        results = u_soc.u_vision.frame;
         wait (u_sink.frames == frames + 2);  // 写 tohost 之后完整的一帧
+        wait (u_soc.u_vision.frame == results + 2);  // 设好颜色之后完整的一帧输入
 
         if (u_sink.bad_lines != 0) begin
             $display("    FAIL 有 %0d 行的宽度不是 %0d", u_sink.bad_lines, W);
@@ -138,10 +179,12 @@ module video_tb;
         expect_window(100, 7);
         expect_window(8, 60);
         expect_pixel(WIN_X - 1, WIN_Y + 10, SKY, "小窗左边");
-        $display("[result] frames %0d", u_sink.frames);
+        expect_color();
+        $display("[result] frames %0d, color %0d (%0d, %0d)", u_sink.frames, u_soc.u_vision.count,
+                 u_soc.u_vision.sum_x, u_soc.u_vision.sum_y);
 
         if (bad != 0) $fatal(1, "视频画面核对失败: %0d 项", bad);
-        $display("PASS video: 640x480 输出, 背景 + 精灵 + 小窗核对通过");
+        $display("PASS video: 640x480 输出, 背景 + 精灵 + 小窗 + 颜色跟踪核对通过");
         $finish;
     end
 
