@@ -12,7 +12,7 @@ typedef struct {
 } i2c_pins_t;
 
 void i2c_init(const i2c_pins_t *pins);
-/* dev 是 8 位写地址 (如 0xB2); 成功返回 0, 没有 ACK 返回 -1 */
+/* dev 是 8 位写地址 (如 0xB2); reg 是 16 位寄存器地址, 低字节先发; 成功返回 0, 没有 ACK 返回 -1 */
 int i2c_write_reg16(const i2c_pins_t *pins, uint8_t dev, uint16_t reg, uint8_t value);
 int i2c_read_reg16(const i2c_pins_t *pins, uint8_t dev, uint16_t reg, uint8_t *value);
 

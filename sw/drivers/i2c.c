@@ -92,10 +92,11 @@ static uint8_t read_byte(const i2c_pins_t *p)
     return byte;
 }
 
+/* 16 位寄存器地址低字节在前 (MS7200/MS7210 的约定, 同盘古例程 iic_dri.v) */
 static int write_addr(const i2c_pins_t *p, uint8_t dev, uint16_t reg)
 {
     start(p);
-    return write_byte(p, dev) || write_byte(p, reg >> 8) || write_byte(p, reg & 0xFF) ? -1 : 0;
+    return write_byte(p, dev) || write_byte(p, reg & 0xFF) || write_byte(p, reg >> 8) ? -1 : 0;
 }
 
 int i2c_write_reg16(const i2c_pins_t *p, uint8_t dev, uint16_t reg, uint8_t value)
