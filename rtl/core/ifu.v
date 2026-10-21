@@ -106,6 +106,13 @@ module ifu #(
     wire issue_fire = req_pending && req_ready_i;
     wire issue_next = can_issue && !flush_i;  // 与 issue_fire 同拍启动下一笔
 
+    // 重定向当拍就发目标地址的请求, 省掉一拍。指令队列在 flush 那一拍被清空,
+    // 所以容量只看在途标签; 这样队列满时也能立刻发出目标地址。
+    wire [PTRW:0] refill_inflight = {1'b0, tag_cnt} + {{PTRW{1'b0}}, req_pending};
+    wire can_issue_redirect = rst_n && !jtag_halt_i && (refill_inflight < DEPTH_LIM);
+    // 旧请求还没握手就先让它走完, 下一拍再发目标
+    wire redirect_now = flush_i && can_issue_redirect && (!req_pending || req_ready_i);
+
     assign req_valid_o = rst_n && req_pending;
     assign rsp_ready_o = rst_n;  // 永远接收，避免总线事务悬挂
     assign ibus_addr_o = req_pending ? req_addr : fetch_pc;
@@ -118,14 +125,19 @@ module ifu #(
     wire rsp_take = rst_n && rsp_valid_i && !tag_empty;
     wire rsp_match = rsp_take && (tag_head[EW+31:32] == epoch);
 
-    // 交给 ifu_idu 的指令；队列空时给 NOP 气泡
-    wire [63:0] inst_head = inst_mem[inst_rptr[AW-1:0]];
-    assign inst_valid_o = rst_n && !flush_i && !jtag_halt_i && !inst_empty;
+    // 队列空且下游这一拍就要拿走时, 直接旁路响应, 省掉"写队列再读出"的一拍。
+    // 停顿时下游拿不走, 必须先存进队列, 否则这条指令会丢。
+    wire fifo_bypass = rsp_match && inst_empty && !stall_i[`STALL_ID];
+    wire [63:0] inst_head = fifo_bypass ? {tag_head[31:0], ibus_data_i} : inst_mem[inst_rptr[AW-1:0]];
+
+    assign inst_valid_o = rst_n && !flush_i && !jtag_halt_i && (fifo_bypass || !inst_empty);
     assign inst_o = inst_valid_o ? inst_head[31:0] : `INST_NOP;
     assign pc_o = inst_valid_o ? inst_head[63:32] : fetch_pc;
 
-    // ifu_idu 在 !stall[ID] 或 flush 时锁存；flush 那一拍指令已被丢弃，不用出队
-    wire inst_pop = inst_valid_o && !stall_i[`STALL_ID];
+    // ifu_idu 在 !stall[ID] 或 flush 时锁存；flush 那一拍指令已被丢弃, 不用出队
+    wire inst_pop = inst_valid_o && !stall_i[`STALL_ID] && !fifo_bypass;
+    // 旁路的那条不进队列, 否则会重复交付
+    wire inst_push = rsp_match && !fifo_bypass;
 
     // 指令队列
     always @(posedge clk or negedge rst_n) begin
@@ -137,7 +149,7 @@ module ifu #(
             inst_wptr <= {PTRW{1'b0}};
             inst_rptr <= {PTRW{1'b0}};
         end else begin
-            if (rsp_match) begin
+            if (inst_push) begin
                 inst_mem[inst_wptr[AW-1:0]] <= {tag_head[31:0], ibus_data_i};
                 inst_wptr <= inst_wptr + 1'b1;
             end
@@ -159,13 +171,14 @@ module ifu #(
         end
     end
 
-    // 取指地址: 只在真正发出一笔新请求时前进；重定向期间锁到目标地址
+    // 取指地址: 只在真正发出一笔新请求时前进；重定向时跳到目标地址
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             fetch_pc <= RESET_PC;
             epoch    <= {EW{1'b0}};
         end else if (flush_i) begin
-            fetch_pc <= flush_addr_i;
+            // 目标地址当拍已发出请求时, fetch_pc 指向下一条
+            fetch_pc <= redirect_now ? (flush_addr_i + 32'd4) : flush_addr_i;
             epoch    <= epoch + 1'b1;
         end else if (issue_start || (issue_fire && issue_next)) begin
             fetch_pc <= fetch_pc + 32'd4;
@@ -178,6 +191,10 @@ module ifu #(
             req_pending <= 1'b0;
             req_addr    <= RESET_PC;
             req_epoch   <= {EW{1'b0}};
+        end else if (redirect_now) begin
+            req_pending <= 1'b1;
+            req_addr    <= flush_addr_i;
+            req_epoch   <= epoch + 1'b1;
         end else if (issue_fire) begin
             if (issue_next) begin
                 req_pending <= 1'b1;

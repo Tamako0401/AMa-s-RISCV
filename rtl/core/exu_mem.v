@@ -54,6 +54,10 @@ module exu_mem (
 
 
     reg [31:0] response_data;
+    // 有一笔访存请求在途(已握手、响应未取走)
+    reg pending;
+    // 本条指令自己的响应正在总线上; pending 只由它自己的请求置位
+    wire rsp_now = pending && mem_rsp_valid_i;
     wire [1:0] mem_addr_index = mem_addr_i[1:0];
     wire mem_addr_index00 = (mem_addr_index == 2'b00);
     wire mem_addr_index01 = (mem_addr_index == 2'b01);
@@ -89,17 +93,19 @@ module exu_mem (
 
     wire [31:0] sw_res = mem_rs2_data_i;
 
+    // 本条指令自己的响应那一拍, 读数据直接取总线值; 其余时候用锁存值
+    wire is_load = mem_op_lb_i | mem_op_lh_i | mem_op_lw_i | mem_op_lbu_i | mem_op_lhu_i;
+    wire [31:0] rdata_sel = rsp_now ? mem_rdata_i : response_data;
+
     reg  [31:0] lb_res;
 
     always @(*) begin
         lb_res = 32'h0;
         case (1'b1)
-            mem_addr_index00: lb_res = {{24{mem_op_lb_i & response_data[7]}}, response_data[7:0]};
-            mem_addr_index01: lb_res = {{24{mem_op_lb_i & response_data[15]}}, response_data[15:8]};
-            mem_addr_index10:
-            lb_res = {{24{mem_op_lb_i & response_data[23]}}, response_data[23:16]};
-            mem_addr_index11:
-            lb_res = {{24{mem_op_lb_i & response_data[31]}}, response_data[31:24]};
+            mem_addr_index00: lb_res = {{24{mem_op_lb_i & rdata_sel[7]}}, rdata_sel[7:0]};
+            mem_addr_index01: lb_res = {{24{mem_op_lb_i & rdata_sel[15]}}, rdata_sel[15:8]};
+            mem_addr_index10: lb_res = {{24{mem_op_lb_i & rdata_sel[23]}}, rdata_sel[23:16]};
+            mem_addr_index11: lb_res = {{24{mem_op_lb_i & rdata_sel[31]}}, rdata_sel[31:24]};
         endcase
     end
 
@@ -108,13 +114,12 @@ module exu_mem (
     always @(*) begin
         lh_res = 32'h0;
         case (1'b1)
-            mem_addr_index00: lh_res = {{24{mem_op_lh_i & response_data[15]}}, response_data[15:0]};
-            mem_addr_index10:
-            lh_res = {{24{mem_op_lh_i & response_data[31]}}, response_data[31:16]};
+            mem_addr_index00: lh_res = {{24{mem_op_lh_i & rdata_sel[15]}}, rdata_sel[15:0]};
+            mem_addr_index10: lh_res = {{24{mem_op_lh_i & rdata_sel[31]}}, rdata_sel[31:16]};
         endcase
     end
 
-    wire [31:0] lw_res = response_data;
+    wire [31:0] lw_res = rdata_sel;
 
     reg  [31:0] mem_wdata;
 
@@ -134,31 +139,26 @@ module exu_mem (
 
     assign mem_wdata_o = mem_wdata;
 
-    // Exactly one request per memory instruction. EX remains held until done.
-    reg pending, done;
+    // 一条访存指令只发一次请求, 响应那一拍 EX 就放行, 不再多等一拍 done
     wire request_fire = mem_req_valid_o && mem_req_ready_i;
     wire response_fire = mem_rsp_valid_i && mem_rsp_ready_o;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             pending <= 1'b0;
-            done <= 1'b0;
             response_data <= 32'b0;
         end else begin
-            done <= 1'b0;
             if (request_fire) pending <= 1'b1;
             if (response_fire) begin
                 pending <= 1'b0;
-                done <= 1'b1;
                 response_data <= mem_rdata_i;
             end
         end
     end
     assign mem_rsp_ready_o = rst_n && pending;
-    assign mem_req_valid_o = rst_n && req_mem_i && !pending && !done && !mem_access_misaligned_o;
-    assign mem_stall_o = req_mem_i && !done && !mem_access_misaligned_o;
+    assign mem_req_valid_o = rst_n && req_mem_i && !pending && !mem_access_misaligned_o;
+    assign mem_stall_o = req_mem_i && !mem_access_misaligned_o && !rsp_now;
     assign mem_addr_o = mem_addr_i;
-    assign mem_reg_we_o = (mem_op_lb_i | mem_op_lh_i | mem_op_lw_i |
-                          mem_op_lbu_i | mem_op_lhu_i) && done;
+    assign mem_reg_we_o = is_load && rsp_now;
     // Write intent belongs to the request, never to the response.
     assign mem_mem_we_o = mem_op_sb_i | mem_op_sh_i | mem_op_sw_i;
 
