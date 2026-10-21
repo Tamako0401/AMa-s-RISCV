@@ -29,5 +29,7 @@ ama run coremark
 
 ## 注意
 
-- 分数和编译器版本有关 (同一份代码: 本机 gcc 16 为 0.716, CI 的 Ubuntu gcc 为 0.660)。交比赛结果前用
-  `ama doctor` 记下编译器版本。
+- 分数和编译器版本有关, 交结果时用 `ama doctor` 记下编译器版本。本机 gcc 16.2 仿真: 0.716 → 1.613 (预取队列 + ROM 独立取指口)
+  → 2.099 (2026-10-22, 访存少停一拍 + 重定向当拍取指)。
+- 仿真只跑 3 次迭代, CoreMark 会报"不足 10 秒"(所以打印 `Errors detected`, CRC 本身没错), 不是正式成绩。
+  正式成绩要上板、设足迭代次数跑满 10 秒以上, 并用两组种子验证 (`third_party/coremark/README.md` 的 Required)。

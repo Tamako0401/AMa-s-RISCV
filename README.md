@@ -2,9 +2,9 @@
 
 2026 全国大学生嵌入式芯片与系统设计竞赛，FPGA 创新设计赛道，紫光同创选题一「基于紫光同创 RISCV 指令集 CPU 设计」。三人团队基于现有开源 CPU 建立可复现的功能基线，再围绕应用做优化。
 
-当前应用方向是带图形输出的嵌入式游戏系统，并探索 SuperTux v0.1.3 移植。最终流水级数和优化方案仍待团队确认。现有核保留 IF/ID/EX 组织；取指是预取队列，直连 ROM 的专用读口，访存走 RIB，两者互不阻塞。
+当前应用方向是带图形输出的嵌入式游戏系统：HDMI 图块 + 精灵显示，用摄像头画面里的颜色标记控制（已上板跟踪红色盒子），另在探索 SuperTux v0.1.3 移植。赛题要求见 [competition.md](docs/competition.md)。现有核保留 IF/ID/EX 组织；取指是预取队列，直连 ROM 的专用读口，访存走 RIB，两者互不阻塞。
 
-总线按 `valid && ready` 接受请求，每个 CPU 端口最多一笔未完成事务，响应允许延后。详细协议和限制见 [CPU 基线](docs/cpu-baseline.md)；地址约定见 [平台文档](docs/platform.md)。
+总线按 `valid && ready` 接受请求，RIB 同一时刻只有一笔未完成事务，响应允许延后。详细协议和限制见 [CPU 基线](docs/cpu-baseline.md)；地址约定见 [平台文档](docs/platform.md)。
 
 ## 改完代码怎么上板
 
@@ -36,6 +36,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 | `experiments/` | 数字逻辑学习实验 |
 | `third_party/`、`LICENSES/` | 来源清单、Spike 补丁和适用许可证 |
 
+- [赛题要求与答疑要点](docs/competition.md)
 - [CPU 基线与验证边界](docs/cpu-baseline.md)
 - [SPI 寄存器](docs/spi.md)
 - [离线 Difftest 与已知限制](docs/difftest.md)

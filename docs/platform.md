@@ -8,7 +8,7 @@ Architecture:
     ABI = ilp32
 
 Reset vector:
-    0x00000000
+    0x00000000 (soc_top 默认, CPU/SoC 测试用); 板级顶层设为 0x0000f800 (bootloader, 见 bootloader.md)
 
 ROM (instruction):
     0x00000000 - 0x0000ffff
