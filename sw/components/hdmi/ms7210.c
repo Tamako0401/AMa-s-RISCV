@@ -3,6 +3,21 @@
 
 #define DEV 0xB2 /* SA 脚上拉 (MES50HP 硬件手册 3.3.2) */
 
+/* 每次读写后等 1 ms, 同盘古例程 (iic_dri.v 的 T_WR) */
+static int reg_write(const i2c_pins_t *i2c, uint16_t reg, uint8_t value)
+{
+    int err = i2c_write_reg16(i2c, DEV, reg, value);
+    delay_ms(1);
+    return err;
+}
+
+static int reg_read(const i2c_pins_t *i2c, uint16_t reg, uint8_t *value)
+{
+    int err = i2c_read_reg16(i2c, DEV, reg, value);
+    delay_ms(1);
+    return err;
+}
+
 /* 寄存器表抄自盘古 50K 例程 05_hdmi_test/src/ms7210_ctl.v (RGB888 输入, 自动识别分辨率);
  * 两段之间要等约 0.3 秒, 同例程。 */
 static const uint16_t init_seq[][2] = {
@@ -21,7 +36,7 @@ static const uint16_t setting_seq[][2] = {
 static int write_all(const i2c_pins_t *i2c, const uint16_t (*seq)[2], uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
-        if (i2c_write_reg16(i2c, DEV, seq[i][0], seq[i][1]))
+        if (reg_write(i2c, seq[i][0], seq[i][1]))
             return -1;
     return 0;
 }
@@ -30,7 +45,7 @@ int ms7210_init(const i2c_pins_t *i2c)
 {
     /* 先写一个寄存器再读回, 确认芯片在 */
     uint8_t id = 0;
-    if (i2c_write_reg16(i2c, DEV, 0x0003, 0x5A) || i2c_read_reg16(i2c, DEV, 0x0003, &id) || id != 0x5A)
+    if (reg_write(i2c, 0x0003, 0x5A) || reg_read(i2c, 0x0003, &id) || id != 0x5A)
         return -1;
     if (write_all(i2c, init_seq, sizeof init_seq / sizeof init_seq[0]))
         return -1;

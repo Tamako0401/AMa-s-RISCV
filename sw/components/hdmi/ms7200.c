@@ -1,6 +1,22 @@
 #include "ms7200.h"
+#include "bsp.h"
 
 #define DEV 0x56 /* SA 脚下拉 (MES50HP 硬件手册 3.3.1) */
+
+/* 每次读写后等 1 ms, 同盘古例程 (iic_dri.v 的 T_WR) */
+static int reg_write(const i2c_pins_t *i2c, uint16_t reg, uint8_t value)
+{
+    int err = i2c_write_reg16(i2c, DEV, reg, value);
+    delay_ms(1);
+    return err;
+}
+
+static int reg_read(const i2c_pins_t *i2c, uint16_t reg, uint8_t *value)
+{
+    int err = i2c_read_reg16(i2c, DEV, reg, value);
+    delay_ms(1);
+    return err;
+}
 
 /* 寄存器表和 EDID 取自盘古 50K 例程 06_hdmi_loop/src/ms7200_ctl.v:
  * init_seq -> EDID (写到 0x0D00 起) -> enable_seq; 输入时钟稳定后写 lock_seq。
@@ -34,7 +50,7 @@ static const uint16_t lock_seq[][2] = {{0x1010, 0x01}, {0x1024, 0x00}, {0x0200, 
 static int write_all(const i2c_pins_t *i2c, const uint16_t (*seq)[2], uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
-        if (i2c_write_reg16(i2c, DEV, seq[i][0], seq[i][1]))
+        if (reg_write(i2c, seq[i][0], seq[i][1]))
             return -1;
     return 0;
 }
@@ -43,12 +59,12 @@ int ms7200_init(const i2c_pins_t *i2c)
 {
     /* 先写一个寄存器再读回, 确认芯片在 */
     uint8_t id = 0;
-    if (i2c_write_reg16(i2c, DEV, 0x0003, 0x5A) || i2c_read_reg16(i2c, DEV, 0x0003, &id) || id != 0x5A)
+    if (reg_write(i2c, 0x0003, 0x5A) || reg_read(i2c, 0x0003, &id) || id != 0x5A)
         return -1;
     if (write_all(i2c, init_seq, sizeof init_seq / sizeof init_seq[0]))
         return -1;
     for (uint32_t i = 0; i < sizeof edid; i++)
-        if (i2c_write_reg16(i2c, DEV, 0x0D00 + i, edid[i]))
+        if (reg_write(i2c, 0x0D00 + i, edid[i]))
             return -1;
     return write_all(i2c, enable_seq, sizeof enable_seq / sizeof enable_seq[0]);
 }
@@ -59,7 +75,7 @@ int ms7200_poll(const i2c_pins_t *i2c)
     static uint8_t last;
     uint8_t status[4];
     for (uint32_t i = 0; i < 4; i++)
-        if (i2c_read_reg16(i2c, DEV, 0x209C + i, &status[i]))
+        if (reg_read(i2c, 0x209C + i, &status[i]))
             return 0;
     uint8_t now = status[2] & 3;
     int locked = (last & 3) == 0 && now == 2;
