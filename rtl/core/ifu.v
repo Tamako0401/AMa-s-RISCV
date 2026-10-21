@@ -125,14 +125,19 @@ module ifu #(
     wire rsp_take = rst_n && rsp_valid_i && !tag_empty;
     wire rsp_match = rsp_take && (tag_head[EW+31:32] == epoch);
 
-    // 交给 ifu_idu 的指令；队列空时给 NOP 气泡
-    wire [63:0] inst_head = inst_mem[inst_rptr[AW-1:0]];
-    assign inst_valid_o = rst_n && !flush_i && !jtag_halt_i && !inst_empty;
+    // 队列空且下游这一拍就要拿走时, 直接旁路响应, 省掉"写队列再读出"的一拍。
+    // 停顿时下游拿不走, 必须先存进队列, 否则这条指令会丢。
+    wire fifo_bypass = rsp_match && inst_empty && !stall_i[`STALL_ID];
+    wire [63:0] inst_head = fifo_bypass ? {tag_head[31:0], ibus_data_i} : inst_mem[inst_rptr[AW-1:0]];
+
+    assign inst_valid_o = rst_n && !flush_i && !jtag_halt_i && (fifo_bypass || !inst_empty);
     assign inst_o = inst_valid_o ? inst_head[31:0] : `INST_NOP;
     assign pc_o = inst_valid_o ? inst_head[63:32] : fetch_pc;
 
-    // ifu_idu 在 !stall[ID] 或 flush 时锁存；flush 那一拍指令已被丢弃，不用出队
-    wire inst_pop = inst_valid_o && !stall_i[`STALL_ID];
+    // ifu_idu 在 !stall[ID] 或 flush 时锁存；flush 那一拍指令已被丢弃, 不用出队
+    wire inst_pop = inst_valid_o && !stall_i[`STALL_ID] && !fifo_bypass;
+    // 旁路的那条不进队列, 否则会重复交付
+    wire inst_push = rsp_match && !fifo_bypass;
 
     // 指令队列
     always @(posedge clk or negedge rst_n) begin
@@ -144,7 +149,7 @@ module ifu #(
             inst_wptr <= {PTRW{1'b0}};
             inst_rptr <= {PTRW{1'b0}};
         end else begin
-            if (rsp_match) begin
+            if (inst_push) begin
                 inst_mem[inst_wptr[AW-1:0]] <= {tag_head[31:0], ibus_data_i};
                 inst_wptr <= inst_wptr + 1'b1;
             end
