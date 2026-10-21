@@ -106,6 +106,13 @@ module ifu #(
     wire issue_fire = req_pending && req_ready_i;
     wire issue_next = can_issue && !flush_i;  // 与 issue_fire 同拍启动下一笔
 
+    // 重定向当拍就发目标地址的请求, 省掉一拍。指令队列在 flush 那一拍被清空,
+    // 所以容量只看在途标签; 这样队列满时也能立刻发出目标地址。
+    wire [PTRW:0] refill_inflight = {1'b0, tag_cnt} + {{PTRW{1'b0}}, req_pending};
+    wire can_issue_redirect = rst_n && !jtag_halt_i && (refill_inflight < DEPTH_LIM);
+    // 旧请求还没握手就先让它走完, 下一拍再发目标
+    wire redirect_now = flush_i && can_issue_redirect && (!req_pending || req_ready_i);
+
     assign req_valid_o = rst_n && req_pending;
     assign rsp_ready_o = rst_n;  // 永远接收，避免总线事务悬挂
     assign ibus_addr_o = req_pending ? req_addr : fetch_pc;
@@ -159,13 +166,14 @@ module ifu #(
         end
     end
 
-    // 取指地址: 只在真正发出一笔新请求时前进；重定向期间锁到目标地址
+    // 取指地址: 只在真正发出一笔新请求时前进；重定向时跳到目标地址
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             fetch_pc <= RESET_PC;
             epoch    <= {EW{1'b0}};
         end else if (flush_i) begin
-            fetch_pc <= flush_addr_i;
+            // 目标地址当拍已发出请求时, fetch_pc 指向下一条
+            fetch_pc <= redirect_now ? (flush_addr_i + 32'd4) : flush_addr_i;
             epoch    <= epoch + 1'b1;
         end else if (issue_start || (issue_fire && issue_next)) begin
             fetch_pc <= fetch_pc + 32'd4;
@@ -178,6 +186,10 @@ module ifu #(
             req_pending <= 1'b0;
             req_addr    <= RESET_PC;
             req_epoch   <= {EW{1'b0}};
+        end else if (redirect_now) begin
+            req_pending <= 1'b1;
+            req_addr    <= flush_addr_i;
+            req_epoch   <= epoch + 1'b1;
         end else if (issue_fire) begin
             if (issue_next) begin
                 req_pending <= 1'b1;
