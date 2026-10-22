@@ -42,6 +42,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - [离线 Difftest 与已知限制](docs/difftest.md)
 - [RTL 来源、授权与接入条件](docs/third-party.md)
 - [视频外设 (HDMI, 图块 + 精灵)](docs/video.md)
+- [显示扩展方案 (720p、多图层、软硬件分工, 草案)](docs/display-plan.md)
 - [视觉输入 (HDMI 输入, 缩小, 小窗)](docs/vision.md)
 - [徒手手势模型 (数据、标注、训练)](docs/hand-model.md)
 - [参考项目: 手势控制游戏、FPGA 手势识别、sprite 引擎](docs/references.md)
