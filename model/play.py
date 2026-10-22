@@ -1,12 +1,15 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy", "opencv-python", "mediapipe"]
+# dependencies = ["numpy", "opencv-python", "mediapipe", "torch"]
 # ///
 """手势玩弹幕 (东方式) 原型: 先用成熟模型 (MediaPipe) 当输入, 看手势控制到底能不能玩。
 
 用法: model/play.py <gesture_recognizer.task> [摄像头编号或视频文件, 默认 0] [--record <人> <场景>]
+                     [--student <train.py 存的模型> [--threshold 0.5]]
   --record: 边玩边录, 和 record.py 一样存 640x480 的帧 (段名 play), 之后用 label.py 标注。
+  --student: 用自己训练的模型控制; MediaPipe 照样跑, 只在小窗里画出来对照 (绿点 MediaPipe, 红圈自己的模型)。
+  --threshold: 自己的模型热力图分数低于它算没找到手。
 玩法: 握拳移动控制自机, 张开一下放 bomb (清屏, 每条命 3 个); 自动射击, 打中上面的 boss 得分。
   3 条命, 用完后张开手 1 秒或按 R 重开。每局结束在终端打印成绩。
 按键: M 切换 手 / 鼠标 (对照: 鼠标也躲不过说明是游戏太难, 不是手势的问题)
@@ -25,8 +28,10 @@ import time
 import cv2
 import mediapipe as mp
 import numpy as np
+import torch
 
-from label import FIST, PALM, TEACHER, IGNORE, finger_ratios, merge, recognizer, rule
+from handnet import decode, load, shrink
+from label import FIST, OPEN, PALM, TEACHER, IGNORE, finger_ratios, merge, recognizer, rule
 from motion import to_vga
 from record import QUALITY, SAVE_EVERY, new_session
 
@@ -49,9 +54,11 @@ BULLET_R = 3
 class Camera(threading.Thread):
     """后台一直读摄像头、跑 MediaPipe; 主循环用 latest() 取最新结果, 不用等识别。"""
 
-    def __init__(self, model, source, record=None):
+    def __init__(self, model, source, record=None, student=None, threshold=0.5):
         super().__init__(daemon=True)
         self.model = model
+        self.student, self.size = load(student) if student else (None, None)  # 自己的模型和它的输入宽度
+        self.threshold = threshold
         self.out = new_session(*record, 'play') if record else None  # 边玩边录存到哪
         self.frames = []  # 录下的帧, 格式同 record.py 的 meta.json
         self.cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
@@ -59,7 +66,8 @@ class Camera(threading.Thread):
             sys.exit(f'打不开摄像头 {source}')
         self.is_file = not source.isdigit()
         self.lock = threading.Lock()
-        self.result = (0, None, IGNORE, None, 0.0)  # (第几帧, 手心位置, 手势, 小窗画面, 识别耗时 ms)
+        # (第几帧, 手心位置, 手势, 小窗画面, 识别耗时 ms, MediaPipe 的手心, 自己模型的分数)
+        self.result = (0, None, IGNORE, None, 0.0, None, None)
         self.running = True
 
     def stop(self):
@@ -97,9 +105,23 @@ class Camera(threading.Thread):
                     teacher = TEACHER.get(found.gestures[0][0].category_name, IGNORE)
                     gesture = merge(teacher, rule(finger_ratios(found.hand_world_landmarks[0])))  # 同 label.py
                 cost = (time.monotonic() - start) * 1000
+                teacher_pos, score = pos, None
+                if self.student:  # 游戏改用自己的模型的结果, MediaPipe 的只留着画在小窗里对照
+                    start = time.monotonic()
+                    pos, gesture, score = self.ask_student(frame)
+                    cost = (time.monotonic() - start) * 1000
                 count += 1
                 with self.lock:
-                    self.result = (count, pos, gesture, frame, cost)
+                    self.result = (count, pos, gesture, frame, cost, teacher_pos, score)
+
+    def ask_student(self, frame):
+        """自己的模型: 640x480 按块平均缩小 (和硬件一样) -> 网络 -> 热力图最高的格。分数不够算没找到手。"""
+        small = torch.from_numpy(shrink(frame, self.size)).permute(2, 0, 1)[None]
+        with torch.no_grad():
+            score, x, y, fist = decode(self.student(small)[0])
+        if score < self.threshold:
+            return None, IGNORE, score
+        return np.array([x, y]), FIST if fist > 0.5 else OPEN, score
 
     def latest(self):
         with self.lock:
@@ -146,7 +168,7 @@ class Hand:
         self.costs = []  # 统计: 每帧识别耗时 ms
 
     def update(self, camera, noise, smooth):
-        count, pos, gesture, _, cost = camera.latest()
+        count, pos, gesture, _, cost, _, _ = camera.latest()
         if count == self.seen:
             return
         self.seen = count
@@ -303,16 +325,18 @@ def text(window, line, row, color=(255, 255, 255)):
     cv2.putText(window, line, (8, 24 + 26 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
 
-def draw_preview(window, frame, hand_pos):
-    """右下角摄像头小窗, 画出有效区 (黄框) 和识别到的手心 (绿点)。"""
+def draw_preview(window, frame, hand_pos, teacher_pos):
+    """右下角摄像头小窗, 画出有效区 (黄框) 和 MediaPipe 的手心 (绿点); 用自己的模型时再画它的手心 (红圈)。"""
     pw, ph = 240, 180
     x0, y0 = W * SCALE - pw - 8, H * SCALE - ph - 8
     window[y0 : y0 + ph, x0 : x0 + pw] = cv2.resize(frame, (pw, ph))
     lo = (1 - ACTIVE) / 2
     corner = (int(x0 + lo * pw), int(y0 + lo * ph))
     cv2.rectangle(window, corner, (int(corner[0] + ACTIVE * pw), int(corner[1] + ACTIVE * ph)), (0, 255, 255), 1)
-    if hand_pos is not None:
-        cv2.circle(window, (int(x0 + hand_pos[0] * pw), int(y0 + hand_pos[1] * ph)), 4, (0, 255, 0), -1)
+    if teacher_pos is not None:
+        cv2.circle(window, (int(x0 + teacher_pos[0] * pw), int(y0 + teacher_pos[1] * ph)), 4, (0, 255, 0), -1)
+    if hand_pos is not None and hand_pos is not teacher_pos:
+        cv2.circle(window, (int(x0 + hand_pos[0] * pw), int(y0 + hand_pos[1] * ph)), 6, (0, 0, 255), 2)
 
 
 def report(game, mode, noise, smooth, hand):
@@ -330,8 +354,11 @@ def main():
     parser.add_argument('model')
     parser.add_argument('source', nargs='?', default='0')
     parser.add_argument('--record', nargs=2, metavar=('人', '场景'))
+    parser.add_argument('--student')
+    parser.add_argument('--threshold', type=float, default=0.5)
     args = parser.parse_args()
-    camera = Camera(args.model, args.source, args.record)
+    camera = Camera(args.model, args.source, args.record, args.student, args.threshold)
+    hand_mode = 'student' if args.student else 'hand'  # 用手控制时成绩里写的名字
     camera.start()
 
     mouse = {'pos': (W * SCALE // 2, H * SCALE * 4 // 5), 'click': False}
@@ -345,7 +372,7 @@ def main():
     cv2.setMouseCallback('play', on_mouse)
 
     game, hand = Game(), Hand()
-    mode, noise, smooth = 'hand', 0, True
+    mode, noise, smooth = hand_mode, 0, True
     was_fist = False
     reported = False
     hold = 0.0  # 游戏结束后握拳握了几秒
@@ -364,7 +391,7 @@ def main():
             camera.stop()
             return
         if key == ord('m'):
-            mode = 'mouse' if mode == 'hand' else 'hand'
+            mode = 'mouse' if mode != 'mouse' else hand_mode
         elif key == ord('s'):
             smooth = not smooth
         elif ord('0') <= key <= ord('3'):
@@ -374,8 +401,8 @@ def main():
 
         # 输入: 手或鼠标 -> 自机目标位置; 张开那一下 (从握拳变成张开) 放 bomb
         hand.update(camera, noise, smooth)
-        _, raw_pos, _, frame, cost = camera.latest()
-        if mode == 'hand':
+        _, raw_pos, _, frame, cost, teacher_pos, score = camera.latest()
+        if mode != 'mouse':
             target = hand.pos
             if was_fist and not hand.fist:
                 game.bomb()
@@ -404,13 +431,14 @@ def main():
         window = cv2.resize(game.draw(), (W * SCALE, H * SCALE), interpolation=cv2.INTER_NEAREST)
         text(window, f'lives {game.lives}  bombs {game.bombs}  score {game.score}  bullets {len(game.bullets)}', 0)
         text(window, f'{mode}  noise {noise}  smooth {"on" if smooth else "off"}', 1)
-        if mode == 'hand':
+        if mode != 'mouse':
             state = 'no hand' if raw_pos is None else ('FIST' if hand.fist else 'open')
-            text(window, f'hand: {state}   detect {cost:.0f} ms', 2, (0, 255, 255))
+            line = f'hand: {state}   detect {cost:.0f} ms' + (f'   score {score:.2f}' if score is not None else '')
+            text(window, line, 2, (0, 255, 255))
         if game.over:
             text(window, f'GAME OVER - open hand 1s or press R   {min(hold / RESTART_HOLD, 1):.0%}', 13)
         if frame is not None:
-            draw_preview(window, frame, raw_pos)
+            draw_preview(window, frame, raw_pos, teacher_pos)
         cv2.imshow('play', window)
 
 

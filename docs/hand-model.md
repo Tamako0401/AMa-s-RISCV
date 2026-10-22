@@ -16,7 +16,11 @@
 ```sh
 model/play.py models/gesture_recognizer.task                 # 第二个参数可以换摄像头编号
 model/play.py models/gesture_recognizer.task --record ps front # 边玩边录, 之后用 label.py 标注
+model/play.py models/gesture_recognizer.task --student model/runs/<名字>.pt   # 用自己训练的模型玩
 ```
+
+`--student` 时游戏由自己的模型控制, MediaPipe 照样跑, 只在小窗里画出来对照 (绿点 MediaPipe, 红圈自己的模型),
+屏幕上显示热力图分数; `--threshold` 改"分数低于多少算没找到手" (默认 0.5)。
 
 画面和录数据一样, 是镜像后裁成 4:3 的 640x480 (板子 HDMI 输入看到的范围)。
 
@@ -158,3 +162,6 @@ W = 宽度 (--width)                                                            
   - 手和脸能分开: 宽度 16 在只有脸的帧上 0 误检, 手在脸前 (near_face) 中位误差 2.6。
   - 主要问题是漏检 (21%), 多在手转到侧面 (turn)、换手、手太近太大、半只手在边上; 分数常在 0.2~0.4,
     阈值 0.5 可能偏高。下一步: 学生模型接进 play.py 试玩, 看漏检对手感的影响; 找更多人录数据。
+- 2026-10-23 第一次用自己的模型试玩 (`play.py --student`, 宽度 16 + 左右翻转那版, 阈值 0.5):
+  三局坚持 43、18、80 秒 (MediaPipe 时 44、47 秒), 没找到手 8%、1%、1%, 自己的模型每帧约 5 ms (CPU)。
+  主观: 已经可用。少量突然的中短距离跳变, 有几段小幅抖动, 不如 MediaPipe 平滑。
