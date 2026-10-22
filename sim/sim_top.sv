@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 // 虚拟盘古板: 真实的 mes50hp_top, 屏幕模型和串口接在板子的 io 脚上 (接线同 sw/bsp/shield_lcd.h),
 // HDMI 输出接 video_sink, HDMI 输入接 video_source (测试图)
-module sim_top;
+module sim_top #(parameter VIDEO_720P = 1);
     reg clk = 0;
     always #10 clk = ~clk;
     string rom_path;
@@ -17,6 +17,7 @@ module sim_top;
     wire [23:0] hdmi_d, hdmi_rx_d;
     wire hdmi_rx_pclk, hdmi_rx_de;
     mes50hp_top #(
+        .VIDEO_720P(VIDEO_720P),
         .MEM_FILE("")
     ) board (
         .clk(clk),
@@ -36,7 +37,8 @@ module sim_top;
         .de  (hdmi_rx_de),
         .rgb (hdmi_rx_d)
     );
-    video_sink u_hdmi (
+    video_sink #(.W(VIDEO_720P ? 1280 : 640), .H(VIDEO_720P ? 720 : 480),
+                 .SYNC_POSITIVE(VIDEO_720P)) u_hdmi (
         .pclk(hdmi_pclk),
         .hsync_n(hdmi_hs),
         .vsync_n(hdmi_vs),
@@ -59,6 +61,14 @@ module sim_top;
         .tx (io[`PIN_UART_RX])
     );
 
+    integer frame_limit;
+    initial begin
+        if ($value$plusargs("frames=%d", frame_limit)) begin
+            wait (u_hdmi.frames >= frame_limit);
+            #1;
+            $finish;
+        end
+    end
     initial begin
         $value$plusargs("rom=%s", rom_path);
         $readmemh(rom_path, board.soc.u_rom.mem);

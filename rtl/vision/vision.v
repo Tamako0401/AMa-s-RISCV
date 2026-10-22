@@ -24,6 +24,7 @@ module vision #(
     input wire vin_de,
     input wire [23:0] vin_rgb,
 
+    input wire win_rclk,
     input  wire [14:0] win_raddr,
     output wire [ 7:0] win_rdata
 );
@@ -95,7 +96,7 @@ module vision #(
         .in_sof(s_sof),
         .in_eol(s_eol),
         .in_data(s_data),
-        .rclk(clk),
+        .rclk(win_rclk),
         .raddr(win_raddr),
         .rdata(win_rdata)
     );

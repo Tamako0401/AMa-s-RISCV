@@ -1,0 +1,6 @@
+[[test]]
+tb = "scan_tb.sv"
+rtl = "rtl/soc.f"
+extra = ["tests/soc/video_sink.sv"]
+params = [{ MODE_720P = 0 }, { MODE_720P = 1 }]
+

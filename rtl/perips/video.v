@@ -1,12 +1,7 @@
-// 视频输出 (rib 从设备 2, 0x2000_0000): 640x480@60, 像素时钟 25 MHz = clk/2。
-// 画面按 320x240 画, 每个点放大成 2x2: 背景图块层 + 16x16 精灵层, 颜色经 256 项 RGB565 调色板;
-// 最上面可以开一个 160x120 的小窗, 显示视觉输入 (rtl/vision/) 存下的图。
-// 寄存器、显存布局和用法见 docs/video.md; 渲染细节见 video_render.v。
-//
-// 显存只能整字写, 读回 0 (渲染端独占读口); 寄存器可读。
-// 输出 RGB888 + 行场同步 (低有效) + de + pclk: 数据在 pclk 下降沿变化, 接收端在上升沿采样。
-module video (
+// 视频输出: 320x240 逻辑画面, VGA x2 或 720p x3 居中; 渲染在系统域, 扫描在像素域。
+module video #(parameter MODE_720P = 0) (
     input wire clk,
+    input wire pix_clk,  // 独立扫描时钟: 74.25 MHz 或 25 MHz
     input wire rst_n,
     input wire [31:0] addr_i,
     input wire [31:0] data_i,
@@ -18,7 +13,7 @@ module video (
     output wire rsp_valid_o,
     input wire rsp_ready_i,
 
-    output reg pclk,
+    output wire pclk,
     output reg hsync_n,
     output reg vsync_n,
     output reg de,
@@ -28,9 +23,18 @@ module video (
     output wire [14:0] win_raddr,
     input  wire [ 7:0] win_rdata
 );
-    // 640x480@60 (VESA)
-    localparam H_ACT = 640, H_FP = 16, H_SYNC = 96, H_TOTAL = 800;
-    localparam V_ACT = 480, V_FP = 10, V_SYNC = 2, V_TOTAL = 525;
+    // 720p 为 CEA 正同步; VGA 保留原来的 25 MHz、负同步。
+    localparam H_ACT = MODE_720P ? 1280 : 640, H_FP = MODE_720P ? 110 : 16;
+    localparam H_SYNC = MODE_720P ? 40 : 96, H_TOTAL = MODE_720P ? 1650 : 800;
+    localparam V_ACT = MODE_720P ? 720 : 480, V_FP = MODE_720P ? 5 : 10;
+    localparam V_SYNC = MODE_720P ? 5 : 2, V_TOTAL = MODE_720P ? 750 : 525;
+    localparam SCALE = MODE_720P ? 3 : 2, LEFT = MODE_720P ? 160 : 0;
+    assign pclk = ~pix_clk;  // 数据在下降沿更新, 芯片在上升沿采样
+    reg [1:0] prst;
+    always @(posedge pix_clk or negedge rst_n)
+        if (!rst_n) prst <= 0;
+        else prst <= {prst[0], 1'b1};
+    wire prst_n = prst[1];
 
     // ---------------- 总线: 一拍接受, 下一拍响应 ----------------
     reg response_valid;
@@ -47,10 +51,17 @@ module video (
     reg [ 7:0] win_y;
     reg [ 7:0] scroll_y;
     reg [31:0] frame;
-    reg [9:0] h, v;
+    reg [10:0] h;
+    reg [9:0] v;
+    reg [1:0] blank_s;
+    reg [2:0] frame_s;
+    reg frame_toggle, blank_pix;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
+            frame <= 0;
+            blank_s <= 0;
+            frame_s <= 0;
             response_valid <= 0;
             data_r <= 0;
             enable <= 0;
@@ -60,6 +71,9 @@ module video (
             scroll_x <= 0;
             scroll_y <= 0;
         end else begin
+            blank_s <= {blank_s[0], blank_pix};
+            frame_s <= {frame_s[1:0], frame_toggle};
+            if (frame_s[2] != frame_s[1]) frame <= frame + 1'b1;
             if (response_valid && rsp_ready_i) response_valid <= 0;
             if (fire) begin
                 response_valid <= 1;
@@ -69,7 +83,7 @@ module video (
                 case (addr_i[11:2])
                     0: data_r <= {30'b0, show_window, enable};
                     1: data_r <= {8'b0, scroll_y, 7'b0, scroll_x};
-                    2: data_r <= {31'b0, v >= V_ACT};
+                    2: data_r <= {31'b0, blank_s[1]};
                     3: data_r <= frame;
                     4: data_r <= {8'b0, win_y, 7'b0, win_x};
                     default: data_r <= 0;
@@ -95,11 +109,12 @@ module video (
     wire [9:0] lb_waddr;
     wire [7:0] lb_wdata;
 
-    dpram #(
+    dpram2c #(
         .DW(16),
         .DP(256)
     ) u_palette (  // 0x2000_1000: 256 色, RGB565
-        .clk(clk),
+        .wclk(clk),
+        .rclk(pix_clk),
         .we(wen && page == 1),
         .waddr(addr_i[9:2]),
         .wdata(data_i[15:0]),
@@ -139,31 +154,39 @@ module video (
         .raddr(pat_raddr),
         .rdata(pat_rdata)
     );
+    localparam [10:0] H_LEFT = LEFT, H_SCALE = SCALE;
+    localparam [9:0] V_SCALE = SCALE;
+    wire [10:0] scaled_x = (h - H_LEFT) / H_SCALE;
+    wire [9:0] scaled_y = v / V_SCALE;
+    wire [8:0] lx = scaled_x[8:0];
+    wire [7:0] ly = scaled_y[7:0];
     // 行缓存: 两行轮换, 显示第 n 行时渲染第 n+1 行
-    dpram #(
-        .DW(8),
-        .DP(1024)
-    ) u_line (
-        .clk(clk),
-        .we(lb_we),
-        .waddr(lb_waddr),
-        .wdata(lb_wdata),
-        .raddr({v[1], h[9:1]}),
-        .rdata(lb_rdata)
+    dpram2c #(.DW(8), .DP(1024)) u_line (
+        .wclk(clk), .we(lb_we), .waddr(lb_waddr), .wdata(lb_wdata),
+        .rclk(pix_clk), .raddr({ly[0], lx}), .rdata(lb_rdata)
     );
 
-    // ---------------- 扫描 ----------------
-    // pclk 为 1 的那一拍走一个像素。逻辑行 n 显示在物理行 2n、2n+1;
-    // 在物理行 2n-2 开头开始渲染逻辑行 n (第 0 行在 522 行开头, 留给它 3 行)。
-    wire tick = pclk;
-    wire start = tick && h == 0 && !v[0] && (v < V_ACT - 2 || v == V_TOTAL - 3);
-    wire [7:0] next_line = v == V_TOTAL - 3 ? 8'd0 : v[8:1] + 8'd1;
+    // 行号与请求一起保持到确认; 两次请求相隔至少 64 us。
+    reg render_req;
+    reg [7:0] render_line;
+    reg [2:0] req_s;
+    reg render_ack;
+    reg [1:0] ack_s;
+    wire start = req_s[2] != render_ack;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin req_s <= 0; render_ack <= 0; end
+        else begin
+            req_s <= {req_s[1:0], render_req};
+            if (start) render_ack <= req_s[2];
+        end
+    end
+    wire [7:0] next_line = v == V_TOTAL - 3 ? 8'd0 : ly + 8'd1;
 
     video_render u_render (
         .clk(clk),
         .rst_n(rst_n),
         .start(start),
-        .line(next_line),
+        .line(render_line),
         .scroll_x(scroll_x),
         .scroll_y(scroll_y),
         .map_raddr(map_raddr),
@@ -177,48 +200,73 @@ module video (
         .lb_wdata(lb_wdata)
     );
 
-    // 像素 (h, v) 的颜色在下一个 tick 才从调色板出来, 同步信号跟着晚一个 tick:
-    // tick 时行缓存锁存 (h, v) 的地址 -> 下一拍调色板锁存色号 -> 再下一拍 (下一个 tick) 出颜色。
-    // 小窗: 逻辑坐标落在 (win_x, win_y) 起的 160x120 里就显示小图; 读数在非 tick 那拍锁存, 和调色板输出对齐
-    wire [8:0] wx = h[9:1] - win_x;
-    wire [8:0] wy = v[9:1] - {1'b0, win_y};
+    // 配置用握手快照跨域, 源数据保持到确认; 不逐位采样多位坐标。
+    wire [18:0] cfg = {show_window, enable, win_y, win_x};
+    reg [18:0] cfg_hold, cfg_pix;
+    reg cfg_req, cfg_ack;
+    reg [1:0] cfg_ack_s;
+    reg [2:0] cfg_req_s;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin cfg_hold <= 0; cfg_req <= 0; cfg_ack_s <= 0; end
+        else begin
+            cfg_ack_s <= {cfg_ack_s[0], cfg_ack};
+            if (cfg_ack_s[1] == cfg_req && cfg_hold != cfg) begin
+                cfg_hold <= cfg;
+                cfg_req <= ~cfg_req;
+            end
+        end
+    end
+    always @(posedge pix_clk or negedge prst_n) begin
+        if (!prst_n) begin cfg_req_s <= 0; cfg_ack <= 0; cfg_pix <= 0; end
+        else begin
+            cfg_req_s <= {cfg_req_s[1:0], cfg_req};
+            if (cfg_req_s[2] != cfg_ack) begin cfg_pix <= cfg_hold; cfg_ack <= cfg_req_s[2]; end
+        end
+    end
+
+    wire picture = h >= LEFT && h < LEFT + 320 * SCALE && v < V_ACT;
+    wire [8:0] wx = lx - cfg_pix[8:0];
+    wire [8:0] wy = {1'b0, ly} - {1'b0, cfg_pix[16:9]};
     assign win_raddr = wy[6:0] * 15'd160 + {6'b0, wx};
     reg [7:0] win_q;
-    reg in_win_d;
+    reg [1:0] active_d, picture_d, window_d, hs_d, vs_d;
+    reg primed;
     wire [23:0] win888 = {
         {2{win_q[7:5]}}, win_q[7:6], {2{win_q[4:2]}}, win_q[4:3], {4{win_q[1:0]}}
     };
-
-    reg de_d, hsync_d, vsync_d;
-    // RGB565 -> RGB888: 高位补到低位
     wire [23:0] rgb888 = {
         color[15:11], color[15:13], color[10:5], color[10:9], color[4:0], color[4:2]
     };
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            pclk <= 0;
-            h <= 0;
-            v <= 0;
-            frame <= 0;
-            {de_d, hsync_d, vsync_d} <= 3'b011;
-            {de, hsync_n, vsync_n} <= 3'b011;
-            rgb <= 0;
+    wire hs = (h >= H_ACT + H_FP && h < H_ACT + H_FP + H_SYNC) ^ !MODE_720P;
+    wire vs = (v >= V_ACT + V_FP && v < V_ACT + V_FP + V_SYNC) ^ !MODE_720P;
+    always @(posedge pix_clk or negedge prst_n) begin
+        if (!prst_n) begin
+            h <= 0; v <= 0; primed <= 0;
+            render_req <= 0; render_line <= 0; ack_s <= 0; frame_toggle <= 0; blank_pix <= 0;
+            active_d <= 0; picture_d <= 0; window_d <= 0;
+            hs_d <= {2{!MODE_720P}}; vs_d <= {2{!MODE_720P}};
+            de <= 0; hsync_n <= !MODE_720P; vsync_n <= !MODE_720P; rgb <= 0; win_q <= 0;
         end else begin
-            pclk <= !pclk;
-            if (!tick) win_q <= win_rdata;
-            if (tick) begin
-                in_win_d <= show_window && wx < 160 && wy < 120;
-                h <= h == H_TOTAL - 1 ? 10'd0 : h + 1'b1;
-                if (h == H_TOTAL - 1) v <= v == V_TOTAL - 1 ? 10'd0 : v + 1'b1;
-                if (h == H_TOTAL - 1 && v == V_ACT - 1) frame <= frame + 1;
-                de_d <= h < H_ACT && v < V_ACT;
-                hsync_d <= !(h >= H_ACT + H_FP && h < H_ACT + H_FP + H_SYNC);
-                vsync_d <= !(v >= V_ACT + V_FP && v < V_ACT + V_FP + V_SYNC);
-                de <= de_d;
-                hsync_n <= hsync_d;
-                vsync_n <= vsync_d;
-                rgb <= !(de_d && enable) ? 24'h0 : in_win_d ? win888 : rgb888;
+            ack_s <= {ack_s[0], render_ack};
+            h <= h == H_TOTAL - 1 ? 11'd0 : h + 1'b1;
+            if (h == H_TOTAL - 1) begin
+                v <= v == V_TOTAL - 1 ? 10'd0 : v + 1'b1;
+                if (v == V_TOTAL - 1) begin primed <= 1; blank_pix <= 0; end
+                if (v == V_ACT - 1) begin frame_toggle <= ~frame_toggle; blank_pix <= 1; end
             end
+            // 第 0 行在末尾三行消隐里预画; 显示行 n 时画 n+1。
+            if (h == 0 && ((v < V_ACT - SCALE && v % V_SCALE == 0) || v == V_TOTAL - 3)
+                && ack_s[1] == render_req) begin
+                render_line <= next_line;
+                render_req <= ~render_req;
+            end
+            active_d <= {active_d[0], h < H_ACT && v < V_ACT};
+            picture_d <= {picture_d[0], picture && primed && cfg_pix[17]};
+            window_d <= {window_d[0], cfg_pix[18] && wx < 160 && wy < 120};
+            hs_d <= {hs_d[0], hs}; vs_d <= {vs_d[0], vs};
+            win_q <= win_rdata;
+            de <= active_d[1]; hsync_n <= hs_d[1]; vsync_n <= vs_d[1];
+            rgb <= !picture_d[1] ? 24'h0 : window_d[1] ? win888 : rgb888;
         end
     end
 endmodule

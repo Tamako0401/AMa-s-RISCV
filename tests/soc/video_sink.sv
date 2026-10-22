@@ -4,7 +4,8 @@
 `timescale 1ns / 1ps
 module video_sink #(
     parameter W = 640,
-    parameter H = 480
+    parameter H = 480,
+    parameter SYNC_POSITIVE = 0
 ) (
     input wire pclk,
     input wire hsync_n,
@@ -16,7 +17,7 @@ module video_sink #(
     integer x = 0, y = 0;
     integer frames = 0;  // 收完的帧数
     integer bad_lines = 0;  // 宽度不是 W 的行
-    reg de_q = 0, vsync_q = 1;
+    reg de_q = 0, vsync_q = !SYNC_POSITIVE;
 
     string path;
     integer enabled;
@@ -36,7 +37,7 @@ module video_sink #(
     endtask
 
     always @(posedge pclk) begin
-        if (!vsync_n && vsync_q) begin
+        if (vsync_n == SYNC_POSITIVE && vsync_q != SYNC_POSITIVE) begin
             frames = frames + 1;
             if (enabled) write_frame();
             y = 0;
