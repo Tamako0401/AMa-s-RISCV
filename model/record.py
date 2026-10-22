@@ -28,21 +28,33 @@ SAVE_EVERY = 2  # 每 2 帧存 1 帧: 相邻帧几乎一样, 全存只多占地�
 QUALITY = 95  # JPEG 质量
 COUNTDOWN = 2.0  # 每段开始前倒数几秒
 
-# (段名, 秒数, 应该看到什么, 屏幕提示)。"应该看到什么" 给 label.py 核对老师: open / fist / any (有一只手, 手势不限)
-# / none (没有手) / two (两只手); 和老师的标注对不上的帧, 要么老师错了, 要么人没照做, 都要看一眼。
+# (段名, 秒数, 应该看到什么, 屏幕提示)。按游戏的玩法排: 平时握拳移动, 张开一下放 bomb; 摄像头在显示器上方
+# 对着人, 手在胸前 (2026-10-23 试过放桌面平拍: 手太大、多是侧面, 老师认不出手势, 也更难玩)。
+# "应该看到什么" 给 label.py 核对老师: open / fist / any (有一只手, 手势不限) / none (没有手) / two (两只手)
+# / maybe (手可能在画面外, 不核对); 和老师的标注对不上的帧, 要么老师错了, 要么人没照做, 都要看一眼。
 SEGMENTS = [
-    ('open_still', 5, 'open', 'OPEN hand, hold still'),
     ('fist_still', 5, 'fist', 'FIST, hold still'),
-    ('move_slow', 10, 'open', 'OPEN hand, move slowly around'),
-    ('move_fist', 10, 'fist', 'FIST, move slowly around'),
-    ('swipe_fast', 10, 'open', 'OPEN hand, swipe fast'),
-    ('switch', 10, 'any', 'move + switch FIST / OPEN'),
-    ('other_hand', 10, 'any', 'OTHER hand: move + switch'),
+    ('open_still', 5, 'open', 'OPEN hand, hold still'),
+    ('move_fist', 15, 'fist', 'FIST, move around (like playing)'),
+    ('swipe_fist', 10, 'fist', 'FIST, move fast'),
+    ('bomb', 15, 'any', 'FIST moving, flash OPEN now and then'),
+    ('turn', 10, 'any', 'turn hand: palm / side / back, FIST and OPEN'),
+    ('other_hand', 10, 'any', 'OTHER hand: FIST moving, flash OPEN'),
     ('far_near', 10, 'any', 'move hand closer / farther'),
+    ('edge', 10, 'maybe', 'move hand in and out of view'),
+    ('near_face', 10, 'any', 'FIST moving near / in front of face'),
     ('no_hand', 5, 'none', 'NO hand, stay in view'),
-    ('face', 5, 'none', 'NO hand, face close to camera'),
+    ('face', 5, 'none', 'NO hand, lean in to camera'),
     ('two_hands', 5, 'two', 'TWO hands, move'),
 ]
+
+
+def new_session(person, scene, kind=''):
+    """新建一次录制的目录: model/data/<日期>_<人>_<场景>[_<kind>]_<时分秒>/。"""
+    name = '_'.join(x for x in (time.strftime('%Y%m%d'), person, scene, kind, time.strftime('%H%M%S')) if x)
+    out = DATA / name
+    out.mkdir(parents=True)
+    return out
 
 
 def overlay(vga, index, prompt, line, color):
@@ -103,10 +115,9 @@ def main():
         sys.exit(__doc__)
     person, scene = sys.argv[1:3]
     cap, _ = open_source(sys.argv[3] if len(sys.argv) == 4 else '0')
-    out = DATA / f'{time.strftime("%Y%m%d")}_{person}_{scene}_{time.strftime("%H%M%S")}'
-    out.mkdir(parents=True)
-
-    meta = {'person': person, 'scene': scene, 'save_every': SAVE_EVERY, 'frames': []}
+    out = new_session(person, scene)
+    expect = {name: e for name, _, e, _ in SEGMENTS}
+    meta = {'person': person, 'scene': scene, 'save_every': SAVE_EVERY, 'expect': expect, 'frames': []}
     start = time.monotonic()  # 时间戳从这里算, 一直增大 (MediaPipe 的 VIDEO 模式要求)
     index = 0
     while index < len(SEGMENTS):

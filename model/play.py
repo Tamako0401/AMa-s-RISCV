@@ -5,7 +5,8 @@
 # ///
 """手势玩弹幕 (东方式) 原型: 先用成熟模型 (MediaPipe) 当输入, 看手势控制到底能不能玩。
 
-用法: model/play.py <gesture_recognizer.task> [摄像头编号或视频文件, 默认 0]
+用法: model/play.py <gesture_recognizer.task> [摄像头编号或视频文件, 默认 0] [--record <人> <场景>]
+  --record: 边玩边录, 和 record.py 一样存 640x480 的帧 (段名 play), 之后用 label.py 标注。
 玩法: 握拳移动控制自机, 张开一下放 bomb (清屏, 每条命 3 个); 自动射击, 打中上面的 boss 得分。
   3 条命, 用完后张开手 1 秒或按 R 重开。每局结束在终端打印成绩。
 按键: M 切换 手 / 鼠标 (对照: 鼠标也躲不过说明是游戏太难, 不是手势的问题)
@@ -13,6 +14,8 @@
 画面是 320x240 放大 3 倍, 和板子上的逻辑分辨率一样。右下角是摄像头小窗: 框是有效区, 手在框里就能控制全屏。
 """
 
+import argparse
+import json
 import math
 import random
 import sys
@@ -24,6 +27,8 @@ import mediapipe as mp
 import numpy as np
 
 from label import FIST, PALM, TEACHER, IGNORE, finger_ratios, merge, recognizer, rule
+from motion import to_vga
+from record import QUALITY, SAVE_EVERY, new_session
 
 W, H = 320, 240  # 逻辑分辨率, 和板子一样
 SCALE = 3  # 窗口放大倍数
@@ -44,9 +49,11 @@ BULLET_R = 3
 class Camera(threading.Thread):
     """后台一直读摄像头、跑 MediaPipe; 主循环用 latest() 取最新结果, 不用等识别。"""
 
-    def __init__(self, model, source):
+    def __init__(self, model, source, record=None):
         super().__init__(daemon=True)
         self.model = model
+        self.out = new_session(*record, 'play') if record else None  # 边玩边录存到哪
+        self.frames = []  # 录下的帧, 格式同 record.py 的 meta.json
         self.cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
         if not self.cap.isOpened():
             sys.exit(f'打不开摄像头 {source}')
@@ -58,6 +65,11 @@ class Camera(threading.Thread):
     def stop(self):
         self.running = False
         self.join()
+        if self.out:
+            meta = {'save_every': SAVE_EVERY, 'expect': {'play': 'maybe'}, 'frames': self.frames}
+            meta['person'], meta['scene'] = self.out.name.split('_')[1:3]
+            (self.out / 'meta.json').write_text(json.dumps(meta, indent=1, ensure_ascii=False))
+            print(f'录了 {len(self.frames)} 帧, 存到 {self.out}')
 
     def run(self):
         count = 0
@@ -70,7 +82,12 @@ class Camera(threading.Thread):
                         continue
                     break
                 start = time.monotonic()
-                frame = cv2.flip(frame, 1)  # 镜像, 像照镜子: 手往右, 自机往右
+                # 镜像 (像照镜子: 手往右, 自机往右), 再裁成 4:3 的 640x480: 和录数据、板子 HDMI 输入看到的范围一样
+                frame = to_vga(cv2.flip(frame, 1))
+                if self.out and count % SAVE_EVERY == 0:
+                    file = f'play_{count:05d}.jpg'
+                    cv2.imwrite(str(self.out / file), frame, [cv2.IMWRITE_JPEG_QUALITY, QUALITY])
+                    self.frames.append({'file': file, 'segment': 'play', 't_ms': int(start * 1000)})
                 image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 found = detector.recognize_for_video(image, int(start * 1000))
                 pos, gesture = None, IGNORE
@@ -288,7 +305,7 @@ def text(window, line, row, color=(255, 255, 255)):
 
 def draw_preview(window, frame, hand_pos):
     """右下角摄像头小窗, 画出有效区 (黄框) 和识别到的手心 (绿点)。"""
-    pw, ph = 240, 135
+    pw, ph = 240, 180
     x0, y0 = W * SCALE - pw - 8, H * SCALE - ph - 8
     window[y0 : y0 + ph, x0 : x0 + pw] = cv2.resize(frame, (pw, ph))
     lo = (1 - ACTIVE) / 2
@@ -309,9 +326,12 @@ def report(game, mode, noise, smooth, hand):
 
 
 def main():
-    if len(sys.argv) not in (2, 3):
-        sys.exit(__doc__)
-    camera = Camera(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else '0')
+    parser = argparse.ArgumentParser(usage=__doc__)
+    parser.add_argument('model')
+    parser.add_argument('source', nargs='?', default='0')
+    parser.add_argument('--record', nargs=2, metavar=('人', '场景'))
+    args = parser.parse_args()
+    camera = Camera(args.model, args.source, args.record)
     camera.start()
 
     mouse = {'pos': (W * SCALE // 2, H * SCALE * 4 // 5), 'click': False}

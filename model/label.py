@@ -81,6 +81,7 @@ def label(detector, session):
         'rule': np.full((n, MAX_HANDS), IGNORE, np.int8),
         'gesture': np.full((n, MAX_HANDS), IGNORE, np.int8),
     }
+    out['expect'] = meta.get('expect', {})  # 每段应该看到什么 (record.py 写的; 早期录制没有这项)
     stamp = -1
     for i, f in enumerate(frames):
         vga = cv2.imread(str(session / f['file']))
@@ -105,16 +106,17 @@ def label(detector, session):
         if (i + 1) % 200 == 0:
             print(f'  {i + 1}/{n}', end='\r')
     print(' ' * 20, end='\r')  # 擦掉进度
-    np.savez_compressed(session / 'labels.npz', **out)
+    np.savez_compressed(session / 'labels.npz', **{k: v for k, v in out.items() if k != 'expect'})
     return out
 
 
 def report(out):
     """按段打表 (手势只看第一只手)。矛盾: 老师和规则一个说握拳一个说张开; 弃权: 一路说不清、由另一路定;
     对不上: 帧里的标注和这段要求的动作矛盾 (老师错了或人没照做)。"""
-    expect = {name: e for name, _, e, _ in SEGMENTS}
-    print('  段             帧   有手   两手   握拳   张开   忽略   矛盾  弃权  对不上')
-    for name, *_ in SEGMENTS:
+    expect = out['expect'] or {name: e for name, _, e, _ in SEGMENTS}
+    heads = ['有手', '两手', '握拳', '张开', '忽略', '矛盾', '弃权']
+    print(f'  {"段":<11}{"帧":>3}' + ''.join(f'{h:>4}' for h in heads) + f'{"对不上":>4}')  # 中文占两格, 少补一半空格
+    for name in dict.fromkeys(out['segment']):  # 按录制顺序, 每段一行
         sel = out['segment'] == name
         n = int(sel.sum())
         if not n:
@@ -125,8 +127,10 @@ def report(out):
         teacher, by_rule = out['teacher'][sel, 0], out['rule'][sel, 0]
         clash = found & (teacher != IGNORE) & (by_rule != IGNORE) & (teacher != by_rule)
         abstain = found & ((teacher == IGNORE) != (by_rule == IGNORE))  # 一路说不清, 由另一路定
-        e = expect[name]
-        if e == 'none':
+        e = expect.get(name, 'maybe')
+        if e == 'maybe':
+            wrong = np.zeros(n, bool)
+        elif e == 'none':
             wrong = hands > 0
         elif e == 'two':
             wrong = hands != 2
@@ -134,11 +138,8 @@ def report(out):
             wrong = hands != 1
         else:
             wrong = (hands != 1) | (first == (OPEN if e == 'fist' else FIST))  # IGNORE 不算错, 只是不用
-        pct = lambda m: f'{m.mean():>5.0%}'  # noqa: E731
-        print(
-            f'  {name:<12} {n:>4} {pct(found)} {pct(hands == 2)} {pct(found & (first == FIST))} '
-            f'{pct(found & (first == OPEN))} {pct(found & (first == IGNORE))} {pct(clash)} {pct(abstain)} {int(wrong.sum()):>6}'
-        )
+        cols = [found, hands == 2, found & (first == FIST), found & (first == OPEN), found & (first == IGNORE), clash, abstain]
+        print(f'  {name:<12}{n:>4}' + ''.join(f'{m.mean():>6.0%}' for m in cols) + f'{int(wrong.sum()):>7}')
 
     # 规则阈值对不对: 看两段静止时四指比值的范围, 握拳的最大值应低于 FIST_BELOW, 张开的最小值应高于 OPEN_ABOVE
     for name in ('fist_still', 'open_still'):
