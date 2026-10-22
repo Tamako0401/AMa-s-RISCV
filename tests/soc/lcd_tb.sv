@@ -8,6 +8,9 @@
 // 那里, 程序结束前写 tohost = 1。
 `timescale 1ns / 1ps
 module lcd_tb;
+    parameter VIDEO_720P = 0;
+    reg pixel_clk = 0;
+    always #6.734006734 pixel_clk = ~pixel_clk;
     parameter [31:0] TOHOST_ADDR = 32'h10000000;
     parameter integer W = 240;
     parameter integer H = 320;
@@ -43,10 +46,11 @@ module lcd_tb;
         io_o[`PIN_J8_27], io_o[`PIN_J8_28], io_o[`PIN_J8_23], io_o[`PIN_J8_26], io_o[`PIN_J8_25]
     };
     soc_top #(
-        .IO_N(`IO_N),
+        .VIDEO_720P(VIDEO_720P),        .IO_N(`IO_N),
         .UART_TX_PIN(`PIN_UART_TX),
         .UART_RX_PIN(`PIN_UART_RX)
     ) u_soc (
+        .video_clk(pixel_clk),
         .clk  (clk),
         .rst_n(rst_n),
         .io_o (io_o),

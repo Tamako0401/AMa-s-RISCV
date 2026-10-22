@@ -1,17 +1,20 @@
 [[test]]
 tb = "board_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 extra = ["boards/mes50hp/mes50hp_top.v"]
 runs = [{ app = "selftest" }]
 
 [[test]]
 tb = "uart_reset_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 extra = ["boards/mes50hp/mes50hp_top.v"]
 runs = [{ app = "selftest" }]
 
 [[test]]
 tb = "boot_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 extra = ["boards/mes50hp/mes50hp_top.v"]
 runs = [{ app = "selftest", program = ["sw/startup.S", "tests/board/boot_app.c"], link = "sw/link.ld", ram_init = false, defines = ["-DNEW_APP"] }]

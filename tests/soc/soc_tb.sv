@@ -11,6 +11,9 @@
 //
 // 结束判定: 向 RAM 窗口第 0 个字 0x1000_0000 的整字写 = 程序结束, 写入值为返回值。
 module soc_tb;
+    parameter VIDEO_720P = 0;
+    reg pixel_clk = 0;
+    always #6.734006734 pixel_clk = ~pixel_clk;
     parameter [31:0] RESULT_ADDR = 32'h10000000;
 
     reg clk = 0;
@@ -57,10 +60,11 @@ module soc_tb;
         io_o[`PIN_LED1]
     };
     soc_top #(
-        .IO_N(`IO_N),
+        .VIDEO_720P(VIDEO_720P),        .IO_N(`IO_N),
         .UART_TX_PIN(`UART_TX_PIN),
         .UART_RX_PIN(`UART_RX_PIN)
     ) u_soc (
+        .video_clk(pixel_clk),
         .clk  (clk),
         .rst_n(rst_n),
         .io_o (io_o),

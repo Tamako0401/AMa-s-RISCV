@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 module board_tb;
+    parameter VIDEO_720P = 1;
     reg clk = 0;
     always #10 clk = ~clk;  // physical 50 MHz, real UART divisor
     reg key1_n = 1, uart_rx = 1;
@@ -31,7 +32,7 @@ module board_tb;
         io[`PIN_LED1]
     };
     mes50hp_top #(
-        .MEM_FILE("")
+        .VIDEO_720P(VIDEO_720P),        .MEM_FILE("")
     ) dut (
         .clk(clk),
         .key1_n(key1_n),

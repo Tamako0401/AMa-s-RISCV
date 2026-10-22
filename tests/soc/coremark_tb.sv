@@ -5,6 +5,9 @@
 // 结束判定: 程序在 portable_fini 里写 tohost (0x1000_0000) = 1。
 `timescale 1ns / 1ps
 module coremark_tb;
+    parameter VIDEO_720P = 0;
+    reg pixel_clk = 0;
+    always #6.734006734 pixel_clk = ~pixel_clk;
     parameter [31:0] TOHOST_ADDR = 32'h10000000;
     parameter integer BIT_CLKS = 434;  // 50 MHz / 115200, 与 uart_init 算出的分频一致
     parameter integer MAX_CYCLES = 400000000;
@@ -17,10 +20,11 @@ module coremark_tb;
     wire uart_tx = io_o[`UART_TX_PIN];
 
     soc_top #(
-        .IO_N(`IO_N),
+        .VIDEO_720P(VIDEO_720P),        .IO_N(`IO_N),
         .UART_TX_PIN(`UART_TX_PIN),
         .UART_RX_PIN(`UART_RX_PIN)
     ) u_soc (
+        .video_clk(pixel_clk),
         .clk  (clk),
         .rst_n(rst_n),
         .io_o (io_o),

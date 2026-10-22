@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 module boot_tb;
+    parameter VIDEO_720P = 1;
     `include "boards/mes50hp/pins_top.vh"
     integer APP_LENGTH;
     reg [31:0] APP_CRC;
@@ -17,7 +18,7 @@ module boot_tb;
     wire uart_tx = io[`PIN_UART_TX];
     assign io[`PIN_UART_RX] = uart_rx;
     mes50hp_top #(
-        .MEM_FILE(""),
+        .VIDEO_720P(VIDEO_720P),        .MEM_FILE(""),
         .HW_ID(ID),
         .BREAK_CYCLES(6000)
     ) dut (
