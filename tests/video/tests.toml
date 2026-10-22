@@ -4,3 +4,8 @@ rtl = "rtl/soc.f"
 extra = ["tests/soc/video_sink.sv"]
 params = [{ MODE_720P = 0 }, { MODE_720P = 1 }]
 
+[[test]]
+tb = "input_tb.sv"
+rtl = "rtl/soc.f"
+extra = ["tests/soc/video_source.sv"]
+params = [{ W = 800, H = 600, HT = 1056, VT = 628 }, { W = 1280, H = 720, HT = 1650, VT = 750 }, { W = 640, H = 480, HT = 800, VT = 525 }]
