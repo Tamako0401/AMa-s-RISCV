@@ -30,9 +30,11 @@ module ifu_idu (
     input wire [`STALL_WIDTH-1:0] stall_i,      // 流水线暂停
     input wire                    flush_i,      // 流水线冲刷
     input wire                    inst_valid_i,
+    input wire                    pred_taken_i,  // 取指时的 BTB 预测
 
     output wire [31:0] inst_o,      // 指令内容
-    output wire [31:0] inst_addr_o  // 指令地址
+    output wire [31:0] inst_addr_o,  // 指令地址
+    output wire pred_taken_o
 
 );
 
@@ -59,5 +61,16 @@ module ifu_idu (
         inst_addr
     );
     assign inst_addr_o = inst_addr;
+
+    wire i_pred_taken = (flush_i || !inst_valid_i) ? 1'b0 : pred_taken_i;
+    wire pred_taken;
+    gen_en_dff #(1) pred_taken_ff (
+        clk,
+        rst_n,
+        en,
+        i_pred_taken,
+        pred_taken
+    );
+    assign pred_taken_o = pred_taken;
 
 endmodule
