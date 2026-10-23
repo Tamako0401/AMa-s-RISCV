@@ -57,6 +57,12 @@ module tinyriscv_core #(
     wire [31:0] ifetch_inst_o;
     wire [31:0] ifetch_pc_o;
     wire ifetch_inst_valid_o;
+    wire ifetch_pred_taken_o;
+
+    // BTB: 取指查表 + EX 训练
+    wire [31:0] btb_lookup_pc, btb_lookup_target, btb_upd_pc, btb_upd_target;
+    wire btb_lookup_taken, btb_upd_en, btb_upd_taken;
+    wire if_pred_taken_o;
 
     // ifu_idu模块输出信号
     wire [31:0] if_inst_o;
@@ -87,6 +93,7 @@ module tinyriscv_core #(
     wire [31:0] ie_rs2_rdata_o;
     wire [4:0] ie_rd_waddr_o;
     wire ie_rd_we_o;
+    wire ie_pred_taken_o;
 
     // exu模块输出信号
     wire [31:0] ex_mem_wdata_o;
@@ -154,6 +161,10 @@ module tinyriscv_core #(
         .inst_o(ifetch_inst_o),
         .pc_o(ifetch_pc_o),
         .inst_valid_o(ifetch_inst_valid_o),
+        .pred_taken_o(ifetch_pred_taken_o),
+        .btb_pc_o(btb_lookup_pc),
+        .btb_taken_i(btb_lookup_taken),
+        .btb_target_i(btb_lookup_target),
         .ibus_addr_o(ibus_addr_o),
         .ibus_data_i(ibus_data_i),
         .ibus_data_o(ibus_data_o),
@@ -163,6 +174,21 @@ module tinyriscv_core #(
         .req_ready_i(ibus_req_ready_i),
         .rsp_valid_i(ibus_rsp_valid_i),
         .rsp_ready_o(ibus_rsp_ready_o)
+    );
+
+    btb #(
+        .ENTRIES(32),
+        .IDX_W(5)
+    ) u_btb (
+        .clk(clk),
+        .rst_n(rst_n),
+        .lookup_pc(btb_lookup_pc),
+        .lookup_taken(btb_lookup_taken),
+        .lookup_target(btb_lookup_target),
+        .upd_en(btb_upd_en),
+        .upd_pc(btb_upd_pc),
+        .upd_target(btb_upd_target),
+        .upd_taken(btb_upd_taken)
     );
 
     pipe_ctrl u_pipe_ctrl (
@@ -215,8 +241,10 @@ module tinyriscv_core #(
         .stall_i(ctrl_stall_o),
         .flush_i(ctrl_flush_o),
         .inst_valid_i(ifetch_inst_valid_o),
+        .pred_taken_i(ifetch_pred_taken_o),
         .inst_o(if_inst_o),
-        .inst_addr_o(if_inst_addr_o)
+        .inst_addr_o(if_inst_addr_o),
+        .pred_taken_o(if_pred_taken_o)
     );
 
     idu u_idu (
@@ -252,6 +280,7 @@ module tinyriscv_core #(
         .rs2_rdata_i(id_rs2_rdata_o),
         .rd_waddr_i(id_rd_waddr_o),
         .rd_we_i(id_rd_we_o),
+        .pred_taken_i(if_pred_taken_o),
         .inst_o(ie_inst_o),
         .dec_info_bus_o(ie_dec_info_bus_o),
         .dec_imm_o(ie_dec_imm_o),
@@ -259,7 +288,8 @@ module tinyriscv_core #(
         .rs1_rdata_o(ie_rs1_rdata_o),
         .rs2_rdata_o(ie_rs2_rdata_o),
         .rd_waddr_o(ie_rd_waddr_o),
-        .rd_we_o(ie_rd_we_o)
+        .rd_we_o(ie_rd_we_o),
+        .pred_taken_o(ie_pred_taken_o)
     );
 
     exu u_exu (
@@ -283,6 +313,11 @@ module tinyriscv_core #(
         .hold_flag_o(ex_hold_flag_o),
         .jump_flag_o(ex_jump_flag_o),
         .jump_addr_o(ex_jump_addr_o),
+        .btb_upd_en_o(btb_upd_en),
+        .btb_upd_pc_o(btb_upd_pc),
+        .btb_upd_target_o(btb_upd_target),
+        .btb_upd_taken_o(btb_upd_taken),
+        .pred_taken_i(ie_pred_taken_o),
         .int_assert_i(clint_int_assert_o),
         .int_addr_i(clint_int_addr_o),
         .inst_ecall_o(ex_inst_ecall_o),

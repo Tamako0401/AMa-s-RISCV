@@ -60,8 +60,14 @@ module exu (
 
     // to pipe_ctrl
     output wire        hold_flag_o,  // 是否暂停标志
-    output wire        jump_flag_o,  // 是否跳转标志
-    output wire [31:0] jump_addr_o,  // 跳转目的地址
+    output wire        jump_flag_o,  // 是否重定向(预测错或必须冲刷)
+    output wire [31:0] jump_addr_o,  // 重定向目标地址
+
+    // BTB 更新: 分支/jal 解析时把结果写回
+    output wire        btb_upd_en_o,
+    output wire [31:0] btb_upd_pc_o,
+    output wire [31:0] btb_upd_target_o,
+    output wire        btb_upd_taken_o,
 
     // from idu_exu
     input wire [`DECINFO_WIDTH-1:0] dec_info_bus_i,
@@ -71,7 +77,8 @@ module exu (
     input wire [               4:0] rd_waddr_i,
     input wire [              31:0] reg1_rdata_i,    // 通用寄存器1输入数据
     input wire [              31:0] reg2_rdata_i,    // 通用寄存器2输入数据
-    input wire                      rd_we_i
+    input wire                      rd_we_i,
+    input wire                      pred_taken_i  // 取指时 BTB 是否预测跳转
 
 );
 
@@ -364,12 +371,32 @@ module exu (
 
     assign reg_we_o = commit_reg_we_o;
 
-    assign jump_flag_o = bjp_cmp_res_o | bjp_op_jump_o | sys_op_fence_o | int_assert_i;
-    assign jump_addr_o = int_assert_i? int_addr_i:
-                         sys_op_fence_o? next_pc_i:
-                         (bjp_op_jump_o && dec_info_bus_i[`DECINFO_BJP_OP1RS1]) ?
-                         {bjp_res_o[31:1], 1'b0} : bjp_res_o;
-    assign hold_flag_o = muldiv_stall_o | mem_stall_o;
+    // 分支相关
+    wire is_jalr = bjp_op_jump_o && dec_info_bus_i[`DECINFO_BJP_OP1RS1];
+    wire is_jal = bjp_op_jump_o && ~dec_info_bus_i[`DECINFO_BJP_OP1RS1];
+    wire is_cond_branch = req_bjp_o && ~bjp_op_jump_o;
+    wire bjp_taken = bjp_cmp_res_o | bjp_op_jump_o;
+    wire [31:0] bjp_target = is_jalr ? {bjp_res_o[31:1], 1'b0} : bjp_res_o;
+
+    // 预测只看"跳不跳": 同一静态分支的目标地址是固定的(B 型立即数 + PC),
+    // 所以预测跳转且实际也跳时, 取指走的一定是对的路径。
+    wire pred_ok = (pred_taken_i == bjp_taken);
+    wire hold_flag = muldiv_stall_o | mem_stall_o;
+
+    // 预测对就不冲刷, 让取指已经填好的目标路径继续往下走
+    assign jump_flag_o = sys_op_fence_o | int_assert_i | ~pred_ok;
+    assign jump_addr_o = int_assert_i ? int_addr_i :
+                         sys_op_fence_o ? next_pc_i :
+                         ~bjp_taken ? next_pc_i :
+                         bjp_target;
+    assign hold_flag_o = hold_flag;
+
+    // 只训练条件分支和 jal; jalr 的目标每次调用点都不同, 不进 BTB。
+    // EX 被暂停时同一条指令会停留多拍, 用 ~hold_flag 保证只训练一次。
+    assign btb_upd_en_o = (is_jal | is_cond_branch) & ~hold_flag;
+    assign btb_upd_pc_o = dec_pc_i;
+    assign btb_upd_target_o = bjp_target;
+    assign btb_upd_taken_o = bjp_taken;
 
     assign csr_raddr_o = csr_addr_o;
     assign csr_waddr_o = csr_addr_o;

@@ -36,6 +36,7 @@ module idu_exu (
     input wire [31:0] rs2_rdata_i,
     input wire [4:0] rd_waddr_i,
     input wire rd_we_i,
+    input wire pred_taken_i,
 
     output wire [31:0] inst_o,
     output wire [`DECINFO_WIDTH-1:0] dec_info_bus_o,
@@ -44,7 +45,8 @@ module idu_exu (
     output wire [31:0] rs1_rdata_o,
     output wire [31:0] rs2_rdata_o,
     output wire [4:0] rd_waddr_o,
-    output wire rd_we_o
+    output wire rd_we_o,
+    output wire pred_taken_o
 
 );
 
@@ -115,6 +117,17 @@ module idu_exu (
         rd_waddr
     );
     assign rd_waddr_o = rd_waddr;
+
+    wire i_pred_taken = flush_i ? 1'b0 : pred_taken_i;
+    wire pred_taken;
+    gen_en_dff #(1) pred_taken_ff (
+        clk,
+        rst_n,
+        en,
+        i_pred_taken,
+        pred_taken
+    );
+    assign pred_taken_o = pred_taken;
 
     wire i_rd_we = flush_i ? 1'b0 : rd_we_i;
     wire rd_we;

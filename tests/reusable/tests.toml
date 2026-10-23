@@ -44,3 +44,7 @@ params = [
   { DEPTH = 4, RDELAY = 1, BACK2BACK = 1 },
 ]
 runs = [{ plusargs = ["+seed=1"] }, { plusargs = ["+seed=7"] }]
+
+[[test]]
+tb = "btb_tb.sv"
+rtl = "rtl/reusable.f"
