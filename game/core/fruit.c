@@ -8,7 +8,8 @@
 #define RESTART_HOLD FPS  /* 游戏结束后张开手几帧重开 */
 #define GRAVITY 40        /* Q8 像素 / 帧^2 (约 560 像素 / 秒^2) */
 #define BLADE_MIN Q8(5)   /* 刀每帧至少移动这么多 (300 像素 / 秒) 才切得开 */
-#define BLADE_STEP 4      /* 刀光每隔几个点画一个光点 */
+#define STROKE_STEP 12    /* 刀光每隔几个点放一笔 (一笔 16 点长, 两头 4 点淡出, 叠起来接上) */
+#define STAIN_FRAMES 180  /* 果汁印留几帧 */
 #define COMBO_MIN 3       /* 一刀切开几个算连击 */
 #define FLASH_FRAMES 30
 #define WINDOW_X 0        /* 摄像头小窗在左上角 */
@@ -18,7 +19,9 @@ enum { APPLE, ORANGE, MELON, BOMB }; /* 水果的种类 */
 static const uint8_t fruit_r[] = {13, 13, 27, 12};
 static const uint16_t whole_image[] = {IMG_APPLE, IMG_ORANGE, IMG_MELON, IMG_BOMB};
 static const uint16_t half_image[] = {IMG_APPLE_HALF, IMG_ORANGE_HALF, IMG_MELON_HALF, IMG_BOMB};
-static const uint16_t juice_image[] = {IMG_JUICE_RED, IMG_JUICE_ORANGE, IMG_JUICE_RED, IMG_SPARK};
+static const uint16_t juice_image[] = {IMG_JUICE_ORANGE, IMG_JUICE_ORANGE, IMG_JUICE_RED, IMG_SPARK};
+static const uint16_t drop_image[] = {IMG_DROP_CREAM, IMG_DROP_ORANGE, IMG_DROP_RED, IMG_SPARK};
+static const uint16_t stain_image[] = {IMG_STAIN_CREAM, IMG_STAIN_ORANGE, IMG_STAIN_RED, IMG_SPARK};
 
 void fruit_init(fruit_t *g, uint32_t seed)
 {
@@ -138,15 +141,28 @@ static void splash(fruit_t *g, const fruit_obj_t *f, uint32_t dir)
         p->spin = (int16_t)(side ? 300 : -300);
         p->flip = (uint8_t)side;
     }
-    for (int32_t i = 0; i < 10 && g->juice_n < FRUIT_JUICE; i++) {
+    /* 汁水: 8 团果汁 (不透明, 飞得远, 慢慢淡出) + 8 个光点 */
+    for (int32_t i = 0; i < 16 && g->juice_n < FRUIT_JUICE; i++) {
         fruit_obj_t *j = &g->juice[g->juice_n++];
         uint32_t a = fx_rand(&g->rng);
-        int32_t speed = Q8(1) + (int32_t)rand_range(g, Q8(2));
-        *j = (fruit_obj_t){.x = f->x, .y = f->y, .kind = f->kind};
+        int32_t drop = i < 8;
+        int32_t speed = (drop ? Q8(1.5) : Q8(1)) + (int32_t)rand_range(g, drop ? Q8(3) : Q8(2));
+        *j = (fruit_obj_t){.x = f->x, .y = f->y, .kind = f->kind, .flip = (uint8_t)drop};
         j->vx = speed * fx_cos(a) >> 14;
         j->vy = (speed * fx_sin(a) >> 14) - Q8(1);
-        j->life = (uint8_t)(20 + rand_range(g, 16));
+        j->life = (uint8_t)((drop ? 30 : 20) + rand_range(g, 16));
+        j->angle = (uint16_t)fx_rand(&g->rng);
     }
+    if (f->kind == BOMB)
+        return;
+    /* 木板上留一摊果汁印 */
+    if (g->stain_n == FRUIT_STAINS) {
+        for (int32_t i = 1; i < FRUIT_STAINS; i++)
+            g->stains[i - 1] = g->stains[i];
+        g->stain_n--;
+    }
+    g->stains[g->stain_n++] = (fruit_obj_t){.x = f->x, .y = f->y, .kind = f->kind, .life = STAIN_FRAMES,
+                                            .angle = (uint16_t)fx_rand(&g->rng)};
 }
 
 static void lose(fruit_t *g)
@@ -251,6 +267,7 @@ void fruit_step(fruit_t *g, const fruit_control_t *in)
     }
     fall(g->pieces, &g->piece_n, GRAVITY, 0);
     fall(g->juice, &g->juice_n, GRAVITY / 2, 0);
+    fall(g->stains, &g->stain_n, 0, 0);
 }
 
 void fruit_control_from_hand(const hand_t *hand, fruit_control_t *in)
@@ -322,20 +339,26 @@ static void draw_hud(const fruit_t *g, const hand_t *hand)
     }
 }
 
-/* 刀光: 相邻两帧的位置之间每隔几个点放一个发光点, 越旧越淡 */
+/* 刀光: 相邻两帧的位置之间, 顺着这一段的方向摆几笔 (旋转的细长发光图, 加法), 首尾叠起来连成线; 越旧越细越淡 */
 static void draw_blade(const fruit_t *g)
 {
     for (int32_t i = 0; i + 1 < g->trail_n; i++) {
         const int32_t *a = g->trail[i], *b = g->trail[i + 1];
         int32_t dx = fx_abs(b[0] - a[0]), dy = fx_abs(b[1] - a[1]);
         int32_t len = (dx > dy ? dx + dy / 2 : dy + dx / 2) >> 8;
-        int32_t n = len / BLADE_STEP + 1;
-        n = n > 32 ? 32 : n;
+        if (len == 0) /* 这一帧手没动 (结果还没更新) */
+            continue;
+        int32_t scale = GFX_SCALE_1 - i * 8 / FRUIT_TRAIL; /* 最新的原大, 最旧的约一半 */
+        int32_t n = len * GFX_SCALE_1 / (STROKE_STEP * scale) + 1;
+        n = n > 16 ? 16 : n;
+        uint8_t angle = (uint8_t)(fx_atan2(b[1] - a[1], b[0] - a[0]) >> 8);
         for (int32_t k = 0; k < n; k++) {
-            int32_t x = a[0] + (b[0] - a[0]) * k / n, y = a[1] + (b[1] - a[1]) * k / n;
-            gfx_sprite_t *s = gfx_sprite(x >> 8, y >> 8, IMG_BLADE);
-            s->flags = GFX_ADD | GFX_ALPHA;
+            int32_t x = a[0] + (b[0] - a[0]) * (2 * k + 1) / (2 * n), y = a[1] + (b[1] - a[1]) * (2 * k + 1) / (2 * n);
+            gfx_sprite_t *s = gfx_sprite(x >> 8, y >> 8, IMG_STREAK);
+            s->flags = GFX_ADD | GFX_ALPHA | GFX_AFFINE;
             s->alpha = (uint8_t)(GFX_ALPHA_MAX - i * GFX_ALPHA_MAX / FRUIT_TRAIL);
+            s->angle = angle;
+            s->scale = (uint8_t)scale;
         }
     }
 }
@@ -343,6 +366,12 @@ static void draw_blade(const fruit_t *g)
 void fruit_draw(const fruit_t *g, const hand_t *hand)
 {
     gfx_begin();
+    for (uint16_t i = 0; i < g->stain_n; i++) { /* 果汁印在最下面, 最后 1 秒淡出 */
+        const fruit_obj_t *st = &g->stains[i];
+        gfx_sprite_t *s = obj_sprite(st, stain_image[st->kind]);
+        s->flags |= GFX_ALPHA;
+        s->alpha = (uint8_t)(st->life >= 60 ? 12 : st->life * 12 / 60);
+    }
     for (uint16_t i = 0; i < g->fruit_n; i++) {
         const fruit_obj_t *f = &g->fruits[i];
         obj_sprite(f, whole_image[f->kind]);
@@ -356,9 +385,16 @@ void fruit_draw(const fruit_t *g, const hand_t *hand)
         obj_sprite(&g->pieces[i], half_image[g->pieces[i].kind]);
     for (uint16_t i = 0; i < g->juice_n; i++) {
         const fruit_obj_t *j = &g->juice[i];
-        gfx_sprite_t *s = gfx_sprite(j->x >> 8, j->y >> 8, juice_image[j->kind]);
-        s->flags = GFX_ADD | GFX_ALPHA;
-        s->alpha = (uint8_t)(j->life < GFX_ALPHA_MAX ? j->life : GFX_ALPHA_MAX);
+        uint8_t fade = (uint8_t)(j->life < GFX_ALPHA_MAX ? j->life : GFX_ALPHA_MAX);
+        if (j->flip) { /* 果汁团: 半透明淡出 */
+            gfx_sprite_t *s = gfx_sprite(j->x >> 8, j->y >> 8, drop_image[j->kind]);
+            s->flags = GFX_ALPHA | GFX_FLIP_X * (j->angle & 1) | GFX_FLIP_Y * (j->angle >> 1 & 1);
+            s->alpha = fade;
+        } else {
+            gfx_sprite_t *s = gfx_sprite(j->x >> 8, j->y >> 8, juice_image[j->kind]);
+            s->flags = GFX_ADD | GFX_ALPHA;
+            s->alpha = fade;
+        }
     }
     draw_blade(g);
 
