@@ -10,6 +10,8 @@
       画一帧 (默认是最忙的那帧), 存成 1280x720 的 PNG。以后 RTL 仿真的截图要和它逐像素一样。
   game/tools/refmodel.py cost <帧.jsonl> ... [--mhz 50] [--setup 4] [--affine 1] [--max-objects 0] [-o 图.png]
       数每条逻辑行要几拍, 和这一行的时间比; 列出最忙的帧。-o: 把最忙那帧和每行拍数画在一起。
+  game/tools/refmodel.py memory [--sprites 512] [--line-objects 128] [--patterns-kb 0]
+      列出整个 SoC 要的片上 RAM, 按块 RAM 的拼法算要几块, 和 50K / 100K 两块板比。
 
 这里写下的算法就是硬件的规格 (C 的 SDL 后端只求看着像, 不求逐像素一致):
 
@@ -300,6 +302,69 @@ def plot(args, worst, budget, art):
     print(f'最忙的一帧和每行拍数 -> {args.output}')
 
 
+# ---- 存储 ----
+
+# 盘古的块 RAM (DRM18K) 一块 18 Kb, 可以拼成这些 深度 x 宽度 (简单双口)
+DRM_CONFIGS = [(16384, 1), (8192, 2), (4096, 4), (2048, 9), (1024, 18), (512, 36)]
+BOARDS = [('50K (MES50HP, 现在)', 134), ('100K (PG2L100H, 选型表, 未核实)', 310)]
+
+
+def drm_blocks(depth, width, pad=True):
+    """一块 depth x width 的 RAM 要几个 DRM18K。pad: PDS 推断 RAM 时把深度补成 2 的幂 (vision.md 里量到的);
+    手工拆成小块的 (pad=False) 不补。"""
+    if pad:
+        depth = 1 << (depth - 1).bit_length()
+    return min(-(-depth // d) * -(-width // w) for d, w in DRM_CONFIGS)
+
+
+def cmd_memory(args):
+    art = Assets()
+    pixels = sum(img.size for img in art.images)
+    if args.patterns_kb:
+        pixels = args.patterns_kb * 1024 // 2
+    n, k = args.sprites, args.line_objects
+    # 名字, 深度, 宽度, 份数, 补成 2 的幂?, 说明
+    groups = {
+        'CPU 和已有的': [
+            ('指令 ROM', 16384, 32, 2, True, '64 KB; 取指口独立后 PDS 复制成两份 (实测)'),
+            ('数据 RAM', 16384, 32, 1, True, '64 KB'),
+            ('摄像头小窗', 19200, 8, 2, False, '160x120, 8 位色; 前台 / 后台两份, 已拆成 2048 深的小块'),
+        ],
+        '新显示': [
+            ('图案库', pixels // 8, 128, 1, True, f'{pixels} 点 RGB565 ({pixels * 2 // 1024} KB); 一次读 8 点, 才能一拍画 8 点'),
+            ('背景图块表', 64 * 64, 10, 1, True, '64x64 格, 每格一个图案编号'),
+            ('精灵表', n, 64, 2, True, f'{n} 个, 每个 64 位; 双缓冲 (CPU 写后台, 场消隐交换)'),
+            ('精灵 Y 范围', n, 20, 2, True, '精灵表里上下边的副本: 每行扫一遍, 找出和下一行相交的对象'),
+            ('行对象列表', k, 10, 2, True, f'每行最多 {k} 个对象的编号; 一份在写 (下一行), 一份在读 (这一行)'),
+            ('行缓存', W // 8, 128, 2, True, '640 点 RGB565, 一拍读写 8 点; 一条在画, 一条在播'),
+            ('文字层', 160 * 45, 12, 1, True, '160x45 格: 字符 8 位 + 颜色 4 位'),
+            ('字库', 128 * 16, 8, 1, True, '128 个字, 8x16'),
+        ],
+        '还没定 (估计)': [
+            ('手势 CNN 权重', 4096, 32, 1, True, '十几 KB (hand-model.md 的估计)'),
+            ('手势 CNN 激活', 12288, 32, 1, True, '几十 KB, 按行缓存'),
+            ('ILA', 4096, 32, 1, True, '赛题要求的片上逻辑分析仪, 十几 KB'),
+        ],
+    }
+    total_bits = total_blocks = 0
+    print(f'{"":<4}{"名字":<14}{"深度 x 宽度 x 份数":>20}{"净容量":>10}{"块数":>6}  说明')
+    for group, rows in groups.items():
+        bits = blocks = 0
+        print(f'{group}')
+        for name, depth, width, copies, pad, note in rows:
+            b = drm_blocks(depth, width, pad) * copies
+            kb = depth * width * copies / 1024
+            bits += depth * width * copies
+            blocks += b
+            print(f'    {name:<14}{f"{depth} x {width} x {copies}":>20}{kb:>8.1f}Kb{b:>6}  {note}')
+        print(f'    {"小计":<14}{"":>20}{bits / 1024:>8.1f}Kb{blocks:>6}')
+        total_bits += bits
+        total_blocks += blocks
+    print(f'合计 {total_bits / 1024:.0f} Kb, {total_blocks} 块 DRM18K')
+    for name, have in BOARDS:
+        print(f'  {name}: {have} 块, 用 {total_blocks / have:.0%}' + (' (超过 80%)' if total_blocks > have * 0.8 else ''))
+
+
 def main():
     parser = argparse.ArgumentParser(usage=__doc__)
     sub = parser.add_subparsers(dest='cmd', required=True)
@@ -315,8 +380,12 @@ def main():
     c.add_argument('--affine', type=int, default=1)
     c.add_argument('--bg', type=int, default=80)
     c.add_argument('-o', '--output')
+    m = sub.add_parser('memory')
+    m.add_argument('--sprites', type=int, default=512)
+    m.add_argument('--line-objects', type=int, default=128)
+    m.add_argument('--patterns-kb', type=int, default=0, help='图案库按这么多 KB 算 (默认: 现在的占位图)')
     args = parser.parse_args()
-    {'render': cmd_render, 'cost': cmd_cost}[args.cmd](args)
+    {'render': cmd_render, 'cost': cmd_cost, 'memory': cmd_memory}[args.cmd](args)
 
 
 if __name__ == '__main__':
