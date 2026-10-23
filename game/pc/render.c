@@ -52,6 +52,9 @@ void render_init(SDL_Renderer *r)
 
     screen = SDL_CreateTexture(r, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, GFX_W, GFX_H);
     output = SDL_CreateTexture(r, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, GFX_W * 2, GFX_H * 2);
+    /* 1280x720 贴到窗口: 窗口大小多半不是整数倍 (全屏、拖过), 最近邻会让 8x16 的字有的行重复、笔画粗细不一; 这一步用线性插值。
+     * 板上 HDMI 正好 1280x720, 没有这一步 */
+    SDL_SetTextureScaleMode(output, SDL_ScaleModeLinear);
     camera = SDL_CreateTexture(r, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, GFX_WINDOW_W, GFX_WINDOW_H);
 }
 
