@@ -1,5 +1,5 @@
 /* 东方式弹幕的电脑版: 把 core/touhou.c 接到电脑后端 (app.c)。
- * 鼠标: 自机跟着鼠标, 左键 bomb。--bot: 自机在下半场绕椭圆, 一直无敌。 */
+ * 鼠标: 自机跟着鼠标, 左键 bomb。--bot: 自机在下半场绕椭圆, 一直无敌, 第 1500 帧放一次 bomb。 */
 #include <stdio.h>
 #include "app.h"
 #include "fixed.h"
@@ -29,6 +29,7 @@ static void frame(const hand_t *hand, const app_input_t *in, int use_hand, int b
         c.x = Q8(PLAY_W / 2) + 120 * fx_cos(in->frame * 200) / 64;
         c.y = Q8(PLAY_H * 3 / 4) + 50 * fx_sin(in->frame * 330) / 64;
         game.invincible = 2; /* step 里先减 1 再判定 */
+        c.bomb = in->frame == 1500; /* 快结束时放一次 bomb: 光环是最大的发光对象, 统计里要有它 (放早了会清掉弹幕) */
     }
     c.restart = in->restart;
     touhou_step(&game, &c);

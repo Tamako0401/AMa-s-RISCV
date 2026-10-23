@@ -10,7 +10,9 @@
       画一帧 (默认是最忙的那帧), 存成 1280x720 的 PNG。以后 RTL 仿真的截图要和它逐像素一样。
   game/tools/refmodel.py cost <帧.jsonl> ... [--mhz 50] [--setup 4] [--affine 1] [--max-objects 0] [-o 图.png]
       数每条逻辑行要几拍, 和这一行的时间比; 列出最忙的帧。-o: 把最忙那帧和每行拍数画在一起。
-  game/tools/refmodel.py memory [--sprites 512] [--line-objects 128] [--patterns-kb 0]
+  game/tools/refmodel.py colors <帧.jsonl> ... [--frame 帧号] [--shaded] [-o 图.png]
+      图案存成 RGB565 / 256 色共用调色板 / 每张 16 色, 画同一帧比一比 (每个文件取发光最多的地方放大)。
+  game/tools/refmodel.py memory [--sprites 512] [--line-objects 128] [--patterns-kb 0] [--pattern-bits 16]
       列出整个 SoC 要的片上 RAM, 按块 RAM 的拼法算要几块, 和 50K / 100K 两块板比。
 
 这里写下的算法就是硬件的规格 (C 的 SDL 后端只求看着像, 不求逐像素一致):
@@ -57,6 +59,7 @@ CGA = [(0, 0, 0), (0, 0, 170), (0, 170, 0), (0, 170, 170), (170, 0, 0), (170, 0,
 SIN = [round(16384 * math.sin(2 * math.pi * a / 256)) for a in range(256)]
 INV = [0] + [round(65536 / s) for s in range(1, 256)]
 
+IMG_RING = [name for name, _, _ in assets.IMAGES].index('ring')
 MAX = np.array([31, 63, 31])  # RGB565 各通道最大值
 
 
@@ -72,9 +75,57 @@ def to_rgb888(ch):
 
 
 class Assets:
-    def __init__(self):
-        self.images = [assets.rgb565(assets.load(name, size, make)).astype(np.int32) for name, size, make in assets.IMAGES]
+    """colors: 0 = 图案存 RGB565; 256 = 所有图案共用一个 256 色调色板 (每点 8 位); 16 = 每张图案自己 16 色 (每点 4 位)。
+    调色板里存的也是 RGB565, 查完表照样按 RGB565 混合, 所以只有图案本身的颜色变了。"""
+
+    def __init__(self, colors=0, shaded=False):
+        loaded = [(name, assets.load(name, size, make)) for name, size, make in assets.IMAGES]
+        if shaded:
+            loaded = [(name, img if name in GLOWS or img.shape[0] == 8 else shade(img)) for name, img in loaded]
+        self.images = [assets.rgb565(img).astype(np.int32) for _, img in loaded]
         self.font = assets.font()
+        if colors == 256:
+            self.images = quantize(self.images, 255)  # 留一个编号给透明
+        elif colors == 16:
+            self.images = [quantize([img], 15)[0] for img in self.images]
+
+
+GLOWS = {'spark', 'ring', 'juice_red', 'juice_orange', 'juice_green', 'blade'}  # 本来就是渐变, 不另加光照
+
+
+def shade(img):
+    """占位图是几块纯色, 测不出调色板够不够。给它加上球面光照 (左上来光, 带高光), 颜色变得像正式素材一样多。"""
+    size = img.shape[0]
+    y, x = (np.mgrid[:size, :size] - (size - 1) / 2) / (size / 2)
+    z = np.sqrt(np.clip(1 - x * x - y * y, 0, 1))
+    light = np.array([-0.5, -0.6, 0.62])
+    light /= np.linalg.norm(light)
+    lambert = np.clip(x * light[0] + y * light[1] + z * light[2], 0, 1)
+    k = 0.35 + 0.8 * lambert + 0.5 * lambert ** 20
+    out = img.copy()
+    out[..., :3] = np.clip(img[..., :3] * k[..., None], 0, 255).astype(np.uint8)
+    return out
+
+
+def quantize(images, n):
+    """这些图案不透明的点一起选出 n 个颜色 (中位切分), 每个点换成最近的那个。"""
+    opaque = np.concatenate([img[img != TRANSPARENT] for img in images])
+    if len(np.unique(opaque)) <= n:
+        return images
+    strip = Image.fromarray(to_rgb888(split(opaque))[None])
+    pal_img = strip.quantize(colors=n, method=Image.Quantize.MEDIANCUT)
+    pal = np.array(pal_img.getpalette()[: 3 * n]).reshape(-1, 3)
+    pal565 = (pal[:, 0] >> 3) << 11 | (pal[:, 1] >> 2) << 5 | (pal[:, 2] >> 3)
+    out = []
+    for img in images:
+        mask = img != TRANSPARENT
+        new = img.copy()
+        if mask.any():
+            rgb = Image.fromarray(to_rgb888(split(img[mask]))[None])
+            idx = np.asarray(rgb.quantize(palette=pal_img, dither=Image.Dither.NONE))[0]
+            new[mask] = pal565[idx]
+        out.append(new)
+    return out
 
 
 def read_dump(path):
@@ -302,6 +353,47 @@ def plot(args, worst, budget, art):
     print(f'最忙的一帧和每行拍数 -> {args.output}')
 
 
+def cmd_colors(args):
+    """每个文件: 取一帧, 找加法混合 (发光) 的对象最密的地方, 三种图案格式各画一遍, 放大 3 倍排成一行。"""
+    variants = [(0, 'RGB565, 16 bit'), (256, 'shared 256 colors, 8 bit'), (16, '16 colors per image, 4 bit')]
+    arts = [Assets(c, args.shaded) for c, _ in variants]
+    print('图案不同颜色数:', len(np.unique(np.concatenate([i[i != TRANSPARENT] for i in arts[0].images]))),
+          '(加了光照)' if args.shaded else '(占位图)')
+    cw, ch, zoom = 220, 140, 3
+    rows = []
+    for path in args.dump:
+        header, frames = read_dump(path)
+        if args.frame is not None:
+            frame = pick(header, frames, arts[0], args.frame)
+        else:  # 发光的对象最多的那帧
+            frame = max(frames, key=lambda f: sum(s[3] & ADD and s[6] for s in f['sprites']) + 50 * sum(s[2] == IMG_RING for s in f['sprites']))
+        glow = [s for s in frame['sprites'] if s[3] & ADD] or frame['sprites']
+        cx = int(np.median([s[0] for s in glow]))
+        cy = int(np.median([s[1] for s in glow]))
+        x0, y0 = min(max(cx - cw // 2, 0), W - cw), min(max(cy - ch // 2, 0), H - ch)
+        base = None
+        row = Image.new('RGB', (len(variants) * (cw * zoom + 10), ch * zoom + 24), (30, 30, 34))
+        draw = ImageDraw.Draw(row)
+        for i, (art, (_, name)) in enumerate(zip(arts, variants)):
+            ch565 = render(header, frame, art)
+            if base is None:
+                base = ch565
+            err = np.abs(to_rgb888(ch565).astype(int) - to_rgb888(base).astype(int)).max(-1)
+            crop = to_rgb888(ch565[y0 : y0 + ch, x0 : x0 + cw])
+            row.paste(Image.fromarray(crop).resize((cw * zoom, ch * zoom), Image.Resampling.NEAREST), (i * (cw * zoom + 10), 24))
+            draw.text((i * (cw * zoom + 10) + 4, 4), f'{name}: {(err > 24).mean():.1%} px differ by >24', fill=(240, 240, 240))
+            print(f'{Path(path).name} #{frame["frame"]} {name:<28} 和 RGB565 差 >24 的点 {(err > 24).mean():.2%}, 最大差 {err.max()}')
+        rows.append(row)
+    out = Image.new('RGB', (rows[0].width, sum(r.height for r in rows)))
+    y = 0
+    for r in rows:
+        out.paste(r, (0, y))
+        y += r.height
+    output = args.output or 'colors.png'
+    out.save(output)
+    print(f'-> {output}')
+
+
 # ---- 存储 ----
 
 # 盘古的块 RAM (DRM18K) 一块 18 Kb, 可以拼成这些 深度 x 宽度 (简单双口)
@@ -322,7 +414,7 @@ def cmd_memory(args):
     pixels = sum(img.size for img in art.images)
     if args.patterns_kb:
         pixels = args.patterns_kb * 1024 // 2
-    n, k = args.sprites, args.line_objects
+    n, k, bits = args.sprites, args.line_objects, args.pattern_bits
     # 名字, 深度, 宽度, 份数, 补成 2 的幂?, 说明
     groups = {
         'CPU 和已有的': [
@@ -331,7 +423,8 @@ def cmd_memory(args):
             ('摄像头小窗', 19200, 8, 2, False, '160x120, 8 位色; 前台 / 后台两份, 已拆成 2048 深的小块'),
         ],
         '新显示': [
-            ('图案库', pixels // 8, 128, 1, True, f'{pixels} 点 RGB565 ({pixels * 2 // 1024} KB); 一次读 8 点, 才能一拍画 8 点'),
+            ('图案库', pixels // 8, 8 * bits, 1, True, f'{pixels} 点, 每点 {bits} 位 ({pixels * bits // 8192} KB); 一次读 8 点, 才能一拍画 8 点'),
+            *([('调色板', 256, 16, 4, True, '256 色 RGB565; 一拍查 8 个点, 真双口一份查 2 个, 所以 4 份')] if bits == 8 else []),
             ('背景图块表', 64 * 64, 10, 1, True, '64x64 格, 每格一个图案编号'),
             ('精灵表', n, 64, 2, True, f'{n} 个, 每个 64 位; 双缓冲 (CPU 写后台, 场消隐交换)'),
             ('精灵 Y 范围', n, 20, 2, True, '精灵表里上下边的副本: 每行扫一遍, 找出和下一行相交的对象'),
@@ -380,12 +473,18 @@ def main():
     c.add_argument('--affine', type=int, default=1)
     c.add_argument('--bg', type=int, default=80)
     c.add_argument('-o', '--output')
+    k = sub.add_parser('colors')
+    k.add_argument('dump', nargs='+')
+    k.add_argument('--frame', type=int)
+    k.add_argument('--shaded', action='store_true', help='给占位图加球面光照, 模拟颜色多的正式素材')
+    k.add_argument('-o', '--output')
     m = sub.add_parser('memory')
     m.add_argument('--sprites', type=int, default=512)
     m.add_argument('--line-objects', type=int, default=128)
-    m.add_argument('--patterns-kb', type=int, default=0, help='图案库按这么多 KB 算 (默认: 现在的占位图)')
+    m.add_argument('--patterns-kb', type=int, default=0, help='图案库按 RGB565 这么多 KB 的点数算 (默认: 现在的占位图)')
+    m.add_argument('--pattern-bits', type=int, default=16, choices=[16, 8], help='图案每点几位: 16 = RGB565, 8 = 256 色调色板')
     args = parser.parse_args()
-    {'render': cmd_render, 'cost': cmd_cost, 'memory': cmd_memory}[args.cmd](args)
+    {'render': cmd_render, 'cost': cmd_cost, 'colors': cmd_colors, 'memory': cmd_memory}[args.cmd](args)
 
 
 if __name__ == '__main__':
