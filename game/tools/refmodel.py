@@ -6,7 +6,7 @@
 """显示硬件的参考模型: 照 C 游戏存下的帧 (build/touhou --dump) 算出硬件该出的画面, 并数每行要用几拍。
 
 用法:
-  game/tools/refmodel.py render <帧.jsonl> [--frame 帧号] [-o 输出.png]
+  game/tools/refmodel.py render <帧.jsonl> [--frame 帧号] [--blade-layer] [-o 输出.png]
       画一帧 (默认是最忙的那帧), 存成 1280x720 的 PNG。以后 RTL 仿真的截图要和它逐像素一样。
   game/tools/refmodel.py cost <帧.jsonl> ... [--mhz 50] [--setup 4] [--affine 1] [--max-objects 0] [-o 图.png]
       数每条逻辑行要几拍, 和这一行的时间比; 列出最忙的帧。-o: 把最忙那帧和每行拍数画在一起。
@@ -60,6 +60,7 @@ SIN = [round(16384 * math.sin(2 * math.pi * a / 256)) for a in range(256)]
 INV = [0] + [round(65536 / s) for s in range(1, 256)]
 
 IMG_RING = [name for name, _, _ in assets.IMAGES].index('ring')
+IMG_BLADE = [name for name, _, _ in assets.IMAGES].index('blade')
 MAX = np.array([31, 63, 31])  # RGB565 各通道最大值
 
 
@@ -241,10 +242,17 @@ def render(header, frame, art, max_objects=0, camera=None):
     return out
 
 
-def compose(header, frame, art, max_objects=0):
-    """完整输出: 放大 2 倍 + 文字层, 1280x720 RGB888。"""
+def compose(header, frame, art, max_objects=0, blade_layer=False):
+    """完整输出: 放大 2 倍 + 文字层, 1280x720 RGB888。
+    blade_layer: 试验刀光层 (还没定做不做): 刀光的光点精灵不画, 改成在 1280x720 上画一条平滑、带软边的线。"""
+    blade = []
+    if blade_layer:
+        blade = [s for s in frame['sprites'] if s[2] == IMG_BLADE]
+        frame = {**frame, 'sprites': [s for s in frame['sprites'] if s[2] != IMG_BLADE]}
     big = np.repeat(np.repeat(render(header, frame, art, max_objects), 2, 0), 2, 1)
     rgb = to_rgb888(big)
+    if blade:
+        draw_blade_layer(rgb, blade)
     font = art.font
     for row, (chars, colors) in enumerate(zip(frame.get('text', []), frame.get('text_color', []))):
         for col, ch in enumerate(chars):
@@ -255,6 +263,32 @@ def compose(header, frame, art, max_objects=0):
             cell = rgb[row * 16 : row * 16 + 16, col * 8 : col * 8 + 8]
             cell[bits] = to_rgb888(split(assets_rgb565(CGA[int(colors[col], 16)])))
     return rgb
+
+
+def draw_blade_layer(rgb, dots):
+    """刀光层的样子: 光点按表里的顺序 (新 -> 旧) 连成折线, 在 1280x720 上按到线的距离算亮度:
+    中间实、边缘 1 点宽的过渡 (抗锯齿), 外面一圈淡的光晕; 越旧越细越淡。加到画面上 (加法)。"""
+    pts = [(2 * s[0] + 1, 2 * s[1] + 1, s[4]) for s in dots]
+    light = np.zeros(rgb.shape[:2])
+    for (ax, ay, aa), (bx, by, ba) in zip(pts, pts[1:]):
+        if abs(ax - bx) + abs(ay - by) > 80:  # 不是同一条刀光
+            continue
+        age = (aa + ba) / 32  # 1 = 最新
+        hw = 1 + 3 * age  # 半宽 (1280x720 的点)
+        r = int(hw * 3) + 2
+        x0, x1 = max(min(ax, bx) - r, 0), min(max(ax, bx) + r, 1280)
+        y0, y1 = max(min(ay, by) - r, 0), min(max(ay, by) + r, 720)
+        if x0 >= x1 or y0 >= y1:
+            continue
+        y, x = np.mgrid[y0:y1, x0:x1]
+        ex, ey = bx - ax, by - ay
+        t = np.clip(((x - ax) * ex + (y - ay) * ey) / max(ex * ex + ey * ey, 1), 0, 1)
+        d = np.hypot(x - (ax + t * ex), y - (ay + t * ey))
+        core = np.clip(hw - d + 0.5, 0, 1)
+        halo = np.clip(1 - d / (hw * 3), 0, 1) * 0.35
+        light[y0:y1, x0:x1] = np.maximum(light[y0:y1, x0:x1], np.maximum(core, halo) * age)
+    add = light[..., None] * np.array([210, 240, 255])
+    rgb[...] = np.clip(rgb + add, 0, 255).astype(np.uint8)
 
 
 def assets_rgb565(rgb):
@@ -299,7 +333,7 @@ def cmd_render(args):
     header, frames = read_dump(args.dump)
     art = Assets()
     frame = pick(header, frames, art, args.frame)
-    rgb = compose(header, frame, art, args.max_objects)
+    rgb = compose(header, frame, art, args.max_objects, args.blade_layer)
     out = args.output or f'{Path(args.dump).stem}-{frame["frame"]}.png'
     Image.fromarray(rgb).save(out)
     print(f'第 {frame["frame"]} 帧, {len(frame["sprites"])} 个精灵 -> {out}')
@@ -465,6 +499,7 @@ def main():
     r.add_argument('dump')
     r.add_argument('--frame', type=int)
     r.add_argument('--max-objects', type=int, default=0)
+    r.add_argument('--blade-layer', action='store_true', help='试验: 刀光改成 1280x720 上的平滑线 (刀光层)')
     r.add_argument('-o', '--output')
     c = sub.add_parser('cost')
     c.add_argument('dump', nargs='+')
