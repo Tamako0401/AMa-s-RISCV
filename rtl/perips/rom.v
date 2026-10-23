@@ -8,6 +8,7 @@
 //     only fed the commented-out gen_ram instance).
 //   - 可选 app 区写入, 引导区始终写保护。
 //   - 增加独立的取指读口: 取指不再经过 rib, 与数据口互不阻塞。
+//   - 按真双口块 RAM 的写法: 每个口在自己的 always 里读 (输出寄存), 避免综合时复制成两份。
 // See docs/third-party.md and docs/cpu-baseline.md.
 /*
  Copyright 2020 Blue Liang, liangkangnan@163.com
@@ -39,8 +40,10 @@
 // - addr_i 是字节地址, 内部右移 2 位取字地址, 高位超出 DP 的部分被截断
 //   (调用方需保证地址落在合法区间, 与上游 gen_ram 的约定一致);
 // - 两个口的读数据都在各自请求握手后的下一拍有效;
-// - 两个口访问同一拍、同一地址时, 写入优先(读口看到的值由综合工具决定,
-//   软件不应依赖这种重叠访问);
+// - 两个口访问同一拍、同一地址时, 读到的是旧值还是新值由块 RAM 决定,
+//   软件不应依赖这种重叠访问;
+// - 存储体按真双口块 RAM 的写法: A 口 (数据口) 读写, B 口 (取指口) 只读, 各自在时钟沿读出并寄存。
+//   以前用"地址寄存 + 组合读"、两个读口共用一个写口, PDS 把 64 KB 复制成两份 (多 32 块 DRM18K, 见 docs/vision.md)。
 // - 程序初值由 $readmemh 从 ROM_INIT_FILE 载入; 文件名为空则不初始化(读到 X)。
 //   该初始化方式在仿真中已验证; 能否被综合工具推断成 ROM 初值尚未验证。
 module rom #(
@@ -78,8 +81,8 @@ module rom #(
     localparam AW = $clog2(DP);
 
     reg [31:0] mem[0:DP-1];
-    reg [AW-1:0] addr_r;
-    reg [AW-1:0] i_addr_r;
+    reg [31:0] data_r;
+    reg [31:0] i_data_r;
 
     // 字节地址 -> 字地址
     wire [31:0] word_addr   = {2'b0, addr_i[31:2]};
@@ -92,32 +95,27 @@ module rom #(
         end
     end
 
-    // 采样地址: 读数据在下一拍输出, 正好与 rsp_valid_o 对齐
-    // 不带复位: 这样才能推断成块 RAM (BRAM 的地址寄存器没有异步复位), 否则整个 ROM 被
-    // 综合成 LUT, 程序越大 LUT 越多。复位后的 addr_r 没人读 (rsp_valid_o 由带复位的 vld_rdy 给出)
+    // 读数据在下一拍输出, 正好与 rsp_valid_o 对齐。
+    // 输出寄存器不带复位: 这样才能推断成块 RAM, 否则整个 ROM 被综合成 LUT。
+    // 复位后的值没人读 (rsp_valid_o 由带复位的 vld_rdy 给出)
+
+    // A 口: 数据口, 读写。存储体不复位, 引导区即使开锁也不能覆盖。
+    wire write = WRITABLE && we_i && we_en_i && req_valid_i && req_ready_o && addr_i < 32'hf800;
+    integer b;
     always @(posedge clk) begin
-        addr_r <= word_addr[AW-1:0];
+        if (write)
+            for (b = 0; b < 4; b = b + 1)
+            if (sel_i[b]) mem[word_addr[AW-1:0]][b*8+:8] <= data_i[b*8+:8];
+        data_r <= mem[word_addr[AW-1:0]];
     end
 
-    // 取指口地址寄存器, 同样不带复位
+    // B 口: 取指口, 只读
     always @(posedge clk) begin
-        i_addr_r <= i_word_addr[AW-1:0];
+        i_data_r <= mem[i_word_addr[AW-1:0]];
     end
 
-    // 存储体不复位, 保留块 RAM 推断; 引导区即使开锁也不能覆盖。
-    generate
-        if (WRITABLE) begin : g_writable
-            integer b;
-            always @(posedge clk) begin
-                if (we_i && we_en_i && req_valid_i && req_ready_o && addr_i < 32'hf800)
-                    for (b = 0; b < 4; b = b + 1)
-                    if (sel_i[b]) mem[word_addr[AW-1:0]][b*8+:8] <= data_i[b*8+:8];
-            end
-        end
-    endgenerate
-
-    assign data_o = mem[addr_r];
-    assign i_data_o = mem[i_addr_r];
+    assign data_o = data_r;
+    assign i_data_o = i_data_r;
 
     // req/rsp 握手时序: 请求被接受后的下一拍拉高 rsp_valid_o
     vld_rdy #(
