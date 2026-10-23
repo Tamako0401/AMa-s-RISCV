@@ -119,6 +119,13 @@ void render_frame(const char *shot)
     for (uint32_t i = 0; i < gfx.sprite_n; i++)
         draw_sprite(&gfx.sprites[i]);
     SDL_RenderSetClipRect(renderer, NULL);
+    if (gfx.fade_level) {
+        uint16_t c = gfx.fade_color;
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, (c >> 11) << 3, ((c >> 5) & 63) << 2, (c & 31) << 3, gfx.fade_level * 255 / 16);
+        SDL_RenderFillRect(renderer, NULL);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
 
     /* 放大 2 倍到 1280x720, 文字层按 1280x720 原生画在上面 */
     SDL_SetRenderTarget(renderer, output);

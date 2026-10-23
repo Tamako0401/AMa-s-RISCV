@@ -8,8 +8,8 @@
 #define HAND_CAM_W 640 /* 原始坐标的范围: 640x480 的摄像头画面 (已镜像) */
 #define HAND_CAM_H 480
 /* 有效区: 摄像头画面中间这么大映射到整个游戏区, 手不用伸到画面边上。
- * 高取 60% (同 play.py), 宽按游戏区 320x360 的比例, 横竖放大倍数一样 (1.25) */
-#define HAND_ACTIVE_W 256
+ * 高取 60% (同 play.py), 宽按游戏区的宽高比, 横竖放大倍数一样 (1.25):
+ * 东方式 320x360 -> 256x288, 水果忍者 640x360 -> 512x288 */
 #define HAND_ACTIVE_H 288
 
 /* 视觉每出一帧结果给一次; seq 变了才算新结果 */
@@ -40,5 +40,7 @@ typedef struct {
 void hand_init(hand_t *hand, int32_t x, int32_t y);
 /* 每个游戏帧调一次; play_w, play_h 是游戏区大小 */
 void hand_update(hand_t *hand, const hand_raw_t *raw, int32_t play_w, int32_t play_h);
+/* 游戏区坐标 (Q8) -> 摄像头小窗 (160x120) 里的点, 用来在小窗上标出手 */
+void hand_to_window(int32_t x, int32_t y, int32_t play_w, int32_t play_h, int32_t *wx, int32_t *wy);
 
 #endif

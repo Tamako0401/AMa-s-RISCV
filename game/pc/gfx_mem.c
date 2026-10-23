@@ -7,6 +7,7 @@ void gfx_begin(void)
 {
     gfx.sprite_n = 0;
     gfx.dropped = 0;
+    gfx.fade_level = 0;
 }
 
 gfx_sprite_t *gfx_sprite(int32_t x, int32_t y, uint32_t image)
@@ -47,6 +48,12 @@ void gfx_window(int32_t x, int32_t y)
     gfx.window_x = x;
     gfx.window_y = y;
     gfx.window_on = 1;
+}
+
+void gfx_fade(uint16_t rgb565, uint32_t level)
+{
+    gfx.fade_color = rgb565;
+    gfx.fade_level = (uint8_t)(level < 16 ? level : 16);
 }
 
 void gfx_text_clear(void)

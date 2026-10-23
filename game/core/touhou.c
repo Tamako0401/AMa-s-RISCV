@@ -334,8 +334,8 @@ void touhou_draw(const touhou_t *g, const hand_t *hand)
 
     /* 小窗里标出手在摄像头画面里的位置 (游戏区坐标反算回 160x120) */
     if (hand->valid) {
-        int32_t wx = ((hand->x >> 8) * HAND_ACTIVE_W / PLAY_W + (HAND_CAM_W - HAND_ACTIVE_W) / 2) / 4;
-        int32_t wy = ((hand->y >> 8) * HAND_ACTIVE_H / PLAY_H + (HAND_CAM_H - HAND_ACTIVE_H) / 2) / 4;
+        int32_t wx, wy;
+        hand_to_window(hand->x, hand->y, PLAY_W, PLAY_H, &wx, &wy);
         gfx_sprite(WINDOW_X + wx, WINDOW_Y + wy, hand->fist ? IMG_HITBOX : IMG_SPARK);
     }
     draw_hud(g, hand);

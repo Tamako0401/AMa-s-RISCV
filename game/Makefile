@@ -1,12 +1,15 @@
-# 电脑版: make 然后 build/touhou。core/ 是板上也用的游戏逻辑, pc/ 是电脑后端 (SDL2), 素材由 tools/assets.py 生成
+# 电脑版: make 然后 build/touhou 或 build/fruit。core/ 是板上也用的游戏逻辑, pc/ 是电脑后端 (SDL2), 素材由 tools/assets.py 生成
 CFLAGS = -std=c11 -O2 -g -Wall -Wextra -Icore -Ipc -Ibuild $(shell pkg-config --cflags sdl2)
 LDLIBS = $(shell pkg-config --libs sdl2)
 
 CORE = $(wildcard core/*.c)
-PC = $(wildcard pc/*.c)
+PC = pc/app.c pc/gfx_mem.c pc/hand_udp.c pc/render.c pc/stats.c # 两个游戏共用; pc/<游戏>_pc.c 各一个
+DEPS = $(CORE) $(PC) build/assets.c $(wildcard core/*.h pc/*.h)
 
-build/touhou: $(CORE) $(PC) build/assets.c $(wildcard core/*.h pc/*.h)
-	$(CC) $(CFLAGS) -o $@ $(CORE) $(PC) build/assets.c $(LDLIBS)
+all: build/touhou build/fruit
+
+build/%: pc/%_pc.c $(DEPS)
+	$(CC) $(CFLAGS) -o $@ $< $(CORE) $(PC) build/assets.c $(LDLIBS)
 
 build/assets.c build/assets.h: tools/assets.py $(wildcard assets/*.png)
 	uv run tools/assets.py build
@@ -18,4 +21,4 @@ check-core: build/assets.h
 clean:
 	rm -rf build
 
-.PHONY: check-core clean
+.PHONY: all check-core clean

@@ -14,6 +14,8 @@ typedef struct {
     int32_t clip0, clip1;
     int32_t window_x, window_y;
     uint8_t window_on;
+    uint16_t fade_color;
+    uint8_t fade_level;
     char text[GFX_TEXT_ROWS][GFX_TEXT_COLS];
     uint8_t text_color[GFX_TEXT_ROWS][GFX_TEXT_COLS];
 } gfx_state_t;

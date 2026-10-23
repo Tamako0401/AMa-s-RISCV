@@ -2,7 +2,7 @@
  * 电脑上 pc/ 用 SDL 照这张表画; 板上就是写显示寄存器。所以这里有什么功能, 硬件就要做什么 (见 game/README.md)。
  *
  * 画面 640x360 (输出 720p 时每点放大成 2x2), 从下到上:
- *   底色 -> 背景 (8x8 图块拼成, 可卷动, 只在游戏区内显示) -> 摄像头小窗 -> 精灵 -> 文字 (1280x720 原生, 8x16 一格)
+ *   底色 -> 背景 (8x8 图块拼成, 可卷动, 只在游戏区内显示) -> 摄像头小窗 -> 精灵 -> 整体混色 -> 文字 (1280x720 原生, 8x16 一格)
  * 小窗在精灵下面: 可以在小窗上用精灵标出手的位置。
  * 精灵每帧重来: gfx_begin 清空, gfx_sprite 一个个追加, 后加的盖住先加的。背景、文字、小窗改了才写, 一直保留。 */
 #ifndef GFX_API_H
@@ -55,6 +55,8 @@ void gfx_map(int32_t col, int32_t row, uint32_t image); /* 背景第 row 行第 
 void gfx_scroll(int32_t x, int32_t y);      /* 背景卷动 */
 void gfx_clip(int32_t x0, int32_t x1);      /* 游戏区 x0 <= x < x1: 背景和带 GFX_CLIP 的精灵只在这里显示 */
 void gfx_window(int32_t x, int32_t y);      /* 摄像头小窗左上角 */
+/* 整个画面 (文字除外) 往一个颜色混: level 0 不变, 16 全是这个颜色。闪白、淡入淡出用; 每帧要设 */
+void gfx_fade(uint16_t rgb565, uint32_t level);
 
 void gfx_text_clear(void);
 void gfx_text(int32_t col, int32_t row, uint32_t color, const char *s);

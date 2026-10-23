@@ -54,6 +54,11 @@ static void smooth(hand_t *hand, int32_t x, int32_t y)
     hand->fy = blend(hand->fy, y, a);
 }
 
+static int32_t active_w(int32_t play_w, int32_t play_h)
+{
+    return HAND_ACTIVE_H * play_w / play_h;
+}
+
 static int32_t clamp(int32_t v, int32_t lo, int32_t hi)
 {
     return v < lo ? lo : v > hi ? hi : v;
@@ -78,7 +83,8 @@ void hand_update(hand_t *hand, const hand_raw_t *raw, int32_t play_w, int32_t pl
     hand->lost = 0;
 
     /* 有效区映射到游戏区 */
-    int32_t x = ((raw->x - (HAND_CAM_W - HAND_ACTIVE_W) / 2) * play_w << 8) / HAND_ACTIVE_W;
+    int32_t w = active_w(play_w, play_h);
+    int32_t x = ((raw->x - (HAND_CAM_W - w) / 2) * play_w << 8) / w;
     int32_t y = ((raw->y - (HAND_CAM_H - HAND_ACTIVE_H) / 2) * play_h << 8) / HAND_ACTIVE_H;
     smooth(hand, x, y);
     hand->since = 0;
@@ -98,4 +104,11 @@ void hand_update(hand_t *hand, const hand_raw_t *raw, int32_t play_w, int32_t pl
     } else {
         hand->streak = 0;
     }
+}
+
+void hand_to_window(int32_t x, int32_t y, int32_t play_w, int32_t play_h, int32_t *wx, int32_t *wy)
+{
+    int32_t w = active_w(play_w, play_h);
+    *wx = ((x >> 8) * w / play_w + (HAND_CAM_W - w) / 2) / 4;
+    *wy = ((y >> 8) * HAND_ACTIVE_H / play_h + (HAND_CAM_H - HAND_ACTIVE_H) / 2) / 4;
 }

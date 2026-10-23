@@ -50,8 +50,8 @@ void stats_open_dump(const char *path)
 
 static void write_frame(const char *why)
 {
-    fprintf(dump, "{\"frame\": %u, \"why\": \"%s\", \"scroll\": [%d, %d], \"sprites\": [", frame_no, why, gfx.scroll_x,
-            gfx.scroll_y);
+    fprintf(dump, "{\"frame\": %u, \"why\": \"%s\", \"scroll\": [%d, %d], \"fade\": [%d, %d], \"sprites\": [", frame_no, why,
+            gfx.scroll_x, gfx.scroll_y, gfx.fade_color, gfx.fade_level);
     for (uint32_t i = 0; i < gfx.sprite_n; i++) {
         const gfx_sprite_t *s = &gfx.sprites[i];
         fprintf(dump, "%s[%d, %d, %d, %d, %d, %d, %d]", i ? ", " : "", s->x, s->y, s->image, s->flags, s->alpha, s->angle,

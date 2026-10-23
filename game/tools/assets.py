@@ -87,12 +87,59 @@ def shot():
     return img
 
 
+def wood(dark, knot=None):
+    """水果忍者的背景: 木板。8x8 一块, 上下拼成竖纹; dark 那一列是木板之间的缝。"""
+    img = np.zeros((8, 8, 4), np.uint8)
+    img[...] = (96, 62, 36, 255)
+    img[:, 3] = (106, 70, 42, 255)
+    if dark is not None:
+        img[:, dark] = (48, 30, 18, 255)
+    if knot:
+        img[knot[1] : knot[1] + 2, knot[0] : knot[0] + 2] = (70, 44, 26, 255)
+    return img
+
+
+def fruit(size, peel, flesh, leaf=None):
+    """整个水果: 外皮一圈, 里面稍亮 (有点立体感), 左上一点高光。"""
+    r = size / 2 - 1
+    c = (size - 1) / 2
+    y, x = np.mgrid[:size, :size]
+    layers = [(disk(size, r), peel), (disk(size, r * 0.8), tuple(min(255, v + 25) for v in peel)),
+              ((x - (c - r * 0.35)) ** 2 + (y - (c - r * 0.35)) ** 2 <= (r * 0.18) ** 2, (255, 255, 240))]
+    if leaf:
+        layers.append(((abs(x - c - 2) <= 2) & (y <= 3), leaf))
+    return paint(size, *layers)
+
+
+def half(size, peel, flesh, seed):
+    """切开的左半边: 刀口是竖直的那条边 (游戏里按刀的方向转, 另一半左右翻转)。"""
+    r = size / 2 - 1
+    c = (size - 1) / 2
+    y, x = np.mgrid[:size, :size]
+    left = x <= c
+    layers = [(disk(size, r) & left, peel), (disk(size, r - max(2, size // 16)) & left, flesh),
+              (disk(size, r * 0.3) & left & ((x + y) % 3 == 0), seed)]
+    return paint(size, *layers)
+
+
+def bomb():
+    img = paint(32, (disk(32, 12), (40, 40, 48)), (disk(32, 9), (60, 60, 72)))
+    y, x = np.mgrid[:32, :32]
+    img[((x - 11) ** 2 + (y - 11) ** 2 <= 5)] = (170, 170, 190, 255)  # 高光
+    img[1:6, 15:17] = (150, 120, 80, 255)  # 引信
+    return img
+
+
 # 名字, 边长, 占位图。顺序就是编号 (IMG_*), 背景图块要在前面 (硬件里图块编号可能位数少)
 IMAGES = [
     ('tile0', 8, lambda: tile()),
     ('tile1', 8, lambda: tile((2, 3), 120)),
     ('tile2', 8, lambda: tile((5, 6), 200)),
     ('tile3', 8, lambda: tile((6, 1), 80)),
+    ('wood0', 8, lambda: wood(None)),
+    ('wood1', 8, lambda: wood(7)),
+    ('wood2', 8, lambda: wood(None, (4, 2))),
+    ('wood3', 8, lambda: wood(7, (1, 5))),
     ('bullet', 8, lambda: paint(8, (disk(8, 3.6), (230, 50, 60)), (disk(8, 1.6), (255, 230, 230)))),
     ('orb', 16, lambda: paint(16, (disk(16, 7.4), (60, 90, 240)), (disk(16, 4.5), (150, 190, 255)), (disk(16, 2), (255, 255, 255)))),
     ('rice', 16, rice),
@@ -102,6 +149,18 @@ IMAGES = [
     ('spark', 8, lambda: glow(8, 4, np.array([255, 220, 120]))),
     ('boss', 32, lambda: paint(32, (disk(32, 15), (170, 50, 170)), (disk(32, 11), (230, 110, 220)), (disk(32, 5), (255, 230, 250)))),
     ('ring', 64, lambda: glow(64, 31, np.array([120, 200, 255]), ring=28, width=4)),
+    # 水果忍者
+    ('apple', 32, lambda: fruit(32, (200, 30, 40), None, (60, 160, 50))),
+    ('apple_half', 32, lambda: half(32, (200, 30, 40), (250, 235, 190), (90, 50, 20))),
+    ('orange', 32, lambda: fruit(32, (240, 140, 20), None)),
+    ('orange_half', 32, lambda: half(32, (240, 140, 20), (255, 200, 80), (255, 240, 200))),
+    ('melon', 64, lambda: fruit(64, (40, 120, 40), None)),
+    ('melon_half', 64, lambda: half(64, (40, 120, 40), (235, 60, 70), (30, 20, 20))),
+    ('bomb', 32, bomb),
+    ('juice_red', 8, lambda: glow(8, 4, np.array([255, 60, 60]))),
+    ('juice_orange', 8, lambda: glow(8, 4, np.array([255, 170, 40]))),
+    ('juice_green', 8, lambda: glow(8, 4, np.array([120, 255, 90]))),
+    ('blade', 8, lambda: glow(8, 4, np.array([200, 240, 255]))),
 ]
 
 
