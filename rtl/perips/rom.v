@@ -6,7 +6,7 @@
 //     a PANGO IP core, so the file elaborates and simulates with plain Icarus.
 //   - DP now really controls the depth (upstream DP was a dead parameter that
 //     only fed the commented-out gen_ram instance).
-//   - 可选 app 区写入, 引导区始终写保护。
+//   - 可选 app 区写入 (只接受整字), 引导区始终写保护。
 //   - 增加独立的取指读口: 取指不再经过 rib, 与数据口互不阻塞。
 //   - 按真双口块 RAM 的写法: 每个口在自己的 always 里读 (输出寄存), 避免综合时复制成两份。
 // See docs/third-party.md and docs/cpu-baseline.md.
@@ -100,12 +100,11 @@ module rom #(
     // 复位后的值没人读 (rsp_valid_o 由带复位的 vld_rdy 给出)
 
     // A 口: 数据口, 读写。存储体不复位, 引导区即使开锁也不能覆盖。
-    wire write = WRITABLE && we_i && we_en_i && req_valid_i && req_ready_o && addr_i < 32'hf800;
-    integer b;
+    // 只接受整字写入 (sel_i == 4'hf), 半字、字节写被忽略: 引导程序只按字写 (sw/boot/main.c)。
+    // 按字节写使能会让 PDS 把存储体拆成 4 个字节通道, 每个读口各复制一份。
+    wire write = WRITABLE && we_i && we_en_i && req_valid_i && req_ready_o && addr_i < 32'hf800 && sel_i == 4'hf;
     always @(posedge clk) begin
-        if (write)
-            for (b = 0; b < 4; b = b + 1)
-            if (sel_i[b]) mem[word_addr[AW-1:0]][b*8+:8] <= data_i[b*8+:8];
+        if (write) mem[word_addr[AW-1:0]] <= data_i;
         data_r <= mem[word_addr[AW-1:0]];
     end
 
