@@ -37,11 +37,12 @@ void stats_open_dump(const char *path)
         perror(path);
         return;
     }
-    /* 第一行: 不随帧变的东西 (图案尺寸、背景图块表、游戏区) */
+    /* 第一行: 不随帧变的东西 (图案尺寸、底色、游戏区、小窗、背景图块表) */
     fprintf(dump, "{\"images\": [");
     for (int i = 0; i < IMG_COUNT; i++)
         fprintf(dump, "%s%d", i ? ", " : "", assets_images[i].size);
-    fprintf(dump, "], \"clip\": [%d, %d], \"map\": [", gfx.clip0, gfx.clip1);
+    fprintf(dump, "], \"backdrop\": %d, \"clip\": [%d, %d], \"window\": [%d, %d, %d], \"map\": [", gfx.backdrop, gfx.clip0,
+            gfx.clip1, gfx.window_on, gfx.window_x, gfx.window_y);
     for (int r = 0; r < GFX_MAP_H; r++)
         for (int c = 0; c < GFX_MAP_W; c++)
             fprintf(dump, "%s%d", r || c ? "," : "", gfx.map[r][c]);
@@ -56,6 +57,25 @@ static void write_frame(const char *why)
         const gfx_sprite_t *s = &gfx.sprites[i];
         fprintf(dump, "%s[%d, %d, %d, %d, %d, %d, %d]", i ? ", " : "", s->x, s->y, s->image, s->flags, s->alpha, s->angle,
                 s->scale);
+    }
+    /* 文字层: 每行一个字符串, 颜色每格一个十六进制数字 */
+    fprintf(dump, "], \"text\": [");
+    for (int r = 0; r < GFX_TEXT_ROWS; r++) {
+        fprintf(dump, "%s\"", r ? ", " : "");
+        for (int c = 0; c < GFX_TEXT_COLS; c++) {
+            char ch = gfx.text[r][c];
+            if (ch == '"' || ch == '\\')
+                fputc('\\', dump);
+            fputc(ch >= ' ' && ch < 127 ? ch : ' ', dump);
+        }
+        fprintf(dump, "\"");
+    }
+    fprintf(dump, "], \"text_color\": [");
+    for (int r = 0; r < GFX_TEXT_ROWS; r++) {
+        fprintf(dump, "%s\"", r ? ", " : "");
+        for (int c = 0; c < GFX_TEXT_COLS; c++)
+            fputc("0123456789abcdef"[gfx.text_color[r][c] & 15], dump);
+        fprintf(dump, "\"");
     }
     fprintf(dump, "]}\n");
 }
