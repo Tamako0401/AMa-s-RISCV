@@ -122,6 +122,37 @@ def half(size, peel, flesh, seed):
     return paint(size, *layers)
 
 
+def streak():
+    """刀光的一笔 (配合加法、旋转): 横着的一道, 中间 2 点最亮, 上下各约 4 点淡出;
+    两头 4 点线性变暗, 游戏里每隔 12 点放一笔, 相邻两笔两头叠起来亮度正好接上。"""
+    y, x = np.mgrid[:16, :16] + 0.5
+    across = np.clip(1 - np.maximum(abs(y - 8) - 1, 0) / 4, 0, 1) ** 1.5
+    along = np.clip(np.minimum(x, 16 - x) / 4, 0, 1)
+    level = across * along
+    img = np.zeros((16, 16, 4), np.uint8)
+    img[..., :3] = (level[..., None] * np.array([210, 240, 255])).astype(np.uint8)
+    img[..., 3] = np.where(level > 0, 255, 0)
+    return img
+
+
+def blob(size, color, seed):
+    """不规则的一团果汁 (不透明, 游戏里整体半透明淡出): 几个圆叠起来。"""
+    rng = np.random.default_rng(seed)
+    y, x = np.mgrid[:size, :size]
+    mask = np.zeros((size, size), bool)
+    c = (size - 1) / 2
+    mask |= np.hypot(x - c, y - c) <= size * 0.28
+    for _ in range(6):
+        a, d = rng.uniform(0, 2 * np.pi), rng.uniform(0.15, 0.32) * size
+        r = rng.uniform(0.07, 0.16) * size
+        mask |= np.hypot(x - c - d * np.cos(a), y - c - d * np.sin(a)) <= r
+    img = np.zeros((size, size, 4), np.uint8)
+    img[mask] = (*color, 255)
+    hi = np.hypot(x - c + size * 0.1, y - c + size * 0.1) <= size * 0.08
+    img[mask & hi] = (*[min(255, v + 70) for v in color], 255)
+    return img
+
+
 def bomb():
     img = paint(32, (disk(32, 12), (40, 40, 48)), (disk(32, 9), (60, 60, 72)))
     y, x = np.mgrid[:32, :32]
@@ -161,6 +192,13 @@ IMAGES = [
     ('juice_orange', 8, lambda: glow(8, 4, np.array([255, 170, 40]))),
     ('juice_green', 8, lambda: glow(8, 4, np.array([120, 255, 90]))),
     ('blade', 8, lambda: glow(8, 4, np.array([200, 240, 255]))),
+    ('streak', 16, streak),
+    ('drop_red', 16, lambda: blob(16, (200, 20, 40), 1)),
+    ('drop_orange', 16, lambda: blob(16, (240, 150, 20), 2)),
+    ('drop_cream', 16, lambda: blob(16, (240, 225, 160), 3)),
+    ('stain_red', 32, lambda: blob(32, (150, 20, 35), 4)),
+    ('stain_orange', 32, lambda: blob(32, (190, 110, 20), 5)),
+    ('stain_cream', 32, lambda: blob(32, (190, 170, 110), 6)),
 ]
 
 

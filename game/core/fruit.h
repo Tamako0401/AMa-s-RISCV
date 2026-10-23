@@ -13,7 +13,8 @@
 
 #define FRUIT_MAX 32     /* 同时在飞的水果和炸弹 */
 #define FRUIT_PIECES 64  /* 切开的半个 */
-#define FRUIT_JUICE 256  /* 汁水点 */
+#define FRUIT_JUICE 256  /* 汁水: 飞溅的果汁团和光点 */
+#define FRUIT_STAINS 16  /* 木板上的果汁印 */
 #define FRUIT_TRAIL 10   /* 刀光: 记住最近几帧刀的位置 */
 
 /* 水果、半个、汁水都用这个 */
@@ -22,8 +23,8 @@ typedef struct {
     uint16_t angle;       /* 画的朝向, angle16 */
     int16_t spin;         /* 每帧转多少, angle16 */
     uint8_t kind;         /* 哪种水果, 见 fruit.c */
-    uint8_t flip;         /* 半个: 另一半左右翻转 */
-    uint8_t life;         /* 汁水: 还剩几帧 */
+    uint8_t flip;         /* 半个: 另一半左右翻转; 汁水: 1 = 果汁团, 0 = 光点 */
+    uint8_t life;         /* 汁水、果汁印: 还剩几帧 */
 } fruit_obj_t;
 
 /* 每帧的输入: 手或鼠标都转成这个 */
@@ -57,6 +58,8 @@ typedef struct {
     uint16_t piece_n;
     fruit_obj_t juice[FRUIT_JUICE];
     uint16_t juice_n;
+    fruit_obj_t stains[FRUIT_STAINS]; /* 先进先出, 满了挤掉最旧的 */
+    uint16_t stain_n;
     uint32_t cut_tests;  /* 这一帧做了几次精确的切中判定 */
 } fruit_t;
 
