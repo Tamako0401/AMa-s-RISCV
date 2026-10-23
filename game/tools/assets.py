@@ -13,9 +13,11 @@
   - 颜色转成 RGB565 (16 位色);
   - 像素只有透明 / 不透明: alpha < 128 算透明, 存成 TRANSPARENT 这个颜色 (洋红)。
     要软边缘、发光的图, 用黑底画, 游戏里用加法混合 (黑色加上去等于没画)。
-字库: 8x16, ASCII 32~126, 用系统等宽字体 (Menlo) 画出来再二值化, 只是占位 (授权不能带进比赛作品)。
+字库: 8x16, ASCII 32~126, 用系统等宽字体画出来再二值化 (macOS 用 Menlo, Linux 用 fc-match 找的 monospace),
+只是占位 (授权不能带进比赛作品)。两种系统画出来的字形略有不同。
 """
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -223,7 +225,9 @@ def rgb565(img):
 
 def font():
     """8x16 字库: 每个字 16 个字节 (一行一字节, 最高位在左)。"""
-    face = ImageFont.truetype('/System/Library/Fonts/Menlo.ttc', 13)
+    menlo = Path('/System/Library/Fonts/Menlo.ttc')
+    path = menlo if menlo.exists() else subprocess.run(['fc-match', '-f', '%{file}', 'monospace'], capture_output=True, text=True).stdout
+    face = ImageFont.truetype(str(path), 13)
     glyphs = np.zeros((128, 16), np.uint8)
     for code in range(32, 127):
         img = Image.new('L', (8, 16))
