@@ -5,6 +5,7 @@ rtl/utils/gen_ram.v
 rtl/utils/vld_rdy.v
 rtl/utils/dpram.v
 rtl/utils/dpram2c.v
+rtl/core/btb.v
 rtl/core/clint.v
 rtl/core/csr_reg.v
 rtl/core/divider.v
