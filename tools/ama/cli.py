@@ -17,6 +17,7 @@ import typer
 
 
 from . import load, fpga as projects
+from . import check as checks
 from .boards import ROOT, boards, gen_pins
 from .firmware import (
     APP_SIZE,
@@ -268,10 +269,19 @@ def app_arg(app):
     return f' --app {app}' if app else ''
 
 
+@fpga.command('check')
+def fpga_check(board: str = BuildBoardOpt):
+    """综合前的静态检查 (不用 PDS): 管脚重复/参照库、GPLL 参数、SYSCLK_HZ 一致性。"""
+    if checks.fatal(board):
+        raise typer.Exit(1)
+
+
 @fpga.command('build')
 def fpga_build(board: str = BuildBoardOpt, app: Optional[str] = AppOpt):
     """综合出位流。"""
     check_board(board)
+    if checks.fatal(board):
+        fail('静态检查没过, 先解决上面的 ERROR')
     if app:
         rom = build_firmware(app, board, [], [], firmware_dir(app, board)).parent / 'rom.hex'
     else:
