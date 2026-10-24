@@ -1,7 +1,7 @@
 # MES2L676-100HP 硬件手册 (教程1_硬件实验指导手册_盘古676系列100Pro+开发板.pdf) 管脚表 + 厂商例程
 # 4_1_led_test 核对 FDC 写法 (Logos2 与 Logos 的 PAP_IO_* 属性相同, 全部 3.3V bank)。
-# 板载 27 MHz 单端时钟 (手册 2.1.2.2.3.2, D18); 还没加 PLL, sys_clk 就是 27 MHz。
-# 加 PLL 后: 约束改到 PLL 输入, sys_clk 换成 PLL 输出的 50 MHz。
+# 板载 27 MHz 单端时钟 (手册 2.1.2.2.3.2, D18)。sys_clk 是顶层 GPLL 倍频出的 50 MHz,
+# 派生时钟由 PDS 从 GTP_GPLL 原语自动算出, 这里只约束晶振输入。
 create_clock -name sys_clk -period 37.037 [get_ports {clk}]
 define_attribute {p:clk} {PAP_IO_DIRECTION} {INPUT}
 define_attribute {p:clk} {PAP_IO_LOC} {D18}

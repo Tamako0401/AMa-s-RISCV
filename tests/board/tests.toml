@@ -9,7 +9,7 @@ tb = "board_tb.sv"
 rtl = "rtl/soc.f"
 extra = ["boards/mes2l100hp/mes2l100hp_top.v"]
 board = "mes2l100hp"
-vdefine = ['-DBOARD=mes2l100hp', '-DCLK_HALF_NS=18.519']
+vdefine = ['-DBOARD=mes2l100hp']
 runs = [{ app = "selftest" }]
 
 [[test]]
@@ -23,7 +23,7 @@ tb = "uart_reset_tb.sv"
 rtl = "rtl/soc.f"
 extra = ["boards/mes2l100hp/mes2l100hp_top.v"]
 board = "mes2l100hp"
-vdefine = ['-DBOARD=mes2l100hp', '-DCLK_HALF_NS=18.519']
+vdefine = ['-DBOARD=mes2l100hp']
 runs = [{ app = "selftest" }]
 
 [[test]]
@@ -37,5 +37,5 @@ tb = "boot_tb.sv"
 rtl = "rtl/soc.f"
 extra = ["boards/mes2l100hp/mes2l100hp_top.v"]
 board = "mes2l100hp"
-vdefine = ['-DBOARD=mes2l100hp', '-DCLK_HALF_NS=18.519']
+vdefine = ['-DBOARD=mes2l100hp']
 runs = [{ app = "selftest", program = ["sw/startup.S", "tests/board/boot_app.c"], link = "sw/link.ld", ram_init = false, defines = ["-DNEW_APP"] }]

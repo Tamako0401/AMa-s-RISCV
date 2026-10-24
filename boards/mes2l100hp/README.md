@@ -7,11 +7,35 @@ SP1-Lite 里有 Logos2 器件数据，但 license 是否覆盖 PG2L100H 待验�
 
 ## 与 MES50HP 的差别
 
-- **没有 50 MHz 时钟**：系统时钟是 27 MHz 单端（D18），还没加 PLL。`sw/bsp/bsp.h` 的
-  `SYSCLK_HZ` 如实写 27 MHz，UART 波特率、延时、bootloader 都按它算（仿真和上板都对）；
-  只有视频像素时钟（clk/2 = 13.5 MHz）不是标准时序，出图要等 PLL。
-  下一步加 GPLL 27→50 MHz（720p 计划见 [docs/display-plan.md](../../docs/display-plan.md)），
-  加的时候把 `SYSCLK_HZ` 改回 50 MHz。
+- **没有 50 MHz 时钟**：板载 27 MHz 单端（D18）。顶层已内联 `GTP_GPLL` 原语倍频出
+  50 MHz 系统时钟（做法同 ego1 的 MMCM），`sw/bsp/bsp.h` 的 `SYSCLK_HZ` 因此是 50 MHz，
+  软件、bootloader、`BREAK_CYCLES` 和 MES50HP 完全一致。
+
+## 时钟: GPLL 参数与频率余量
+
+参数语义由厂商例程 `2_Demo/2_5_pll_test`（27 MHz 进、54/81 MHz 出）反推并验证：
+
+```
+VCO = clk_in × RATIOM × RATIOF / RATIOI    (datasheet DS04001: VCO 600~1200 MHz, 输入 10~800 MHz)
+clkout_i = VCO / RATIO_i                    (RATIO 支持 0.5 步进)
+```
+
+本板取 `RATIOI=1, RATIOM=1, RATIOF=25` → VCO 675 MHz，`RATIO0=13.5` → **50 MHz**。
+仿真（Verilator）不模拟 PLL：`` `ifdef VERILATOR `` 分支把 clk 旁路、`pll_lock` 恒 1，
+测试台直接给 50 MHz——所以测试台和 50K 板跑法一样（无 `CLK_HALF_NS` 覆盖）。
+
+- **要不要 PPLL**：不用。datasheet 里 PPLL 的 VCO 在 1330~2133 MHz、定位是给 DDR 等
+  区域时钟；sys 这类全局时钟用 GPLL（分频功能也更多）。板上 6 个 GPLL，够。
+- **更高频率行不行**（27 MHz 输入下 VCO=27×M×F、输出=VCO/RATIO0，均受 600~1200 约束）：
+  54（VCO 1080/20）、60（810/13.5）、74.25（891/12）、81、90（810/9）、99（891/9）、
+  108（1080/10）都可以；**恰好 100 MHz 不可达**（需要 VCO=50 的倍数且 ≤1200，
+  与 27 的倍数对不上）。显示扩展计划的每行拍数结论是 50 MHz 已够（最忙一行 72%），
+  先不追高；若上板量出 CPU 跟不上再换（改 RATIO 参数 + `SYSCLK_HZ` 即可）。
+- **720p 的 74.25 MHz 像素时钟**：50 和 74.25 需要不同 VCO（675 vs 891），一个 GPLL
+  出不了两路——到时候用第二个 GPLL（VCO 891、`RATIO0=12`），见
+  [docs/display-plan.md](../../docs/display-plan.md) 实施顺序第 1 步。
+- `locked` 参与复位（PLL 未锁时不出系统时钟的行为，同 ego1）；锁定时间 datasheet
+  上限 200 µs。
 - **MS7210/MS7200 共用一条 I2C**（SCL=K22、SDA=K23）和一个复位脚（G25，低有效），
   50K 板上是两条独立总线。`sw/bsp/board_hdmi.h` 按 `PIN_HDMI_RX_SCL` 是否定义自动区分，
   两颗芯片的 I2C 地址不变（0xB2 / 0x56，手册 2.1.3.3）。

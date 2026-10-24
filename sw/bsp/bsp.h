@@ -14,8 +14,8 @@
 #endif
 
 #ifdef BOARD_MES2L100HP
-/* MES2L100HP 板载 27MHz, 还没加 PLL; 加 PLL 出 50MHz 后改成 50000000UL (README 有记) */
-#define SYSCLK_HZ 27000000UL
+/* MES2L100HP 板载 27MHz 经 GPLL 倍频到 50MHz (见 boards/mes2l100hp 的顶层), 与 MES50HP 一致 */
+#define SYSCLK_HZ 50000000UL
 #else
 #define SYSCLK_HZ 50000000UL /* MES50HP 板载 50MHz, 不经 PLL */
 #endif
