@@ -34,6 +34,7 @@ SW_INC = [
     'sw/components/key',
     'sw/components/lcd',
     'sw/components/hdmi',
+    'sw/nn',
 ]
 CFLAGS = [
     '-march=rv32i_zicsr',

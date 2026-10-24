@@ -1,0 +1,4 @@
+[[test]]
+tb = "nn_tb.sv"
+rtl = "rtl/nn/nn.f"
+runs = [{ plusargs = ["+in=tests/nn/in.raw", "+exp=tests/nn/expect.raw"] }]

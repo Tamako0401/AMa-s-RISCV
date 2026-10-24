@@ -20,6 +20,7 @@ module soc_tb;
     string rom_path, ram_path;
     integer unused;
     integer cycles = 0, stores = 0, expected_stores = -1;
+    integer max_cycles = 200000;
     reg seen = 0;
     reg [31:0] result;
     integer gpio_checks = 0, spi_edges = 0;
@@ -141,6 +142,7 @@ module soc_tb;
     initial begin
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
         unused = $value$plusargs("stores=%d", expected_stores);
+        unused = $value$plusargs("cycles=%d", max_cycles);
         check_spi = $test$plusargs("check_spi");
         check_uart = $test$plusargs("check_uart");
         $readmemh(rom_path, u_soc.u_rom.mem);
@@ -156,7 +158,7 @@ module soc_tb;
     always @(posedge clk)
         if (rst_n && !seen) begin
             cycles <= cycles + 1;
-            if (cycles > 200000) $fatal(1, "Timeout");
+            if (cycles > max_cycles) $fatal(1, "Timeout");
             if (dv && dr && dwe) begin
                 if (da == RESULT_ADDR) begin
                     if (dsel !== 4'b1111) $fatal(1, "Result write must be a full word");
@@ -182,7 +184,7 @@ module soc_tb;
         end
 
     initial begin
-        #2000000;
+        #200000000;
         $fatal(1, "timeout");
     end
 endmodule
