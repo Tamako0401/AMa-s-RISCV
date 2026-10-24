@@ -35,7 +35,7 @@ model/play.py models/gesture_recognizer.task --student model/runs/<名字>.pt   
 | 5. 评估 (按人分开的测试集) | 暂时在 `train.py` 里 (每 10 轮按段打表) | 只有一个人, 先按 session 分 |
 | 6. 比较输入尺寸 (80x60 / 160x120 / 320x240) 和网络宽度 | 同上 | 待做 |
 | 7. 实时试玩: 平滑、手势防抖、简单自机和刀光 | `model/demo.py` | 待写 |
-| 8. INT8 量化, 写整数参考实现 (以后 C 和 RTL 的标准答案) | | 浮点达标后再做 |
+| 8. INT8 量化, 写整数参考实现 (以后 C 和 RTL 的标准答案) | `model/nn_export.py`、`model/nnref.py` | 已写, RTL 见 [handnet 加速器](nn.md); 权重还要用真实数据重训 |
 
 ```sh
 model/record.py ps front          # 录一次, 约 115 秒, 存到 model/data/<日期>_ps_front_<时间>/

@@ -39,6 +39,7 @@ MMIO:
         0x40003000 GPIO matrix (all board pins, including UART/SPI)
         0x40004000 SYSCTL (HW_ID/ROM_WE)
         0x40005000 vision input (color tracking, see vision.md)
+        0x40006000 handnet accelerator (registers, see nn.md)
     CPU/SoC tests reserve RAM word 0x10000000 for completion
 
 Interrupt:
