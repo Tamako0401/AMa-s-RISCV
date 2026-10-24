@@ -277,7 +277,7 @@ def fpga_build(board: str = BuildBoardOpt, app: Optional[str] = AppOpt):
     else:
         out = ROOT / 'build/fw' / board / 'boot'
         rom = out / 'rom.hex'
-        write_hex(bytes(APP_SIZE) + build_boot([], out), rom)
+        write_hex(bytes(APP_SIZE) + build_boot(board, [], out), rom)
     out = projects.generate(board, app, rom)
     projects.build(board, out)
     bit = out / BOARDS[board]['bitstream']
