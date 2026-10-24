@@ -28,6 +28,11 @@ def generate(board, app, rom):
     out = project_dir(board, app)
     out.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(rom, out / 'firmware.hex')
+    # 加速器的权重 ROM 用 $readmemh("rtl/nn/nn_w.mem") 载入, 路径相对于工具的工作目录
+    # (build.tcl 第一行 cd 到这里), 所以按同样的相对路径放一份。
+    for mem in (ROOT / 'rtl/nn').glob('*.mem'):
+        (out / 'rtl/nn').mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(mem, out / 'rtl/nn' / mem.name)
     sources = [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().splitlines() if p and not p.startswith('+')]
     top = ROOT / 'boards' / board / data['top']
     generate_project(board, data, out, sources, top, hwid(board))
@@ -59,7 +64,7 @@ def project_inputs(board, data, out, sources, top):
     sources = [*sources, top]
     paths = [os.path.relpath(p, out) for p in sources]
     constraints = [os.path.relpath(ROOT / 'boards' / board / p, out) for p in data['constraints']]
-    include = ' '.join('{' + os.path.relpath(p, out) + '}' for p in [ROOT, ROOT / 'rtl/core'])
+    include = ' '.join('{' + os.path.relpath(p, out) + '}' for p in [ROOT, ROOT / 'rtl/core', ROOT / 'rtl/nn'])
     name = top.stem
     return paths, constraints, include, name
 
