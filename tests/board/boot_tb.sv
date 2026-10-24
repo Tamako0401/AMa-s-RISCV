@@ -1,6 +1,11 @@
 `timescale 1ns / 1ps
 module boot_tb;
-    `include "boards/mes50hp/pins_top.vh"
+    // 板子由 -DBOARD=<名> 选择 (tests.toml), 默认 mes50hp。
+`ifndef BOARD
+`define BOARD mes50hp
+`endif
+`include `"boards/`BOARD/pins_top.vh`"
+`define DUT_TOP `BOARD``_top
     integer APP_LENGTH;
     reg [31:0] APP_CRC;
     string rom_path;
@@ -10,13 +15,16 @@ module boot_tb;
     end
     localparam BIT_NS = 8680;
     localparam [31:0] ID = 32'h12345678;
+`ifndef CLK_HALF_NS
+`define CLK_HALF_NS 10 // mes50hp 的 50 MHz; 别的板由 tests.toml 传入
+`endif
     reg clk = 0;
-    always #10 clk = ~clk;
+    always #(`CLK_HALF_NS) clk = ~clk;
     reg key1_n = 1, uart_rx = 1;
     wire [`IO_N-1:0] io;
     wire uart_tx = io[`PIN_UART_TX];
     assign io[`PIN_UART_RX] = uart_rx;
-    mes50hp_top #(
+    `DUT_TOP #(
         .MEM_FILE(""),
         .HW_ID(ID),
         .BREAK_CYCLES(6000)
@@ -100,12 +108,16 @@ module boot_tb;
         end
     endtask
     task static enter_boot;
+        realtime hold_ns;
         begin
             uart_rx = 0;
-            #160000;
+            // break 要保持 BREAK_CYCLES (6000) 个完整时钟周期, 换板子频率不同要按周期算, 再留余量
+            hold_ns = 6000 * `CLK_HALF_NS * 2 * 1.4;
+            #(hold_ns);
             if (dut.reset_pipe !== 0) $fatal(1, "FAIL break did not hold reset");
             uart_rx = 1;
-            #2000;
+            // 复位释放到 bootloader 收 0x7F 之间的初始化也是按周期数的, 同样随频率缩放
+            #(2000 * (`CLK_HALF_NS / 10.0));
             handshake();
         end
     endtask

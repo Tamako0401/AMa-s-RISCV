@@ -179,7 +179,7 @@ def compile_app(app, board, defines, out, **kw):
     return elf
 
 
-def build_boot(boot_defines, out, **kw):
+def build_boot(board, boot_defines, out, **kw):
     """bootloader -> 分区末尾 BOOT_SIZE 字节的 ROM 镜像。"""
     out.mkdir(parents=True, exist_ok=True)
     boot = out / 'boot.elf'
@@ -190,6 +190,7 @@ def build_boot(boot_defines, out, **kw):
         '-Os',
         '-fno-delete-null-pointer-checks',
         *boot_defines,
+        f'-DBOARD_{board.upper()}',  # bootloader 也用 bsp.h: SYSCLK_HZ 定波特率和延时, 换板必须跟着变
         *[f'-I{d}' for d in SW_INC],
         '-T',
         'sw/boot/link.ld',
@@ -210,5 +211,5 @@ def build_boot(boot_defines, out, **kw):
 def build_firmware(app, board, defines, boot_defines, out, **kw):
     """app + bootloader -> out/rom.hex, 分区见 sw/memory.ld。"""
     elf = compile_app(app, board, defines, out, **kw)
-    write_hex(elf_to_rom(elf, size=APP_SIZE) + build_boot(boot_defines, out, **kw), out / 'rom.hex')
+    write_hex(elf_to_rom(elf, size=APP_SIZE) + build_boot(board, boot_defines, out, **kw), out / 'rom.hex')
     return elf

@@ -7,11 +7,18 @@
 
 #ifdef BOARD_EGO1
 #include "ego1_pins.h"
+#elif defined(BOARD_MES2L100HP)
+#include "mes2l100hp_pins.h"
 #else
 #include "mes50hp_pins.h"
 #endif
 
+#ifdef BOARD_MES2L100HP
+/* MES2L100HP 板载 27MHz, 还没加 PLL; 加 PLL 出 50MHz 后改成 50000000UL (README 有记) */
+#define SYSCLK_HZ 27000000UL
+#else
 #define SYSCLK_HZ 50000000UL /* MES50HP 板载 50MHz, 不经 PLL */
+#endif
 
 /* 仿真时把毫秒换算出的周期数按比例缩小。屏幕初始化的延时(0x01/0x11/0x29 等
  * 合计 0.5 秒)按真实计数要 2600 万拍, 纯仿真跑不动; 按 1000 倍缩到 2.6 万拍。

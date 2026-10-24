@@ -1,17 +1,35 @@
 `timescale 1ns / 1ps
 module board_tb;
+`ifndef CLK_HALF_NS
+`define CLK_HALF_NS 10 // mes50hp 的 50 MHz; 别的板的系统时钟频率不同时由 tests.toml 传入
+`endif
     reg clk = 0;
-    always #10 clk = ~clk;  // physical 50 MHz, real UART divisor
+    always #(`CLK_HALF_NS) clk = ~clk;  // 板子的物理系统时钟, 配合固件里真实的 UART 分频
     reg key1_n = 1, uart_rx = 1;
     wire uart_tx;
     wire [7:0] led;
     wire lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl;
     // Parameter override at instantiation: Verilator rejects hierarchical
     // defparam (dut.soc.MEM_FILE), Icarus accepts both forms.
-    `include "boards/mes50hp/pins_top.vh"
+    // 板子由 -DBOARD=<名> 选择 (tests.toml), 默认 mes50hp。
+`ifndef BOARD
+`define BOARD mes50hp
+`endif
+`include `"boards/`BOARD/pins_top.vh`"
+`define DUT_TOP `BOARD``_top
     wire [`IO_N-1:0] io;
     assign io[`PIN_UART_RX] = uart_rx;
     assign uart_tx = io[`PIN_UART_TX];
+`ifdef PIN_LCD_SCK
+    assign {lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl} = {
+        io[`PIN_LCD_SCK],
+        io[`PIN_LCD_MOSI],
+        io[`PIN_LCD_CS],
+        io[`PIN_LCD_DC],
+        io[`PIN_LCD_RST],
+        io[`PIN_LCD_BL]
+    };
+`else
     assign {lcd_sck, lcd_mosi, lcd_cs, lcd_dc, lcd_rst_n, lcd_bl} = {
         io[`PIN_J8_27],
         io[`PIN_J8_28],
@@ -20,6 +38,7 @@ module board_tb;
         io[`PIN_J8_25],
         io[`PIN_J8_24]
     };
+`endif
     assign led = {
         io[`PIN_LED8],
         io[`PIN_LED7],
@@ -30,7 +49,7 @@ module board_tb;
         io[`PIN_LED2],
         io[`PIN_LED1]
     };
-    mes50hp_top #(
+    `DUT_TOP #(
         .MEM_FILE("")
     ) dut (
         .clk(clk),

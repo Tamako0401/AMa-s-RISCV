@@ -13,6 +13,11 @@
 #define SHIELD_LCD_PINS                                                                                                \
     {.sck = PIN_J5_1, .mosi = PIN_J5_2, .rst = PIN_J5_3, .dc = PIN_J5_4, .bl = PIN_J5_5, .cs = PIN_J5_6}
 #define SHIELD_LCD_INIT lcd_init_st7735
+#elif defined(BOARD_MES2L100HP)
+/* ST7789 240x320, 飞线到 J3 扩展座的 LCD_* 脚 (见 boards/mes2l100hp/README.md) */
+#define SHIELD_LCD_PINS                                                                                                \
+    {.sck = PIN_LCD_SCK, .mosi = PIN_LCD_MOSI, .cs = PIN_LCD_CS, .dc = PIN_LCD_DC, .rst = PIN_LCD_RST, .bl = PIN_LCD_BL}
+#define SHIELD_LCD_INIT lcd_init_st7789
 #else
 /* ST7789 240x320, 插 J8 的 23~28 脚 */
 #define SHIELD_LCD_PINS                                                                                                \

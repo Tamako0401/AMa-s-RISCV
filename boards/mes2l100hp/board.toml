@@ -1,0 +1,12 @@
+tool = "pds"
+top = "mes2l100hp_top.v"
+constraints = ['mes2l100hp.fdc', 'pins.fdc']
+usb = [0x10C4, 0xEA60]                  # 板载 CP2102
+bitstream = "generate_bitstream/mes2l100hp_top.sbit"
+family = "Logos2"
+device = "PG2L100H"
+speedgrade = "-6"
+package = "FBG676"
+# 板上 2 片 W25Q128JV (硬件手册 2.1.2.2.7, 共享 SPI_CLK); 固化型号待上板 Scan Outer Flash
+# 确认是按单片还是 x8 双片模式; 先按 W25Q128JV 单片 (PDS 里叫 W25Q128Q) 写
+flash = "W25Q128Q"

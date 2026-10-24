@@ -19,7 +19,7 @@ def command(args, log):
     return subprocess.run(args, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT).returncode
 
 
-def program(run, out, log):
+def program(test, run, out, log):
     elf = out / 'program.elf'
     args = [
         *compiler(),
@@ -27,6 +27,7 @@ def program(run, out, log):
         '-march=rv32im_zicsr_zifencei',
         '-fno-stack-protector',
         *[f'-I{d}' for d in SW_INC],
+        f'-DBOARD_{test.get("board", "mes50hp").upper()}',  # 测试程序也用 bsp.h 的 SYSCLK_HZ 定波特率
         *run.get('defines', []),
         '-T',
         run.get('link', 'tests/cpu/link.ld'),
@@ -48,14 +49,14 @@ def program(run, out, log):
     return True
 
 
-def images(run, out, log):
+def images(test, run, out, log):
     args = []
     if 'app' in run:
-        # 编译失败算这个测试 FAIL, 不中断其它测试; 输出在日志里
+        # 编译失败算这个测试 FAIL, 编译日志在 log 里; 固件按测试项的板名编译 (默认 mes50hp)
         try:
             build_firmware(
                 run['app'],
-                'mes50hp',
+                test.get('board', 'mes50hp'),
                 ['-DSIM_CYCLE_DIV=1000', *run.get('defines', [])],
                 ['-DSIM_CYCLE_DIV=200'],
                 out,
@@ -66,7 +67,7 @@ def images(run, out, log):
             return None
         args.append(f'+rom={out / "rom.hex"}')
     if 'program' in run:
-        if not program(run, out, log):
+        if not program(test, run, out, log):
             return None
         prefix = 'program_' if 'app' in run else ''
         args += [f'+{prefix}rom={out / "program-rom.hex"}', f'+{prefix}ram={out / "program-ram.hex"}']
@@ -87,6 +88,7 @@ def simulator(test, tb, params, out, log):
         '--top-module',
         tb.stem,
         *[f'-G{k}={v}' for k, v in params.items()],
+        *test.get('vdefine', []),
         *sources,
         '--Mdir',
         out / 'obj',
@@ -129,7 +131,7 @@ def bench(test, tb):
             path = dest / 'test.log'
             start = time.monotonic() - compile_time
             with path.open('w') as log:
-                plusargs = images(run, dest, log)
+                plusargs = images(test, run, dest, log)
                 ok = plusargs is not None
                 if ok:
                     status = command([*executable, *plusargs], log)

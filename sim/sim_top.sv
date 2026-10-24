@@ -1,12 +1,16 @@
 `timescale 1ns / 1ps
-// 虚拟盘古板: 真实的 mes50hp_top, 屏幕模型和串口接在板子的 io 脚上 (接线同 sw/bsp/shield_lcd.h),
-// HDMI 输出接 video_sink, HDMI 输入接 video_source (测试图)
+// 虚拟盘古板: 真实的板顶层, 屏幕模型和串口接在板子的 io 脚上 (接线同 sw/bsp/shield_lcd.h),
+// HDMI 输出接 video_sink, HDMI 输入接 video_source (测试图)。板子由 -DBOARD=<名> 选择, 默认 mes50hp。
 module sim_top;
     reg clk = 0;
     always #10 clk = ~clk;
     string rom_path;
 
-    `include "boards/mes50hp/pins_top.vh"
+`ifndef BOARD
+`define BOARD mes50hp
+`endif
+`include `"boards/`BOARD/pins_top.vh`"
+`define DUT_TOP `BOARD``_top
     wire [`IO_N-1:0] io;
     // 按键是低有效输入, 没人按时板上是高电平
     localparam [127:0] IN_N = `IO_IN_N_MASK;
@@ -16,7 +20,7 @@ module sim_top;
     wire hdmi_pclk, hdmi_hs, hdmi_vs, hdmi_de;
     wire [23:0] hdmi_d, hdmi_rx_d;
     wire hdmi_rx_pclk, hdmi_rx_de;
-    mes50hp_top #(
+    `DUT_TOP #(
         .MEM_FILE("")
     ) board (
         .clk(clk),
@@ -44,11 +48,19 @@ module sim_top;
         .rgb(hdmi_d)
     );
     st7789_model u_panel (
+`ifdef PIN_LCD_SCK
+        .rst_n(io[`PIN_LCD_RST]),
+        .cs_n(io[`PIN_LCD_CS]),
+        .dc(io[`PIN_LCD_DC]),
+        .sck(io[`PIN_LCD_SCK]),
+        .mosi(io[`PIN_LCD_MOSI])
+`else
         .rst_n(io[`PIN_J8_25]),
         .cs_n(io[`PIN_J8_23]),
         .dc(io[`PIN_J8_26]),
         .sck(io[`PIN_J8_27]),
         .mosi(io[`PIN_J8_28])
+`endif
     );
     uart_rx u_uart_rx (
         .clk(clk),

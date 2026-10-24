@@ -9,16 +9,24 @@ module uart_reset_tb;
     end
     localparam BIT_NS = 1_000_000_000.0 / 115200;
     localparam [111:0] EXPECTED = {"AMA CPU PASS", 8'h0d, 8'h0a};
+`ifndef CLK_HALF_NS
+`define CLK_HALF_NS 10 // mes50hp 的 50 MHz; 别的板由 tests.toml 传入
+`endif
     reg clk = 0, clock_running = 0;
-    always #10 if (clock_running) clk = ~clk;
+    always #(`CLK_HALF_NS) if (clock_running) clk = ~clk;
     reg rst_n = 0, locked = 0;
     wire key1_n = rst_n & locked;
     wire uart_tx;
-    `include "boards/mes50hp/pins_top.vh"
+    // 板子由 -DBOARD=<名> 选择 (tests.toml), 默认 mes50hp。
+`ifndef BOARD
+`define BOARD mes50hp
+`endif
+`include `"boards/`BOARD/pins_top.vh`"
+`define DUT_TOP `BOARD``_top
     wire [`IO_N-1:0] io;
     assign io[`PIN_UART_RX] = 1'b1;
     assign uart_tx = io[`PIN_UART_TX];
-    mes50hp_top #(
+    `DUT_TOP #(
         .MEM_FILE("")
     ) dut (
         .clk(clk),
