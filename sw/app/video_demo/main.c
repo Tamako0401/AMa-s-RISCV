@@ -1,6 +1,7 @@
 /* video_demo: HDMI 出图演示。蓝底白框的背景, 左上角一个静止的球 (精灵 0), 下半屏 8 个球来回弹;
  * 右上角的小窗显示 HDMI 输入 (电脑) 的画面; 输入里找到颜色标记时, 全屏对应位置画一个光标 (精灵 9)。
  * 串口命令: c 标定 (标记放在画面正中, 取那里的颜色), + / - 调容差; 每半秒打印一次找到的点数和位置。
+ * 输入掉线诊断: 输入帧停了 (VISION FRAME 不动) 或接收芯片重新锁定 (说明输入时钟断过) 时打印, 带输出帧号对时间。
  * 仿真测试 tests/soc/video_tb.sv 核对静止部分、小窗和颜色跟踪结果。 */
 #include "bsp.h"
 #include "uart.h"
@@ -15,6 +16,7 @@ enum { TILE_SKY, TILE_WALL, TILE_BALL = 4 }; /* 球占 4~7 */
 enum { PAL_BG, PAL_BALL, PAL_BALL2 };
 #define BALLS 8
 #define CURSOR (1 + BALLS)
+#define STALL_FRAMES 6 /* 输入帧计数连续这么多个输出帧 (100 ms) 不动算停了 */
 
 static void put_num(uint32_t n)
 {
@@ -100,10 +102,27 @@ int main(void)
     vision_color(cb, cr, tol);
     tohost = 1;
 
+    uint32_t in_frame = VISION->FRAME, stall = 0;
     for (uint32_t frame = 0;; frame++) {
         video_wait_frame();
-        if (frame % 30 == 0) /* 每半秒查一次 HDMI 输入 */
-            board_hdmi_poll();
+        /* 每帧查一次 HDMI 输入 (I2C 约 2 ms), 半秒一查会漏掉短的掉线 */
+        if (board_hdmi_poll()) {
+            put_field("HDMI in: relock, frame=", frame);
+            uart_puts(CONSOLE_UART, "\r\n");
+        }
+        uint32_t f = VISION->FRAME;
+        if (f != in_frame) {
+            if (stall >= STALL_FRAMES) {
+                put_field("HDMI in: back, stalled ", stall);
+                put_field(" frames, frame=", frame);
+                uart_puts(CONSOLE_UART, "\r\n");
+            }
+            in_frame = f;
+            stall = 0;
+        } else if (++stall == STALL_FRAMES) {
+            put_field("HDMI in: stalled, frame=", frame);
+            uart_puts(CONSOLE_UART, "\r\n");
+        }
         for (int i = 0; i < BALLS; i++) {
             x[i] += dx[i];
             y[i] += dy[i];
