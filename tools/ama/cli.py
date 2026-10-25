@@ -12,6 +12,7 @@
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -322,26 +323,45 @@ def fpga_program(
     app: Optional[str] = AppOpt,
     board: Optional[str] = BoardOpt,
     once: bool = typer.Option(False, '--once', help='只下载到 FPGA, 断电就丢; 不写则同时写进板上 flash, 上电自动加载'),
+    bit_file: Optional[str] = typer.Option(
+        None, '--bit', help='下载现成的位流文件 (如厂商例程) 到 SRAM, 不检查源码版本; 只下 SRAM, 不写 flash'
+    ),
 ):
     """把位流烧进板子: 写进 flash (上电自动加载) 并马上运行。"""
     board, _ = pick_board(board)
     data, _ = projects.backend(board)
-    bit = fpga_bit(board, app)
-    if not bit.exists():
-        fail(f'还没有位流, 先 ama fpga build{app_arg(app)} --board {board}')
-    stamp = bit.with_suffix('.hwid')
-    if not stamp.exists() or int(stamp.read_text(), 0) != hwid(board):
-        fail(
-            f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build{app_arg(app)} --board {board}'
-        )
-    step(f'烧写 {bit.relative_to(ROOT)}' + ('' if once else ' (写进 flash)'))
+    if bit_file:
+        if data['tool'] != 'pds':
+            fail('--bit 目前只支持盘古板 (pds)')
+        bit = Path(bit_file) if Path(bit_file).is_absolute() else ROOT / bit_file
+        if not bit.exists():
+            fail(f'没有这个位流文件: {bit}')
+        bit = bit.resolve()  # cdt_cfg_shell 不认相对路径
+        once = True  # 现成位流只下 SRAM; flash 固化留给自己的 build 产物
+    else:
+        bit = fpga_bit(board, app)
+        if not bit.exists():
+            fail(f'还没有位流, 先 ama fpga build{app_arg(app)} --board {board}')
+        stamp = bit.with_suffix('.hwid')
+        if not stamp.exists() or int(stamp.read_text(), 0) != hwid(board):
+            fail(
+                f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build{app_arg(app)} --board {board}'
+            )
+    shown = bit.relative_to(ROOT) if ROOT in bit.parents else bit
+    step(f'烧写 {shown}' + ('' if once else ' (写进 flash)'))
     if data['tool'] == 'pds':
         # cdt_cfg_shell 用 -args 依次替换脚本里的 %s, 替换结果写在脚本旁边, 所以先把脚本拷进构建目录;
-        # 它不认相对路径, 一律给绝对路径
+        # 它不认相对路径; -args 的解析还会把反斜杠当转义吃掉, 必须给正斜杠的绝对路径
         sfc = bit.with_suffix('.sfc')
         name, args = ('program.tcl', [bit]) if once else ('flash.tcl', [bit, sfc, data['flash'], sfc, bit])
         script = shutil.copy(ROOT / 'boards' / board / name, bit.parent)
-        command = [*tool('cdt_cfg_shell'), '-file', str(script), '-args', '{' + ' '.join(map(str, args)) + '}']
+        command = [
+            *tool('cdt_cfg_shell'),
+            '-file',
+            str(script),
+            '-args',
+            '{' + ' '.join(p.as_posix() if isinstance(p, Path) else str(p) for p in args) + '}',
+        ]
     else:
         flash = [] if once else [data['flash']]
         command = [*tool('vivado'), '-mode', 'batch', '-nojournal', '-nolog', '-source']
@@ -355,7 +375,10 @@ def fpga_program(
     if result.returncode or failed:
         print(result.stdout[-2000:] + result.stderr[-2000:])
         fail('烧写失败: 检查 USB 线、板子电源, 以及有没有别的程序占着下载器')
-    typer.secho('✓ 已烧写; 之后改 C 用 ama run 就行', fg='green')
+    if bit_file:
+        typer.secho('✓ 已下载到 SRAM (断电即失)', fg='green')
+    else:
+        typer.secho('✓ 已烧写; 之后改 C 用 ama run 就行', fg='green')
 
 
 @cli.command()

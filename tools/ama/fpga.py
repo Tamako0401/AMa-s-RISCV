@@ -166,19 +166,22 @@ def pds_report(data, out):
     # 综合报告里的 "Device Utilization Summary Of Each Module": | 实例 (每层缩进两格, 带 +) | LUT | FF | ...
     report = out / 'synthesize' / f'{Path(data["top"]).stem}.snr'
     text = report.read_text(encoding='gbk', errors='replace')
-    # 列: 实例 | LUT | FF | Distributed RAM | APM | DRM (18 Kb 一块) | ...
+    # Logos2 的 DRM 列按 36 Kb 块计 (18 Kb 块算 0.5), Logos 全是 18 Kb 块
+    block_kb = 36 if data.get('family') == 'Logos2' else 18
+    # 列: 实例 | LUT | FF | Distributed RAM | APM | DRM | ...
     rows = []
     for line in text.split('Summary Of Each Module')[1].split('\n\n')[0].splitlines():
         cells = line.split('|')[1:-1]
         if len(cells) > 5 and cells[1].strip().isdigit():
             name = cells[0].rstrip()
             depth = (len(name) - len(name.lstrip(' +'))) // 2
-            ram = float(cells[5]) * 18
+            ram = float(cells[5]) * block_kb
             rows.append((depth, name.strip(' +'), cells[1].strip(), cells[2].strip(), ram, cells[4].strip()))
     print_modules(rows)
-    # 全片, 如 "Total LUTs: 5198 of 42800 (12.14%)"、"Total DRM18K = 71.0 of 134 (52.99%)"
-    names = {'LUTs': 'LUT', 'Registers': 'FF', 'DRM18K': 'RAM', 'APMs': 'DSP', 'I/O ports': 'IO'}
-    found = re.findall(r'^Total (LUTs|Registers|DRM18K|APMs|I/O ports)\s*[:=]\s*([\d.]+) of (\d+)', text, re.M)
+    # 全片, 如 "Total LUTs: 5198 of 42800 (12.14%)"、"Total DRM18K = 71.0 of 134 (52.99%)";
+    # Logos2 的行名不带 18K ("Total DRM = 106.0 of 155"), 块也是 36 Kb 的
+    names = {'LUTs': 'LUT', 'Registers': 'FF', 'DRM18K': 'RAM', 'DRM': 'RAM', 'APMs': 'DSP', 'I/O ports': 'IO'}
+    found = re.findall(r'^Total (LUTs|Registers|DRM18K|DRM|APMs|I/O ports)\s*[:=]\s*([\d.]+) of (\d+)', text, re.M)
     used = {names[name]: (float(n), float(total)) for name, n, total in found}
     # 时序: Performance Summary 给每个时钟的要求频率、能跑到的频率和建立余量; Hold Summary 给保持余量
     rtr = timing.read_text(errors='replace')
@@ -191,7 +194,7 @@ def pds_report(data, out):
             r'^\s*(\S+)\s+([\d.]+) MHz\s+([\d.]+) MHz\s+[\d.]+\s+[\d.]+\s+(-?[\d.]+)', perf, re.M
         )
     ]
-    print_summary(used, '每块 18 Kb', clocks)
+    print_summary(used, f'每块 {block_kb} Kb', clocks)
 
 
 def cells(*columns):

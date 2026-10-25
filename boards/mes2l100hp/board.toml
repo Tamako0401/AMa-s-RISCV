@@ -7,6 +7,7 @@ family = "Logos2"
 device = "PG2L100H"
 speedgrade = "-6"
 package = "FBG676"
-# 板上 2 片 W25Q128JV (硬件手册 2.1.2.2.7, 共享 SPI_CLK); 固化型号待上板 Scan Outer Flash
-# 确认是按单片还是 x8 双片模式; 先按 W25Q128JV 单片 (PDS 里叫 W25Q128Q) 写
+# 板上 2 片 128M QSPI (硬件手册 2.1.2.2.7); 上板实测 ID 0xb4018 = XT25BF128 (2026-10-25),
+# 不在 PDS 型号表里, 固化前要在 Fabric Configuration 的 Flash Operator 里自定义添加
+# (工具使用篇教程 05 的流程), 届时把这里的名字改成自定义后的型号 (教程里叫 x25f128)
 flash = "W25Q128Q"
