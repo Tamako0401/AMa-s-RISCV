@@ -46,9 +46,12 @@ clkout_i = VCO / RATIO_i                    (RATIO 支持 0.5 步进)
 ## 下载
 
 `ama fpga program` 调用 PDS 的 `cdt_cfg_shell` 执行 `flash.tcl`（位流转 sfc 写进板上 QSPI flash
-再下载到 FPGA）或 `program.tcl`（只下载）。板上 flash 是 **2 片 W25Q128JV**（手册 2.1.2.2.7），
-`board.toml` 暂按单片 `W25Q128Q` 写；固化前先用 Fabric Configuration 的 Scan Outer Flash
-看板子报什么型号（可能是 x8 双片模式，型号名不同，届时改 `board.toml` 的 `flash`）。
+再下载到 FPGA）或 `program.tcl`（只下载）。**上板实测（2026-10-25）**：JTAG 链扫出 PG2L100H、
+SRAM 下载厂商 LED 例程成功（done=1）、串口 CP2102 枚举正常；**flash 是 XT25BF128（ID 0xb4018）**，
+不在 PDS 型号表里，固化前要在 Fabric Configuration 的 Flash Operator 里按 ID 自定义添加
+（工具使用篇教程 05 的流程），`board.toml` 的 `flash` 届时改成自定义后的名字。
+`cdt_cfg_shell` 认 PG2L100H 的是 SP6.4 版（Lite 连 ID code 都不认）、且实测不查 license；
+`ama.local.toml` 的 `cdt_cfg_shell` 已指 SP6.4，`pds_shell` 等 license 到位再切。
 和 MES50HP 的串口芯片同为 CP2102，自动识别分不出是哪块盘古——下载数据/开终端要带
 `-b mes2l100hp`，或在 `ama.local.toml` 写 `board = "mes2l100hp"`。
 
