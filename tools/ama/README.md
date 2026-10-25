@@ -26,7 +26,7 @@ flowchart LR
 | `fpga check --board <板>` | `boards/<板>/` 的约束和顶层 | 综合前的静态检查 (不用 PDS): 管脚重复、撞参照库 (`padrefs.csv`, 由厂商例程 FDC 和手册表格生成)、GPLL 参数边界、clkout0 和 `SYSCLK_HZ` 对账; `fpga build` 开跑前自动执行 |
 | `fpga build --board <板> [--app <程序>]` | bootloader + `rtl/` + `boards/<板>/` | `build/fpga/<板>/` 下的位流, 上电等下载; 加 `--app` 把程序固化进去 (`build/fpga/<板>-<程序>/`), 上电直接运行 |
 | `fpga report --board <板> [--app <程序>]` | 上次 `fpga build` 的工具报告 | 每个模块和全片的 LUT / FF / 块 RAM / DSP / IO, 各时钟的要求频率、能跑到的频率和余量 (`fpga build` 结束时也打印) |
-| `fpga program [--app <程序>] [--once]` | 上面的位流 | 写进板上 flash (上电自动加载) 并马上运行; `--once` 只下载到 FPGA, 断电就丢 |
+| `fpga program [--app <程序>] [--once] [--bit <sbit>]` | 上面的位流 | 写进板上 flash (上电自动加载) 并马上运行; `--once` 只下载到 FPGA, 断电就丢; `--bit` 下载现成的位流文件 (如厂商例程) 到 SRAM, 不检查源码版本 |
 | `new <程序>` | 模板 `sw/app/hello/` | `sw/app/<程序>/`: main.c + 两块板的 `boards/<板>/app_board.h`, 直接能编 |
 | `gen pins <板>` | `boards/<板>/pins.csv` | 引脚约束、`pins_top.vh`、`sw/bsp/<板>_pins.h` |
 | `doctor` | `ama.local.toml` | 每个外部工具实际调用的命令和版本 |
