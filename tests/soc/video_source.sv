@@ -6,17 +6,24 @@ module video_source #(
     parameter W = 800,
     parameter H = 600,
     parameter H_TOTAL = 1056,
-    parameter V_TOTAL = 628
+    parameter V_TOTAL = 628,
+    parameter real HALF_PERIOD = 12.5
 ) (
     output reg pclk = 0,
     output reg de = 0,
     output reg [23:0] rgb = 0
 );
-    always #12.5 pclk = ~pclk;
+    always #(HALF_PERIOD) pclk = ~pclk;
 
     reg [23:0] image[0:W*H-1];
     integer from_file = 0;
     integer h = 0, v = 0;
+    // 测试台可在帧边界切模式; 文件输入仍按参数 W/H 分配。
+    integer active_w = W, active_h = H, active_ht = H_TOTAL, active_vt = V_TOTAL;
+    task automatic set_mode(input integer w, input integer height, input integer ht, input integer vt);
+        do @(posedge pclk); while (h != 0 || v != 0);
+        active_w = w; active_h = height; active_ht = ht; active_vt = vt;
+    endtask
 
     // 测试图: 横向红色渐变, 纵向绿色渐变, 蓝色是 32 像素的棋盘格
     function automatic [23:0] pattern(input integer x, input integer y);
@@ -37,9 +44,9 @@ module video_source #(
     end
 
     always @(negedge pclk) begin
-        de  <= h < W && v < H;
-        rgb <= h < W && v < H ? (from_file ? image[v*W+h] : pattern(h, v)) : 24'h0;
-        h   <= h == H_TOTAL - 1 ? 0 : h + 1;
-        if (h == H_TOTAL - 1) v <= v == V_TOTAL - 1 ? 0 : v + 1;
+        de  <= h < active_w && v < active_h;
+        rgb <= h < active_w && v < active_h ? (from_file ? image[v*W+h] : pattern(h, v)) : 24'h0;
+        h   <= h == active_ht - 1 ? 0 : h + 1;
+        if (h == active_ht - 1) v <= v == active_vt - 1 ? 0 : v + 1;
     end
 endmodule

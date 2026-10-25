@@ -11,8 +11,9 @@ static inline int board_hdmi_init(void)
 {
     return -1;
 }
-static inline void board_hdmi_poll(void)
+static inline int board_hdmi_poll(void)
 {
+    return 0;
 }
 #else
 #include "io.h"
@@ -38,10 +39,10 @@ static inline int board_hdmi_init(void)
     return (ms7210_init(&board_hdmi_tx) ? 1 : 0) | (ms7200_init(&board_hdmi_rx) ? 2 : 0);
 }
 
-/* 主循环里经常调: 电脑接上或换分辨率时给接收芯片补设置 */
-static inline void board_hdmi_poll(void)
+/* 主循环里经常调: 电脑接上或换分辨率时给接收芯片补设置; 返回 1 表示输入刚重新锁定 (之前掉过) */
+static inline int board_hdmi_poll(void)
 {
-    ms7200_poll(&board_hdmi_rx);
+    return ms7200_poll(&board_hdmi_rx);
 }
 
 #else
@@ -59,9 +60,9 @@ static inline int board_hdmi_init(void)
     return (ms7210_init(&board_hdmi_i2c) ? 1 : 0) | (ms7200_init(&board_hdmi_i2c) ? 2 : 0);
 }
 
-static inline void board_hdmi_poll(void)
+static inline int board_hdmi_poll(void)
 {
-    ms7200_poll(&board_hdmi_i2c);
+    return ms7200_poll(&board_hdmi_i2c);
 }
 
 #endif

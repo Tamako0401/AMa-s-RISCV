@@ -28,6 +28,7 @@ module soc_top #(
     parameter ROM_INIT_FILE = "",  // ROM 初值 hex 文件, 相对仿真工作目录
     parameter RAM_INIT_FILE = "",  // RAM 初值 hex 文件, 相对仿真工作目录
     parameter CPU_CLOCK_HZ = 50000000,  // 供 UART 计算默认波特率分频
+    parameter VIDEO_720P = 0,
     parameter IO_N = 0,
     parameter UART_TX_PIN = 255,
     parameter UART_RX_PIN = 255
@@ -40,7 +41,9 @@ module soc_top #(
     output wire [127:0] io_oe,
     input  wire [127:0] io_i,
 
-    // 视频输出 (640x480@60), 板子不接就留空
+    input wire video_clk,  // 720p 像素时钟; VGA 模式不用
+
+    // 视频输出 (VGA / 720p), 板子不接就留空
     output wire video_pclk,
     output wire video_hsync_n,
     output wire video_vsync_n,
@@ -270,7 +273,13 @@ module soc_top #(
 
     wire [14:0] win_raddr;
     wire [ 7:0] win_rdata;
-    video u_video (
+    reg vga_clk;
+    always @(posedge clk or negedge rst_n)
+        if (!rst_n) vga_clk <= 0;
+        else vga_clk <= ~vga_clk;
+    wire scan_clk = VIDEO_720P ? video_clk : vga_clk;
+    video #(.MODE_720P(VIDEO_720P)) u_video (
+        .pix_clk(scan_clk),
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(s2_addr),
@@ -292,6 +301,7 @@ module soc_top #(
     );
 
     vision u_vision (
+        .win_rclk(scan_clk),
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(p_addr[P_VISION*32+:32]),

@@ -5,7 +5,7 @@ import tkinter as tk
 import zlib
 
 # 名字: (宽, 高, 窗口里放大几倍); 画面文件由 st7789_model (+frame) 和 video_sink (+video) 写
-SCREENS = {'lcd': (240, 320, 2), 'hdmi': (640, 480, 1)}
+SCREENS = {'lcd': (240, 320, 2), 'hdmi': (1280, 720, 1)}
 
 
 def rgb565(data):

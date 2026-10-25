@@ -2,6 +2,7 @@
 module mes2l100hp_top #(
     parameter [31:0] HW_ID = 0,
     parameter BREAK_CYCLES = 500000,
+    parameter VIDEO_720P = 1,
     parameter IO_N = `IO_N,
     parameter MEM_FILE = "firmware.hex"
 ) (
@@ -167,7 +168,129 @@ module mes2l100hp_top #(
         end
     endgenerate
     assign io_i[127:IO_N] = 0;
+    // 720p 像素时钟 74.25 MHz 和 50 MHz 要不同的 VCO (891 vs 675), 用第二个 GPLL:
+    //   VCO = 27 × 1 × 33 / 1 = 891 MHz, clkout0 = 891 / 12 = 74.25 MHz
+    // 不放进 generate: fdc 按 u_video_gpll/CLKOUT0 定义派生时钟, 实例路径要固定。VGA 时输出没人用, 综合会删掉它。
+    wire video_pll_clk, video_pll_locked;
+`ifdef VERILATOR
+    reg pixel = 0;
+    always #6.734006734 pixel = ~pixel;
+    assign video_pll_clk = pixel;
+    assign video_pll_locked = 1'b1;
+`else
+    GTP_GPLL #(
+        .CLKIN_FREQ(27.0),
+        .LOCK_MODE(0),
+        .STATIC_RATIOI(1),
+        .STATIC_RATIOM(1),
+        .STATIC_RATIO0(12),
+        .STATIC_RATIO1(13),
+        .STATIC_RATIO2(13),
+        .STATIC_RATIO3(21),
+        .STATIC_RATIO4(21),
+        .STATIC_RATIO5(21),
+        .STATIC_RATIO6(21),
+        .STATIC_RATIOF(33.0),
+        .STATIC_DUTY0(12),
+        .STATIC_DUTY1(13),
+        .STATIC_DUTY2(13),
+        .STATIC_DUTY3(21),
+        .STATIC_DUTY4(21),
+        .STATIC_DUTY5(21),
+        .STATIC_DUTY6(21),
+        .STATIC_DUTYF(33),
+        .STATIC_PHASE(0),
+        .STATIC_PHASE0(0),
+        .STATIC_PHASE1(0),
+        .STATIC_PHASE2(0),
+        .STATIC_PHASE3(0),
+        .STATIC_PHASE4(0),
+        .STATIC_PHASE5(0),
+        .STATIC_PHASE6(0),
+        .STATIC_PHASEF(0),
+        .STATIC_CPHASE0(0),
+        .STATIC_CPHASE1(0),
+        .STATIC_CPHASE2(0),
+        .STATIC_CPHASE3(0),
+        .STATIC_CPHASE4(0),
+        .STATIC_CPHASE5(0),
+        .STATIC_CPHASE6(0),
+        .STATIC_CPHASEF(0),
+        .CLK_DPS0_EN("FALSE"),
+        .CLK_DPS1_EN("FALSE"),
+        .CLK_DPS2_EN("FALSE"),
+        .CLK_DPS3_EN("FALSE"),
+        .CLK_DPS4_EN("FALSE"),
+        .CLK_DPS5_EN("FALSE"),
+        .CLK_DPS6_EN("FALSE"),
+        .CLK_DPSF_EN("FALSE"),
+        .CLK_CAS5_EN("FALSE"),
+        .CLKOUT0_SYN_EN("FALSE"),
+        .CLKOUT1_SYN_EN("FALSE"),
+        .CLKOUT2_SYN_EN("FALSE"),
+        .CLKOUT3_SYN_EN("FALSE"),
+        .CLKOUT4_SYN_EN("FALSE"),
+        .CLKOUT5_SYN_EN("FALSE"),
+        .CLKOUT6_SYN_EN("FALSE"),
+        .CLKOUTF_SYN_EN("FALSE"),
+        .SSC_MODE("DISABLE"),
+        .SSC_FREQ(25),
+        .INTERNAL_FB("CLKOUTF"),
+        .EXTERNAL_FB("DISABLE"),
+        .BANDWIDTH("OPTIMIZED")
+    ) u_video_gpll (
+        .CLKOUT0(video_pll_clk),
+        .CLKOUT0N(),
+        .CLKOUT1(),
+        .CLKOUT1N(),
+        .CLKOUT2(),
+        .CLKOUT2N(),
+        .CLKOUT3(),
+        .CLKOUT3N(),
+        .CLKOUT4(),
+        .CLKOUT5(),
+        .CLKOUT6(),
+        .CLKOUTF(),
+        .CLKOUTFN(),
+        .LOCK(video_pll_locked),
+        .DPS_DONE(),
+        .DPS_CLK(1'b0),
+        .DPS_EN(1'b0),
+        .DPS_DIR(1'b0),
+        .CLKIN1(clk),
+        .CLKIN2(1'b0),
+        .CLKFB(1'b0),
+        .CLKIN_SEL(1'b0),
+        .CLKOUT0_SYN(1'b0),
+        .CLKOUT1_SYN(1'b0),
+        .CLKOUT2_SYN(1'b0),
+        .CLKOUT3_SYN(1'b0),
+        .CLKOUT4_SYN(1'b0),
+        .CLKOUT5_SYN(1'b0),
+        .CLKOUT6_SYN(1'b0),
+        .CLKOUTF_SYN(1'b0),
+        .PLL_PWD(1'b0),
+        .RST(1'b0),
+        .APB_RDATA(),
+        .APB_READY(),
+        .APB_CLK(1'b0),
+        .APB_RST_N(1'b0),
+        .APB_ADDR(5'b0),
+        .APB_SEL(1'b0),
+        .APB_EN(1'b0),
+        .APB_WRITE(1'b0),
+        .APB_WDATA(16'b0)
+    );
+`endif
+    wire video_clk = VIDEO_720P ? video_pll_clk : 1'b0;
+    wire video_locked = VIDEO_720P ? video_pll_locked : 1'b1;
+    wire video_reset_n = reset_pipe[15] && video_locked;
+    reg [1:0] video_reset_pipe;
+    always @(posedge sys_clk or negedge video_reset_n)
+        if (!video_reset_n) video_reset_pipe <= 0;
+        else video_reset_pipe <= {video_reset_pipe[0], 1'b1};
     soc_top #(
+        .VIDEO_720P(VIDEO_720P),
         .RESET_PC(32'hf800),
         .ROM_WRITABLE(1),
         .HW_ID(HW_ID),
@@ -177,7 +300,8 @@ module mes2l100hp_top #(
         .UART_RX_PIN(`UART_RX_PIN)
     ) soc (
         .clk(sys_clk),
-        .rst_n(reset_pipe[15]),
+        .rst_n(video_reset_pipe[1]),
+        .video_clk(video_clk),
         .io_o(io_o),
         .io_oe(io_oe),
         .io_i(io_i),

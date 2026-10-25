@@ -5,7 +5,11 @@
 `timescale 1ns / 1ps
 module video_tb;
     parameter [31:0] TOHOST_ADDR = 32'h10000000;
-    localparam W = 640, H = 480;
+    parameter VIDEO_720P = 0;
+    localparam W = VIDEO_720P ? 1280 : 640, H = VIDEO_720P ? 720 : 480;
+    localparam SCALE = VIDEO_720P ? 3 : 2, LEFT = VIDEO_720P ? 160 : 0;
+    reg pixel_clk = 0;
+    always #6.734006734 pixel_clk = ~pixel_clk;
 
     reg clk = 0;
     always #10 clk = ~clk;  // 50 MHz, 和板子一样
@@ -26,11 +30,12 @@ module video_tb;
         .rgb (vin_rgb)
     );
     soc_top #(
-        .IO_N(`IO_N),
+        .VIDEO_720P(VIDEO_720P),        .IO_N(`IO_N),
         .UART_TX_PIN(`PIN_UART_TX),
         .UART_RX_PIN(`PIN_UART_RX)
     ) u_soc (
         .clk(clk),
+        .video_clk(pixel_clk),
         .rst_n(rst_n),
         .io_o(io_o),
         .io_oe(io_oe),
@@ -46,7 +51,8 @@ module video_tb;
     );
     video_sink #(
         .W(W),
-        .H(H)
+        .H(H),
+        .SYNC_POSITIVE(VIDEO_720P)
     ) u_sink (
         .pclk(pclk),
         .hsync_n(hsync_n),
@@ -68,20 +74,20 @@ module video_tb;
             u_soc.u_core.dbus_addr_o == TOHOST_ADDR && u_soc.u_core.dbus_data_o == 1)
             seen <= 1;
 
-    // 逻辑坐标 (x, y) 对应的 2x2 个物理像素都应该是 want
+    // 逻辑坐标 (x, y) 对应的 SCALE x SCALE 个物理像素都应该是 want
     integer bad = 0;
     task static expect_pixel(input integer x, input integer y, input logic [23:0] want,
                              input logic [127:0] name);
         integer i;
         reg [23:0] got;
         begin
-            for (i = 0; i < 4; i = i + 1) begin
-                got = u_sink.fb[(2*y+i/2)*W+2*x+i%2];
+            for (i = 0; i < SCALE*SCALE; i = i + 1) begin
+                got = u_sink.fb[(SCALE*y+i/SCALE)*W+LEFT+SCALE*x+i%SCALE];
                 if (got !== want) begin
                     $display("    FAIL %0s: (%0d,%0d) 第 %0d 个物理像素 = %06h, 期望 %06h",
                              name, x, y, i, got, want);
                     bad = bad + 1;
-                    i   = 4;
+                    i   = SCALE*SCALE;
                 end
             end
         end
@@ -197,7 +203,7 @@ module video_tb;
                  u_soc.u_vision.sum_x, u_soc.u_vision.sum_y);
 
         if (bad != 0) $fatal(1, "视频画面核对失败: %0d 项", bad);
-        $display("PASS video: 640x480 输出, 背景 + 精灵 + 小窗 + 颜色跟踪核对通过");
+        $display("PASS video: %0dx%0d 输出, 背景 + 精灵 + 小窗 + 颜色跟踪核对通过", W, H);
         $finish;
     end
 
