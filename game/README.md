@@ -116,6 +116,10 @@ game/tools/refmodel.py render fruit.jsonl -o frame.png                        # 
 game/tools/refmodel.py cost touhou.jsonl fruit.jsonl -o cost.png              # 每行拍数; 图: 那帧 + 每行拍数和预算
 ```
 
+**RTL 照它对**: `refmodel.py export` 把一帧导出成 RTL 仿真要的数据和期望画面, `./ama test tests/display` 逐点比
+(见 [display.md](../docs/display.md))。`cost --rtl` 按 RTL 实际的拍数算。为了和硬件一致, `render` 默认用 256 色调色板的图案、
+每行最多 128 个对象, 小窗按 RGB332 算。
+
 **和电脑版对过**: 同一帧, 模型画的和 SDL 画的除了摄像头小窗 (存帧里没有画面, 模型用灰色代替) 以外, 相差都在舍入以内,
 旋转、加法、半透明都对得上。
 

@@ -51,6 +51,9 @@ def program(test, run, out, log):
 
 def images(test, run, out, log):
     args = []
+    if 'prepare' in run:  # 先跑命令生成测试数据 ({out} = 这次运行的输出目录)
+        if command([a.replace('{out}', str(out)) for a in run['prepare']], log):
+            return None
     if 'app' in run:
         # 编译失败算这个测试 FAIL, 编译日志在 log 里; 固件按测试项的板名编译 (默认 mes50hp)
         try:
@@ -71,7 +74,7 @@ def images(test, run, out, log):
             return None
         prefix = 'program_' if 'app' in run else ''
         args += [f'+{prefix}rom={out / "program-rom.hex"}', f'+{prefix}ram={out / "program-ram.hex"}']
-    return args + run.get('plusargs', [])
+    return args + [a.replace('{out}', str(out)) for a in run.get('plusargs', [])]
 
 
 def simulator(test, tb, params, out, log):
