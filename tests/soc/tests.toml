@@ -35,3 +35,8 @@ tb = "video_tb.sv"
 rtl = "rtl/soc.f"
 extra = ["tests/soc/video_sink.sv", "tests/soc/video_source.sv"]
 runs = [{ app = "video_demo" }]
+
+[[test]]
+tb = "soc_tb.sv"
+rtl = "rtl/soc.f"
+runs = [{ program = ["tests/cpu/start.S", "tests/soc/nn_check.c"], plusargs = ["+cycles=4000000"] }]

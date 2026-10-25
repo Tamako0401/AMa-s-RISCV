@@ -1,4 +1,5 @@
 +incdir+rtl/core
++incdir+rtl/nn
 rtl/utils/gen_dff.v
 rtl/utils/gen_buf.v
 rtl/utils/gen_ram.v
@@ -38,4 +39,7 @@ rtl/vision/box4.v
 rtl/vision/window_store.v
 rtl/vision/color_track.v
 rtl/vision/vision.v
+rtl/nn/nn_rom.v
+rtl/nn/nn_layers.v
+rtl/nn/nn.v
 rtl/soc_top/soc_top.v

@@ -17,7 +17,8 @@
 //          0x4000_3000  GPIO 矩阵, 见 docs/gpio-matrix.md
 //          0x4000_4000  SYSCTL -- HW_ID / ROM_WE
 //          0x4000_5000  视觉输入 -- 颜色跟踪, 见 docs/vision.md (u_vision)
-//          0x4000_6000 以后: 空, 读返回 0, 写被丢弃
+//          0x4000_6000  handnet 加速器, 见 docs/nn.md (u_nn)
+//          0x4000_7000 以后: 空, 读返回 0, 写被丢弃
 //
 // 未命中任何 rib 从设备的地址不会握手(RIB 没有错误响应通道), 访问会一直等待。
 module soc_top #(
@@ -91,8 +92,8 @@ module soc_top #(
     wire s4_we, s4_req_valid, s4_req_ready, s4_rsp_valid, s4_rsp_ready;
 
     // 子总线各口从 UART 开始; 第 k 口占 [k*32 +: 32] / [k*4 +: 4] / [k]
-    localparam PERIPH_N = 5;
-    localparam P_UART   = 0, P_SPI = 1, P_MATRIX = 2, P_SYSCTL = 3, P_VISION = 4;
+    localparam PERIPH_N = 6;
+    localparam P_UART   = 0, P_SPI = 1, P_MATRIX = 2, P_SYSCTL = 3, P_VISION = 4, P_NN = 5;
     wire [PERIPH_N*32-1:0] p_addr, p_wdata, p_rdata;
     wire [PERIPH_N*4-1:0] p_sel;
     wire [PERIPH_N-1:0] p_we, p_req_valid, p_req_ready, p_rsp_valid, p_rsp_ready;
@@ -398,6 +399,23 @@ module soc_top #(
         .spi_sck_i(spi_clk),
         .spi_mosi_i(spi_mosi),
         .spi_miso_o(matrix_spi_miso)
+    );
+
+    // handnet 加速器 (0x4000_6000)
+    nn u_nn (
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(p_addr[P_NN*32+:32]),
+        .data_i(p_wdata[P_NN*32+:32]),
+        .sel_i(p_sel[P_NN*4+:4]),
+        .we_i(p_we[P_NN]),
+        .data_o(p_rdata[P_NN*32+:32]),
+        .req_valid_i(p_req_valid[P_NN]),
+        .req_ready_o(p_req_ready[P_NN]),
+        .rsp_valid_o(p_rsp_valid[P_NN]),
+        .rsp_ready_i(p_rsp_ready[P_NN]),
+        .busy_o(),
+        .done_o()
     );
 
     sysctl #(

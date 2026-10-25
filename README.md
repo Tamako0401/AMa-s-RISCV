@@ -31,6 +31,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 | --- | --- |
 | `rtl/core/`、`rtl/cpu.f` | CPU 核与独立文件清单 |
 | `rtl/perips/`、`rtl/utils/`、`rtl/reusable.f` | 外设、通用工具和组件清单 |
+| `rtl/nn/` | handnet 加速器 (int8 定点, 权重在片上 ROM) |
 | `rtl/soc_top/`、`rtl/soc.f` | 通用 RIB SoC |
 | `model/` | 视觉算法的 Python 试验和参考模型 (硬件的标准答案) |
 | `experiments/` | 数字逻辑学习实验 |
@@ -44,6 +45,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - [视频外设 (HDMI, 图块 + 精灵)](docs/video.md)
 - [显示扩展方案 (720p、多图层、软硬件分工, 草案)](docs/display-plan.md)
 - [视觉输入 (HDMI 输入, 缩小, 小窗)](docs/vision.md)
+- [handnet 加速器 (RTL、寄存器、C 库、量化)](docs/nn.md)
 - [徒手手势模型 (数据、标注、训练)](docs/hand-model.md)
 - [参考项目: 手势控制游戏、FPGA 手势识别、sprite 引擎](docs/references.md)
 - [飞书项目知识库](https://njupt-sast.feishu.cn/wiki/TUxXwMAh3iIraCkTDjxcWd0Tnmh)

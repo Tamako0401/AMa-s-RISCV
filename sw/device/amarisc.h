@@ -110,15 +110,36 @@ typedef struct {
     __I uint32_t CENTER; /* 0x14 画面正中 8x8 的平均颜色: [7:0] Cb, [15:8] Cr (标定用) */
 } VISION_TypeDef;
 
+/* ---------------- handnet 加速器: 寄存器见 docs/nn.md ---------------- */
+typedef struct {
+    __IO uint32_t CTRL;     /* 0x00 bit0 写 1 开始一次推理; bit1 写 1 清 DONE */
+    __I uint32_t STATUS;    /* 0x04 bit0 忙, bit1 完成, [7:4] 当前层号 */
+    __O uint32_t IN;        /* 0x08 写一个像素 {8'b0, R, G, B}, 像素地址自增 */
+    __IO uint32_t IN_ADDR;  /* 0x0C 下一个要写的像素 */
+    __IO uint32_t OUT_ADDR; /* 0x10 要读的输出字 (格子号) */
+    __I uint32_t OUT;       /* 0x14 {握拳, dy, dx, 热力图} 的 int8 logit, 低字节是热力图 */
+    __I uint32_t CYCLE;     /* 0x18 上一次推理用了多少拍 */
+    __I uint32_t VERSION;   /* 0x1C 0x4e4e_0001 */
+    __I uint32_t IN_PIX;    /* 0x20 输入像素个数 */
+} NN_TypeDef;
+
+#define NN_CTRL_START (0x1UL << 0)
+#define NN_CTRL_CLEAR (0x1UL << 1)
+#define NN_STATUS_BUSY (0x1UL << 0)
+#define NN_STATUS_DONE (0x1UL << 1)
+#define NN_STATUS_LAYER_Pos 4U
+
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE 0x40002000UL
 #define UART1_BASE 0x40001000UL
 #define VIDEO_BASE 0x20000000UL
 #define VISION_BASE 0x40005000UL
+#define NN_BASE 0x40006000UL
 
 #define SPI1 ((SPI_TypeDef *)SPI1_BASE)
 #define UART1 ((UART_TypeDef *)UART1_BASE)
 #define VIDEO ((VIDEO_TypeDef *)VIDEO_BASE)
 #define VISION ((VISION_TypeDef *)VISION_BASE)
+#define NN ((NN_TypeDef *)NN_BASE)
 
 #endif
