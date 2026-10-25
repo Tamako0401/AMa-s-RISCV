@@ -47,11 +47,15 @@ clkout_i = VCO / RATIO_i                    (RATIO 支持 0.5 步进)
 
 `ama fpga program` 调用 PDS 的 `cdt_cfg_shell` 执行 `flash.tcl`（位流转 sfc 写进板上 QSPI flash
 再下载到 FPGA）或 `program.tcl`（只下载）。**上板实测（2026-10-25）**：JTAG 链扫出 PG2L100H、
-SRAM 下载厂商 LED 例程成功（done=1）、串口 CP2102 枚举正常；**flash 是 XT25BF128（ID 0xb4018）**，
-不在 PDS 型号表里，固化前要在 Fabric Configuration 的 Flash Operator 里按 ID 自定义添加
-（工具使用篇教程 05 的流程），`board.toml` 的 `flash` 届时改成自定义后的名字。
-`cdt_cfg_shell` 认 PG2L100H 的是 SP6.4 版（Lite 连 ID code 都不认）、且实测不查 license；
-`ama.local.toml` 的 `cdt_cfg_shell` 已指 SP6.4。
+**flash 固化已跑通**（写 16 MB 用时 62 秒，断电重启自动加载）。
+- 板上 flash 实为 **XT25BF128（ID 0xb4018）**，不在 PDS 型号表里：已按兼容的 W25Q128Q 时序
+  手动加进 `C:\pango\PDS_2022.2-SP6.4\arch\vendor\pango\arch\cdt\flash_list_cd.cfl`
+  （原库备份在 `C:\pango\license\flash_list_cd.cfl.bak`，**重装 PDS 后要重新加这条**），
+  `board.toml` 的 `flash = "XT25BF128"`。
+- `flash.tcl` 注释必须纯 ASCII：`cdt_cfg_shell` 会把脚本按 GBK 重编码，中文注释的 UTF-8
+  尾字节可能吞掉下一行换行，把 `cfg_jtag_flash_scan_device` 并进注释里（踩过）。
+- `cdt_cfg_shell` 认 PG2L100H 的是 SP6.4 版（Lite 连 ID code 都不认）、且实测不查 license；
+  `ama.local.toml` 的 `cdt_cfg_shell` 已指 SP6.4。
 和 MES50HP 的串口芯片同为 CP2102，自动识别分不出是哪块盘古——下载数据/开终端要带
 `-b mes2l100hp`，或在 `ama.local.toml` 写 `board = "mes2l100hp"`。
 
