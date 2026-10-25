@@ -7,7 +7,6 @@ family = "Logos2"
 device = "PG2L100H"
 speedgrade = "-6"
 package = "FBG676"
-# 板上 2 片 128M QSPI (硬件手册 2.1.2.2.7); 上板实测 ID 0xb4018 = XT25BF128 (2026-10-25),
-# 不在 PDS 型号表里, 固化前要在 Fabric Configuration 的 Flash Operator 里自定义添加
-# (工具使用篇教程 05 的流程), 届时把这里的名字改成自定义后的型号 (教程里叫 x25f128)
-flash = "W25Q128Q"
+# 上板实测 flash 是 XT25BF128 (ID 0xb4018); PDS 型号表没有, 已按兼容的 W25Q128Q 时序手动加进
+# flash_list_cd.cfl (原库备份在 C:\pango\license\flash_list_cd.cfl.bak, 重装 PDS 后要重加)
+flash = "XT25BF128"
