@@ -18,7 +18,6 @@ module soc_tb;
     reg rst_n = 0;
 
     string rom_path, ram_path;
-    integer unused;
     integer cycles = 0, stores = 0, expected_stores = -1;
     integer max_cycles = 200000;
     reg seen = 0;
@@ -141,8 +140,12 @@ module soc_tb;
 
     initial begin
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
-        unused = $value$plusargs("stores=%d", expected_stores);
-        unused = $value$plusargs("cycles=%d", max_cycles);
+        // 返回值必须用 void' 显式丢弃, 不能塞给没人读的变量: Verilator <= 5.026 会把
+        // 返回值没人使用的 $value$plusargs 调用当死代码删掉 (verilator#5127, 5.028 才
+        // 修复), CI 的 Ubuntu 24.04 apt 包正是 5.020 —— +cycles 曾因此失灵, nn_check
+        // 按默认的 20 万拍超时 (它实际要跑 173 万拍)
+        void'($value$plusargs("stores=%d", expected_stores));
+        void'($value$plusargs("cycles=%d", max_cycles));
         check_spi = $test$plusargs("check_spi");
         check_uart = $test$plusargs("check_uart");
         $readmemh(rom_path, u_soc.u_rom.mem);

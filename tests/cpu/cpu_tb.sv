@@ -63,7 +63,6 @@ module cpu_tb;
     reg [31:0] status;
     string rom_path, ram_path, wave_path, commit_log_path;
     integer commit_log_fd = 0;
-    integer unused;
     assign ir = rst_n && !ibusy && !ivalid && (I_DELAY == 0 || rng[0]);
     assign dr = rst_n && !dbusy && !dvalid && (D_DELAY == 0 || rng[4]);
 
@@ -72,7 +71,8 @@ module cpu_tb;
         if (!$value$plusargs("ram=%s", ram_path)) $fatal(1, "Missing +ram=hex");
         if ($value$plusargs("commitlog=%s", commit_log_path))
             commit_log_fd = $fopen(commit_log_path, "w");
-        unused = $value$plusargs("stores=%d", expected_stores);
+        // void' 丢弃返回值的原因见 soc_tb.sv: 旧 Verilator 会优化掉返回值没人用的调用
+        void'($value$plusargs("stores=%d", expected_stores));
         $readmemh(rom_path, rom);
         $readmemh(ram_path, ram);
         if ($value$plusargs("vcd=%s", wave_path)) begin

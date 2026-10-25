@@ -9,7 +9,7 @@ module uart_tx (
     integer fd, pos = 0, c;
 
     initial begin
-        $value$plusargs("keys=%s", path);
+        void'($value$plusargs("keys=%s", path));  // 丢弃返回值的写法见 soc_tb.sv 的注释
         fd = $fopen(path, "rb");
         forever begin
             repeat (10000) @(posedge clk);

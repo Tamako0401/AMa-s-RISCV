@@ -72,7 +72,7 @@ module sim_top;
     );
 
     initial begin
-        $value$plusargs("rom=%s", rom_path);
+        void'($value$plusargs("rom=%s", rom_path));  // 丢弃返回值的写法见 soc_tb.sv 的注释
         $readmemh(rom_path, board.soc.u_rom.mem);
     end
 endmodule
