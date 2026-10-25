@@ -49,6 +49,8 @@ clkout_i = VCO / RATIO_i                    (RATIO 支持 0.5 步进)
 再下载到 FPGA）或 `program.tcl`（只下载）。板上 flash 是 **2 片 W25Q128JV**（手册 2.1.2.2.7），
 `board.toml` 暂按单片 `W25Q128Q` 写；固化前先用 Fabric Configuration 的 Scan Outer Flash
 看板子报什么型号（可能是 x8 双片模式，型号名不同，届时改 `board.toml` 的 `flash`）。
+和 MES50HP 的串口芯片同为 CP2102，自动识别分不出是哪块盘古——下载数据/开终端要带
+`-b mes2l100hp`，或在 `ama.local.toml` 写 `board = "mes2l100hp"`。
 
 ## 引脚依据
 

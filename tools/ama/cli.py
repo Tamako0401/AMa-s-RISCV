@@ -1,10 +1,11 @@
-"""在 EGO1 / 盘古 MES50HP 上开发 AMa-s-RISCV 的程序。
+"""在 EGO1 / 盘古 MES50HP / 盘古 MES2L100HP 上开发 AMa-s-RISCV 的程序。
 
 平时改了 C:  ama run <程序>   编译, 经串口下载到板子运行, 再显示串口输出 (几秒)
 
 改了 rtl/、boards/、sw/boot/ 之后:  ama fpga build -b <板>, 然后 ama fpga program (几分钟)
 
-程序就是 sw/app/ 下的目录名。板子按插着的 USB 串口芯片自动识别 (FT2232 = EGO1, CP2102 = 盘古),
+程序就是 sw/app/ 下的目录名。板子按插着的 USB 串口芯片自动识别 (FT2232 = EGO1, CP2102 = 盘古;
+两块盘古的串口芯片相同, 要用 --board 或 ama.local.toml 的 board 区分),
 识别不了时用 --board 指定。本机工具路径写在 ama.local.toml (见 ama.local.toml.example), 没有也能用。
 """
 
@@ -43,9 +44,9 @@ cli.add_typer(fpga, name='fpga')
 
 
 App = typer.Argument(..., help='sw/app/ 下的程序名')
-BoardOpt = typer.Option(None, '--board', '-b', help='ego1 或 mes50hp; 不写就按插着的串口芯片识别')
+BoardOpt = typer.Option(None, '--board', '-b', help='ego1、mes50hp 或 mes2l100hp; 不写就按插着的串口芯片识别')
 # 只和构建产物有关、不碰板子的命令, 板子必须写明
-BuildBoardOpt = typer.Option(..., '--board', '-b', help='ego1 或 mes50hp')
+BuildBoardOpt = typer.Option(..., '--board', '-b', help='ego1、mes50hp 或 mes2l100hp')
 PortOpt = typer.Option(None, '--port', '-p', help='串口; 不写就自动找')
 AppOpt = typer.Option(
     None, '--app', help='把这个程序固化进位流, 上电直接运行; 不写则位流只带 bootloader, 程序用 ama run 下载'
@@ -85,7 +86,7 @@ def pick_board(board, port=None):
         return plugged[0][1], plugged[0][0]
     if CONFIG.get('board') in BOARDS:
         return CONFIG['board'], port
-    fail('认不出是哪块板 (没插, 或插了两块), 用 --board ego1 或 --board mes50hp 指定')
+    fail('认不出是哪块板 (没插, 或两块盘古插着同一串口芯片), 用 --board ego1/mes50hp/mes2l100hp 指定')
 
 
 def open_port(port, board):
