@@ -1,0 +1,13 @@
++incdir+rtl/display
+rtl/utils/dpram.v
+rtl/utils/dpram2c.v
+rtl/display/disp_timing.v
+rtl/display/disp_scanout.v
+rtl/display/disp_palette.v
+rtl/display/disp_blend.v
+rtl/display/disp_span.v
+rtl/display/disp_affine.v
+rtl/display/disp_sprites.v
+rtl/display/disp_scan.v
+rtl/display/disp_render.v
+rtl/display/display.v

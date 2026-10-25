@@ -1,0 +1,15 @@
+# 新显示的整帧比对: 参考模型 (game/tools/refmodel.py export) 先导出数据和期望画面, 仿真出的画面要和它逐点一样。
+# 场景见 refmodel.py 的 make_scenes; frames/ 是两个游戏 --bot 最难时最忙的一帧。
+[[test]]
+tb = "display_tb.sv"
+rtl = "rtl/display.f"
+extra = ["tests/soc/video_sink.sv"]
+runs = [
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "bg", "-o", "{out}"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "window", "-o", "{out}"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "sprites", "-o", "{out}"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "affine", "-o", "{out}"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "overflow", "-o", "{out}"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "tests/display/frames/touhou.jsonl", "-o", "{out}"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "tests/display/frames/fruit.jsonl", "-o", "{out}"], plusargs = ["+data={out}"] },
+]

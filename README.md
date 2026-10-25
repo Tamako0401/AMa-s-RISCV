@@ -44,6 +44,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - [RTL 来源、授权与接入条件](docs/third-party.md)
 - [视频外设 (HDMI, 图块 + 精灵)](docs/video.md)
 - [显示扩展方案 (720p、多图层、软硬件分工, 草案)](docs/display-plan.md)
+- [新显示 (720p 逐行渲染, 仿真中)](docs/display.md)
 - [视觉输入 (HDMI 输入, 缩小, 小窗)](docs/vision.md)
 - [handnet 加速器 (RTL、寄存器、C 库、量化)](docs/nn.md)
 - [徒手手势模型 (数据、标注、训练)](docs/hand-model.md)
