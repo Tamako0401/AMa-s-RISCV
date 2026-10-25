@@ -1,5 +1,6 @@
 [[test]]
 tb = "soc_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 runs = [
   { program = ["tests/soc/soc_smoke.S"], plusargs = ["+stores=19"] },
@@ -10,28 +11,33 @@ runs = [
 
 [[test]]
 tb = "lcd_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 extra = ["tests/soc/st7789_model.sv"]
 runs = [{ app = "selftest" }]
 
 [[test]]
 tb = "reset_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 runs = [{ program = ["sw/startup.S", "tests/soc/reset_check.c"], link = "sw/link.ld", ram_init = false }]
 
 [[test]]
 tb = "snake_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 extra = ["tests/soc/st7789_model.sv"]
 runs = [{ app = "snake", defines = ["-DSNAKE_STEP_CYCLES=1000000"] }]
 
 [[test]]
 tb = "coremark_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 runs = [{ app = "coremark", defines = ["-DITERATIONS=3", "-DMIN_SCORE=650"] }]
 
 [[test]]
 tb = "video_tb.sv"
+params = [{ VIDEO_720P = 0 }, { VIDEO_720P = 1 }]
 rtl = "rtl/soc.f"
 extra = ["tests/soc/video_sink.sv", "tests/soc/video_source.sv"]
 runs = [{ app = "video_demo" }]

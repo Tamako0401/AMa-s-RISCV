@@ -3,7 +3,7 @@
 //   Cb = 128 + ((-43R - 85G + 128B) >> 8), Cr = 128 + ((128R - 107G - 21B) >> 8)
 //   命中: |Cb - cb| <= tol 且 |Cr - cr| <= tol
 // 128 * 256 加进括号里后中间结果总在 0..65535, 不用有符号数, 取高 8 位就是 Cb/Cr。
-// 只统计左上 W x H 内的点。结果在下一帧的 sof 时锁存并翻转 done, 锁存的值保持一整帧。
+// 只统计左上 W x H 内的点。结果在完整输入帧验证通过的 frame_commit 时锁存并翻转 done, 锁存的值保持一整帧。
 // 另给出画面正中 8x8 个点的平均 Cb、Cr, 软件拿来标定: 标记放在画面中间, 把这个值设成目标色。
 module color_track #(
     parameter W  = 160,
@@ -13,6 +13,7 @@ module color_track #(
 ) (
     input wire clk,
     input wire rst_n,
+    input wire frame_commit,  // 输入整帧尺寸验证通过后发布
     input wire in_valid,
     input wire in_sof,
     input wire in_eol,
@@ -87,10 +88,6 @@ module color_track #(
             p_cr     <= cr_sum[15:8];
 
             if (p_sof) begin
-                count <= acc_n;
-                sum_x <= acc_x;
-                sum_y <= acc_y;
-                done  <= ~done;
                 acc_n <= {{CW - 1{1'b0}}, hit};
                 acc_x <= hit ? px : {SW{1'b0}};
                 acc_y <= hit ? py : {SW{1'b0}};
@@ -100,9 +97,12 @@ module color_track #(
                 acc_y <= acc_y + py;
             end
 
+            if (frame_commit) begin
+                count <= acc_n; sum_x <= acc_x; sum_y <= acc_y;
+                center_cb <= acc_cb[13:6]; center_cr <= acc_cr[13:6];
+                done <= ~done;
+            end
             if (p_sof) begin
-                center_cb <= acc_cb[13:6];
-                center_cr <= acc_cr[13:6];
                 acc_cb <= 0;
                 acc_cr <= 0;
             end else if (center) begin

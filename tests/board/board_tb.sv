@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 module board_tb;
+    parameter VIDEO_720P = 1;
 `ifndef CLK_HALF_NS
 `define CLK_HALF_NS 10 // mes50hp 的 50 MHz; 别的板的系统时钟频率不同时由 tests.toml 传入
 `endif
@@ -50,6 +51,7 @@ module board_tb;
         io[`PIN_LED1]
     };
     `DUT_TOP #(
+        .VIDEO_720P(VIDEO_720P),
         .MEM_FILE("")
     ) dut (
         .clk(clk),

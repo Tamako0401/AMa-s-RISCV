@@ -182,8 +182,8 @@ def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt):
     terminal(open_port(port, board))
 
 
-def sim_binary(out):
-    obj = out / 'obj'
+def sim_binary(out, vga=False):
+    obj = out / ('obj-vga' if vga else 'obj-720p')
     sources = [
         'boards/mes50hp/mes50hp_top.v',
         'tests/soc/st7789_model.sv',
@@ -196,6 +196,7 @@ def sim_binary(out):
     inputs = [ROOT / p for p in sources + ['rtl/soc.f', 'boards/mes50hp/pins_top.vh', 'sw/memory.ld']]
     inputs += [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().split() if not p.startswith('+')]
     inputs += list((ROOT / 'rtl').rglob('*.vh'))
+    inputs += list((ROOT / 'boards/mes50hp').glob('*.vh'))
     binary = obj / 'sim'
     if not binary.exists() or any(p.stat().st_mtime_ns > binary.stat().st_mtime_ns for p in inputs):
         step('编译仿真外壳')
@@ -208,6 +209,7 @@ def sim_binary(out):
                 '-Wno-fatal',
                 '--top-module',
                 'sim_top',
+                f'-GVIDEO_720P={int(not vga)}',
                 '-f',
                 'rtl/soc.f',
                 *sources,
@@ -222,16 +224,20 @@ def sim_binary(out):
 
 
 @cli.command()
-def sim(app: str = App):
+def sim(app: str = App, vga: bool = False, frames: int = 0):
     """在仿真里运行 sw/app/ 下的程序, 窗口显示屏幕和 HDMI, 终端显示串口。"""
     from sim.view import SCREENS, show, save_png
 
+    if frames < 0:
+        fail('--frames 必须不小于 0')
+    SCREENS['hdmi'] = (640, 480, 1) if vga else (1280, 720, 1)
     check_app(app)
     out = ROOT / 'build/sim'
     elf = compile_app(app, 'mes50hp', ['-DSIM_CYCLE_DIV=1000'], out / app)
     rom = out / f'{app}.hex'
     write_hex(elf_to_rom(elf), rom)
-    binary = sim_binary(out)
+    binary = sim_binary(out, vga)
+    frame_limit = frames
     frames = {name: out / f'{app}.{name}' for name in SCREENS}
     for name, (w, h, _) in SCREENS.items():
         frames[name].write_bytes(bytes(w * h * 2))
@@ -239,12 +245,16 @@ def sim(app: str = App):
     keys.write_bytes(b'')
     step(f'仿真 {app}: 在窗口里打字 = 串口输入; 关窗口或 Ctrl+C 结束')
     process = subprocess.Popen(
-        [str(binary), f'+rom={rom}', f'+frame={frames["lcd"]}', f'+video={frames["hdmi"]}', f'+keys={keys}'],
+        [str(binary), f'+rom={rom}', f'+frame={frames["lcd"]}', f'+video={frames["hdmi"]}', f'+keys={keys}']
+        + ([f'+frames={frame_limit}'] if frame_limit else []),
         cwd=ROOT,
         start_new_session=True,
     )
     try:
-        show(frames, keys, process)
+        if frame_limit:
+            process.wait()
+        else:
+            show(frames, keys, process)
     except KeyboardInterrupt:
         pass
     finally:

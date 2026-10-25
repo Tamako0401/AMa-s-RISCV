@@ -3,13 +3,17 @@
 // 两次运行都写 tohost = 1 才算通过: 说明 startup.S 每次复位都把 .data 初值从 ROM 拷回 RAM。
 `timescale 1ns / 1ps
 module reset_tb;
+    parameter VIDEO_720P = 0;
+    reg pixel_clk = 0;
+    always #6.734006734 pixel_clk = ~pixel_clk;
     parameter [31:0] TOHOST_ADDR = 32'h10000000;
 
     reg clk = 0;
     always #10 clk = ~clk;
     reg rst_n = 0;
 
-    soc_top u_soc (
+    soc_top #(.VIDEO_720P(VIDEO_720P)) u_soc (
+        .video_clk(pixel_clk),
         .clk  (clk),
         .rst_n(rst_n),
         .io_o (),

@@ -86,45 +86,53 @@ def sysclk_hz(board):
 
 
 def check_pll(board, problems):
-    """顶层内联的 GTP_GPLL: 参数边界 + 输出频率和 SYSCLK_HZ 对账。返回算出的 MHz 数。"""
+    """顶层内联的每个 GTP_GPLL: 参数边界; 出系统时钟 (CLKOUT0 接 sys_clk) 的那个和 SYSCLK_HZ 对账。
+    返回 [(实例名, clkout0 MHz)]。"""
     data = read_board(board)
     top = (ROOT / 'boards' / board / data['top']).read_text(errors='replace')
-    m = re.search(r'GTP_GPLL\s*#', top)
-    if not m:
-        return None
+    starts = [m.start() for m in re.finditer(r'GTP_GPLL\s*#', top)]
+    outs = []
+    for start, end in zip(starts, starts[1:] + [len(top)]):
+        block = top[start:end]
+        found = re.search(r'\)\s*(\w+)\s*\(', block)
+        inst = found[1] if found else 'GTP_GPLL'
 
-    def param(name):
-        found = re.search(r'\.\s*' + name + r'\(\s*([0-9.]+)\s*\)', top[m.start() :])
-        return float(found[1]) if found else None
+        def param(name):
+            found = re.search(r'\.\s*' + name + r'\(\s*([0-9.]+)\s*\)', block)
+            return float(found[1]) if found else None
 
-    fin, ratioi = param('CLKIN_FREQ'), param('STATIC_RATIOI')
-    ratiom, ratiof, ratio0 = param('STATIC_RATIOM'), param('STATIC_RATIOF'), param('STATIC_RATIO0')
-    if None in (fin, ratioi, ratiom, ratiof, ratio0):
-        problems.append(('ERROR', 'GTP_GPLL 参数没抓全 (写法变了?)', ''))
-        return None
-    fpfd = fin / ratioi
-    vco = fin * ratiom * ratiof / ratioi
-    out0 = vco / ratio0
-    for value, name, limit in [
-        (fin, '输入 MHz', GPLL['fin']),
-        (fpfd, 'PFD MHz', GPLL['fpfd']),
-        (vco, 'VCO MHz', GPLL['vco']),
-        (out0, 'clkout0 MHz', GPLL['fout']),
-    ]:
-        if not limit[0] <= value <= limit[1]:
-            problems.append(('ERROR', f'GTP_GPLL {name} = {value:g} 超出 datasheet 边界 {limit}', ''))
-    hz = sysclk_hz(board)
-    if hz and abs(out0 * 1e6 - hz) > hz * 0.001:
-        problems.append(('ERROR', f'PLL clkout0 = {out0:g} MHz, bsp.h 的 SYSCLK_HZ = {hz / 1e6:g} MHz, 对不上', ''))
-    # 晶振输入的 create_clock 周期要和 CLKIN_FREQ 一致
-    for name in data['constraints']:
-        text = (ROOT / 'boards' / board / name).read_text(errors='replace')
-        for period, port in re.findall(r'create_clock -name \S+ -period ([\d.]+) \[get_ports \{(\w+)\}\]', text):
-            if port == 'clk' and abs(1000 / float(period) - fin) > 0.01:
+        fin, ratioi = param('CLKIN_FREQ'), param('STATIC_RATIOI')
+        ratiom, ratiof, ratio0 = param('STATIC_RATIOM'), param('STATIC_RATIOF'), param('STATIC_RATIO0')
+        if None in (fin, ratioi, ratiom, ratiof, ratio0):
+            problems.append(('ERROR', f'{inst}: GTP_GPLL 参数没抓全 (写法变了?)', ''))
+            continue
+        fpfd = fin / ratioi
+        vco = fin * ratiom * ratiof / ratioi
+        out0 = vco / ratio0
+        outs.append((inst, out0))
+        for value, name, limit in [
+            (fin, '输入 MHz', GPLL['fin']),
+            (fpfd, 'PFD MHz', GPLL['fpfd']),
+            (vco, 'VCO MHz', GPLL['vco']),
+            (out0, 'clkout0 MHz', GPLL['fout']),
+        ]:
+            if not limit[0] <= value <= limit[1]:
+                problems.append(('ERROR', f'{inst}: GTP_GPLL {name} = {value:g} 超出 datasheet 边界 {limit}', ''))
+        if re.search(r'\.CLKOUT0\(\s*sys_clk\s*\)', block):
+            hz = sysclk_hz(board)
+            if hz and abs(out0 * 1e6 - hz) > hz * 0.001:
                 problems.append(
-                    ('ERROR', f'{name}: clk 约束 {1000 / float(period):g} MHz != PLL CLKIN_FREQ {fin:g} MHz', '')
+                    ('ERROR', f'{inst}: clkout0 = {out0:g} MHz, bsp.h 的 SYSCLK_HZ = {hz / 1e6:g} MHz, 对不上', '')
                 )
-    return out0
+        # 晶振输入的 create_clock 周期要和 CLKIN_FREQ 一致
+        for name in data['constraints']:
+            text = (ROOT / 'boards' / board / name).read_text(errors='replace')
+            for period, port in re.findall(r'create_clock -name \S+ -period ([\d.]+) \[get_ports \{(\w+)\}\]', text):
+                if port == 'clk' and abs(1000 / float(period) - fin) > 0.01:
+                    problems.append(
+                        ('ERROR', f'{name}: clk 约束 {1000 / float(period):g} MHz != {inst} CLKIN_FREQ {fin:g} MHz', '')
+                    )
+    return outs
 
 
 def check(board):
@@ -155,11 +163,11 @@ def check(board):
                     ('WARN', f'{ours} 在 {loc}, 例程同脚的端口是 {" ".join(demo_nets)}, 名字对不上 (人工确认)', '')
                 )
             vindicated += 1
-    pll_out = check_pll(board, problems)
+    pll_outs = check_pll(board, problems)
     print(
         f'检查 {board}: {len(pairs)} 个管脚约束'
         + (f', {vindicated} 个在参照库里' if refs else ', 无参照库 (padrefs.csv), 只查了重复')
-        + (f', PLL clkout0 = {pll_out:g} MHz' if pll_out else '')
+        + ''.join(f', {inst} clkout0 = {out:g} MHz' for inst, out in pll_outs)
     )
     for level, msg, _ in problems:
         print(f'{level}: {msg}')

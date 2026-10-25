@@ -32,8 +32,8 @@ clkout_i = VCO / RATIO_i                    (RATIO 支持 0.5 步进)
   与 27 的倍数对不上）。显示扩展计划的每行拍数结论是 50 MHz 已够（最忙一行 72%），
   先不追高；若上板量出 CPU 跟不上再换（改 RATIO 参数 + `SYSCLK_HZ` 即可）。
 - **720p 的 74.25 MHz 像素时钟**：50 和 74.25 需要不同 VCO（675 vs 891），一个 GPLL
-  出不了两路——到时候用第二个 GPLL（VCO 891、`RATIO0=12`），见
-  [docs/display-plan.md](../../docs/display-plan.md) 实施顺序第 1 步。
+  出不了两路，所以用第二个 GPLL `u_video_gpll`（VCO 891、`RATIO0=12`）。顶层参数 `VIDEO_720P`
+  默认 1；改 0 就不实例化它，退回 640x480（见 [docs/video.md](../../docs/video.md)）。
 - `locked` 参与复位（PLL 未锁时不出系统时钟的行为，同 ego1）；锁定时间 datasheet
   上限 200 µs。
 - **MS7210/MS7200 共用一条 I2C**（SCL=K22、SDA=K23）和一个复位脚（G25，低有效），

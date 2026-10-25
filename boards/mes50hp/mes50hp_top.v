@@ -1,7 +1,9 @@
 `include "boards/mes50hp/pins_top.vh"
+`include "boards/mes50hp/video_clock.vh"
 module mes50hp_top #(
     parameter [31:0] HW_ID = 0,
     parameter BREAK_CYCLES = 500000,
+    parameter VIDEO_720P = 0,  // 1 要先在 video_clock.vh 补上 74.25 MHz PLL
     parameter IO_N = `IO_N,
     parameter MEM_FILE = "firmware.hex"
 ) (
@@ -51,7 +53,21 @@ module mes50hp_top #(
         end
     endgenerate
     assign io_i[127:IO_N] = 0;
+    wire video_clk, video_locked;
+    generate if (VIDEO_720P) begin : g_video_clock
+        mes50hp_video_clock u_clock (.clk(clk), .rst_n(reset_pipe[15]),
+            .pix_clk(video_clk), .locked(video_locked));
+    end else begin : g_vga_clock
+        assign video_clk = 1'b0;
+        assign video_locked = 1'b1;
+    end endgenerate
+    wire video_reset_n = reset_pipe[15] && video_locked;
+    reg [1:0] video_reset_pipe;
+    always @(posedge clk or negedge video_reset_n)
+        if (!video_reset_n) video_reset_pipe <= 0;
+        else video_reset_pipe <= {video_reset_pipe[0], 1'b1};
     soc_top #(
+        .VIDEO_720P(VIDEO_720P),
         .RESET_PC(32'hf800),
         .ROM_WRITABLE(1),
         .HW_ID(HW_ID),
@@ -61,7 +77,8 @@ module mes50hp_top #(
         .UART_RX_PIN(`UART_RX_PIN)
     ) soc (
         .clk(clk),
-        .rst_n(reset_pipe[15]),
+        .rst_n(video_reset_pipe[1]),
+        .video_clk(video_clk),
         .io_o(io_o),
         .io_oe(io_oe),
         .io_i(io_i),

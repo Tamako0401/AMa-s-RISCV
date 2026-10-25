@@ -2,6 +2,7 @@
 // EGO1 的 key1_n = S6 & locked; 暂停 50 MHz 时钟模拟 MMCM 尚未输出时钟。
 `timescale 1ns / 1ps
 module uart_reset_tb;
+    parameter VIDEO_720P = 1;
     string rom_path;
     initial begin
         if (!$value$plusargs("rom=%s", rom_path)) $fatal(1, "Missing +rom=hex");
@@ -27,6 +28,7 @@ module uart_reset_tb;
     assign io[`PIN_UART_RX] = 1'b1;
     assign uart_tx = io[`PIN_UART_TX];
     `DUT_TOP #(
+        .VIDEO_720P(VIDEO_720P),
         .MEM_FILE("")
     ) dut (
         .clk(clk),

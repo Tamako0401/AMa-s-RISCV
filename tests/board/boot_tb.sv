@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 module boot_tb;
+    parameter VIDEO_720P = 1;
     // 板子由 -DBOARD=<名> 选择 (tests.toml), 默认 mes50hp。
 `ifndef BOARD
 `define BOARD mes50hp
@@ -25,6 +26,7 @@ module boot_tb;
     wire uart_tx = io[`PIN_UART_TX];
     assign io[`PIN_UART_RX] = uart_rx;
     `DUT_TOP #(
+        .VIDEO_720P(VIDEO_720P),
         .MEM_FILE(""),
         .HW_ID(ID),
         .BREAK_CYCLES(6000)

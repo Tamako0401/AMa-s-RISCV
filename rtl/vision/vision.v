@@ -1,14 +1,10 @@
 // 视觉输入 (外设子总线 0x4000_5000): 输入适配 -> 裁剪 -> 4x4 均值缩小 -> 小窗存储 / 颜色跟踪,
-// 全部在输入的像素时钟下; 小窗读口和寄存器在系统时钟下。
+// 流水线在输入像素时钟下; 小窗读口在输出像素时钟下, 寄存器在系统时钟下。
 // 各级之间是像素流 (docs/vision.md), 换相机只换适配器, 换算法只换中间某一级。
 // 寄存器 (偏移): 0x0 COLOR 读写 {tol, cr, cb}; 0x4 COUNT / 0x8 SUM_X / 0xC SUM_Y 只读, 上一帧的颜色跟踪结果;
 //                0x10 FRAME 只读, 每出一帧结果加 1; 0x14 CENTER 只读 {Cr, Cb}, 上一帧画面正中 8x8 的平均颜色。
-module vision #(
-    // 输入 800x600 (电脑最低只给这个), 裁出正中 640x480, 缩成 160x120 正好填满小窗
-    parameter IN_W = 800,
-    parameter IN_H = 600
-) (
-    input wire clk,  // 系统时钟, 小窗读口和寄存器
+module vision (
+    input wire clk,  // 系统时钟, CPU 寄存器
     input wire rst_n,
     input wire [31:0] addr_i,
     input wire [31:0] data_i,
@@ -24,6 +20,7 @@ module vision #(
     input wire vin_de,
     input wire [23:0] vin_rgb,
 
+    input wire win_rclk,
     input  wire [14:0] win_raddr,
     output wire [ 7:0] win_rdata
 );
@@ -50,12 +47,13 @@ module vision #(
 
     wire c_valid, c_sof, c_eol;
     wire [23:0] c_data;
-    crop #(
-        .X0((IN_W - 640) / 2),
-        .Y0((IN_H - 480) / 2),
-        .W (640),
-        .H (480)
-    ) u_crop (
+    wire frame_commit;
+    wire [11:0] measured_w, measured_h;
+    wire supported, stable, measured_toggle;
+    crop u_crop (
+        .frame_commit(frame_commit),
+        .measured_w(measured_w), .measured_h(measured_h),
+        .supported(supported), .stable(stable), .measured_toggle(measured_toggle),
         .clk(vin_pclk),
         .rst_n(prst_n),
         .in_valid(a_valid),
@@ -89,13 +87,14 @@ module vision #(
         .W(160),
         .H(120)
     ) u_window (
+        .frame_commit(frame_commit),
         .clk(vin_pclk),
         .rst_n(prst_n),
         .in_valid(s_valid),
         .in_sof(s_sof),
         .in_eol(s_eol),
         .in_data(s_data),
-        .rclk(clk),
+        .rclk(win_rclk),
         .raddr(win_raddr),
         .rdata(win_rdata)
     );
@@ -110,6 +109,7 @@ module vision #(
         .W(160),
         .H(120)
     ) u_color (
+        .frame_commit(frame_commit),
         .clk(vin_pclk),
         .rst_n(prst_n),
         .in_valid(s_valid),
@@ -128,6 +128,8 @@ module vision #(
     );
 
     // 结果跨到系统时钟: done 同步过来, 翻转后再取结果 (结果保持一整帧, 这时早已稳定)
+    reg [2:0] measured_s;
+    reg [31:0] input_size, input_status;
     reg [ 2:0] done_s;
     reg [14:0] count;
     reg [21:0] sum_x, sum_y;
@@ -144,6 +146,7 @@ module vision #(
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
+            measured_s <= 0; input_size <= 0; input_status <= 0;
             done_s <= 0;
             count <= 0;
             sum_x <= 0;
@@ -156,6 +159,11 @@ module vision #(
             response_valid <= 0;
             data_r <= 0;
         end else begin
+            measured_s <= {measured_s[1:0], measured_toggle};
+            if (measured_s[2] != measured_s[1]) begin
+                input_size <= {4'b0, measured_h, 4'b0, measured_w};
+                input_status <= {29'b0, !supported, stable, supported};
+            end
             done_s <= {done_s[1:0], t_done};
             if (done_s[2] != done_s[1]) begin
                 count  <= t_count;
@@ -177,6 +185,8 @@ module vision #(
                     3: data_r <= {10'b0, sum_y};
                     4: data_r <= frame;
                     5: data_r <= {16'b0, center};
+                    6: data_r <= input_size;
+                    7: data_r <= input_status;
                     default: data_r <= 0;
                 endcase
             if (fire && we_i && addr_i[11:2] == 0) {tol, cr, cb} <= data_i[23:0];
