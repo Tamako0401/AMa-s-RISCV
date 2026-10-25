@@ -51,9 +51,23 @@ SRAM 下载厂商 LED 例程成功（done=1）、串口 CP2102 枚举正常；**
 不在 PDS 型号表里，固化前要在 Fabric Configuration 的 Flash Operator 里按 ID 自定义添加
 （工具使用篇教程 05 的流程），`board.toml` 的 `flash` 届时改成自定义后的名字。
 `cdt_cfg_shell` 认 PG2L100H 的是 SP6.4 版（Lite 连 ID code 都不认）、且实测不查 license；
-`ama.local.toml` 的 `cdt_cfg_shell` 已指 SP6.4，`pds_shell` 等 license 到位再切。
+`ama.local.toml` 的 `cdt_cfg_shell` 已指 SP6.4。
 和 MES50HP 的串口芯片同为 CP2102，自动识别分不出是哪块盘古——下载数据/开终端要带
 `-b mes2l100hp`，或在 `ama.local.toml` 写 `board = "mes2l100hp"`。
+
+## 首次综合与上板结论 (2026-10-25, PDS 2022.2-SP6.4)
+
+- **位流生成、时序全过**: sys_pll_clk 50 MHz (能跑到 53.8, WNS +1.4)、hdmi_rx_pclk WNS +6.1;
+  资源 LUT 11% / FF 5% / RAM **106 块 (36Kb) of 155 = 68%** / DSP 19% / IO 81 of 300。
+- GTP_GPLL 直连例化可行, 但厂商 IP 包装里的 5 个 PHY 参数 (STATIC_RATIOPHY/DUTYPHY/PHASEPHY/
+  CPHASEPHY、CLKOUTPHY_SYN_EN) 真原语不认, 已删; VCO=675 / RATIO0=13.5 出 50 MHz 成立。
+- **PLL 输出必须自己 create_generated_clock** (27×50/27): PDS 自动命名的
+  `sys_clk|u_gpll/CLKOUT0_Inferred` 带竖线, get_clocks 通配圈不住, sys↔hdmi_rx 的异步组会失效
+  (表现为 vision 累加器上一堆 -5ns 假违例)。
+- Logos 的 RAM 推断经验在 Logos2 成立: u_rom 双口没被复制 (16×36Kb = 576Kb), `ama fpga report`
+  已认 DRM36K (Logos2 报 `Total DRM of 155`, 块按 36Kb 计、18K 块算 0.5)。
+- **上板链路全通**: 自己的位流 SRAM 下载、bootloader 握手 (HW_ID 校验过)、`ama upload hello`
+  0.6 秒下载运行——PLL 锁定、50 MHz sys、UART、ROM 写入都在真芯片上验证了。
 
 ## 引脚依据
 
