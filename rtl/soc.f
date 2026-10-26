@@ -33,6 +33,18 @@ rtl/perips/gpio_matrix.v
 rtl/perips/uart.v
 rtl/perips/video_render.v
 rtl/perips/video.v
+// 新显示 (soc_top 的 DISPLAY_NEW=1 才例化; dpram/dpram2c 上面已有)
++incdir+rtl/display
+rtl/display/disp_timing.v
+rtl/display/disp_scanout.v
+rtl/display/disp_palette.v
+rtl/display/disp_blend.v
+rtl/display/disp_span.v
+rtl/display/disp_affine.v
+rtl/display/disp_sprites.v
+rtl/display/disp_scan.v
+rtl/display/disp_render.v
+rtl/display/display.v
 rtl/vision/hdmi_rx_adapter.v
 rtl/vision/crop.v
 rtl/vision/box4.v

@@ -9,7 +9,7 @@
 //   s0 = ROM   0x0000_0000, 64 KiB, 可选 app 区写入 -- 后 2 KiB 为引导区
 //   s1 = RAM   0x1000_0000, 64 KiB, 读写 -- 数据
 //   s2 = 视频  0x2000_0000, 寄存器和显存, 见 docs/video.md; 小窗读视觉输入 (u_vision, docs/vision.md)
-//   s3 = 保留(未接入)
+//   s3 = 新显示 0x3000_0000, 见 docs/display.md; DISPLAY_NEW=1 才接 (0 时保留, 访问会挂起)
 //   s4 = 外设子总线 0x4000_0000, 按 addr[15:12] 再分, 每个外设 4 KiB (rtl/core/periph_bus.v):
 //          0x4000_0000: 空, 读返回 0, 写被丢弃
 //          0x4000_1000  UART  -- 偏移 0/4/8/C/10: 控制/状态/分频/TX/RX
@@ -29,6 +29,7 @@ module soc_top #(
     parameter RAM_INIT_FILE = "",  // RAM 初值 hex 文件, 相对仿真工作目录
     parameter CPU_CLOCK_HZ = 50000000,  // 供 UART 计算默认波特率分频
     parameter VIDEO_720P = 0,
+    parameter DISPLAY_NEW = 0,  // 1 = s3 接新显示, 视频输出口和小窗读改由它驱动 (旧 video 留在 s2, 改回 0 退回); 要 video_clk (74.25 MHz)
     parameter IO_N = 0,
     parameter UART_TX_PIN = 255,
     parameter UART_RX_PIN = 255
@@ -41,7 +42,7 @@ module soc_top #(
     output wire [127:0] io_oe,
     input  wire [127:0] io_i,
 
-    input wire video_clk,  // 720p 像素时钟; VGA 模式不用
+    input wire video_clk,  // 720p 像素时钟; VGA 模式不用; DISPLAY_NEW 时兼作新显示的 pclk
 
     // 视频输出 (VGA / 720p), 板子不接就留空
     output wire video_pclk,
@@ -84,10 +85,10 @@ module soc_top #(
     wire [3:0] s2_sel;
     wire s2_we, s2_req_valid, s2_req_ready, s2_rsp_valid, s2_rsp_ready;
 
-    // rib 从设备 3: 保留
-    wire [31:0] unused_s3_addr, unused_s3_wdata;
-    wire [3:0] unused_s3_sel;
-    wire unused_s3_we, unused_s3_req_valid;
+    // rib 从设备 3: 新显示 (DISPLAY_NEW=1 才接, 例化在下面 generate 里; 0 时保留不握手)
+    wire [31:0] s3_addr, s3_wdata, s3_rdata;
+    wire [3:0] s3_sel;
+    wire s3_we, s3_req_valid, s3_req_ready, s3_rsp_valid, s3_rsp_ready;
 
     // rib 从设备 4: 外设子总线 (0x4000_0000)
     wire [31:0] s4_addr, s4_wdata, s4_rdata;
@@ -195,16 +196,16 @@ module soc_top #(
         .s2_rsp_ready_o(s2_rsp_ready),
         .s2_data_i(s2_rdata),
 
-        // 从设备 3 = 保留: 不握手
-        .s3_addr_o(unused_s3_addr),
-        .s3_data_o(unused_s3_wdata),
-        .s3_sel_o(unused_s3_sel),
-        .s3_we_o(unused_s3_we),
-        .s3_req_valid_o(unused_s3_req_valid),
-        .s3_req_ready_i(1'b0),
-        .s3_rsp_valid_i(1'b0),
-        .s3_rsp_ready_o(),
-        .s3_data_i(32'h0),
+        // 从设备 3 = 新显示 (0x3000_0000); DISPLAY_NEW=0 时 req_ready/rsp_valid 在下面 generate 里接地
+        .s3_addr_o(s3_addr),
+        .s3_data_o(s3_wdata),
+        .s3_sel_o(s3_sel),
+        .s3_we_o(s3_we),
+        .s3_req_valid_o(s3_req_valid),
+        .s3_req_ready_i(s3_req_ready),
+        .s3_rsp_valid_i(s3_rsp_valid),
+        .s3_rsp_ready_o(s3_rsp_ready),
+        .s3_data_i(s3_rdata),
 
         // 从设备 4 = 外设子总线 (0x4000_0000)
         .s4_addr_o(s4_addr),
@@ -271,6 +272,10 @@ module soc_top #(
     );
 
 
+    // 旧显示 (s2)。输出口和小窗读地址先落在 vid_*, 由 DISPLAY_NEW 在下面 generate 里决定谁上引脚
+    wire vid_pclk, vid_hsync_n, vid_vsync_n, vid_de;
+    wire [23:0] vid_rgb;
+    wire [14:0] vid_win_raddr;
     wire [14:0] win_raddr;
     wire [ 7:0] win_rdata;
     reg vga_clk;
@@ -291,17 +296,70 @@ module soc_top #(
         .req_ready_o(s2_req_ready),
         .rsp_valid_o(s2_rsp_valid),
         .rsp_ready_i(s2_rsp_ready),
-        .pclk(video_pclk),
-        .hsync_n(video_hsync_n),
-        .vsync_n(video_vsync_n),
-        .de(video_de),
-        .rgb(video_rgb),
-        .win_raddr(win_raddr),
+        .pclk(vid_pclk),
+        .hsync_n(vid_hsync_n),
+        .vsync_n(vid_vsync_n),
+        .de(vid_de),
+        .rgb(vid_rgb),
+        .win_raddr(vid_win_raddr),
         .win_rdata(win_rdata)
     );
 
+    // 新显示 (rtl/display, docs/display.md): DISPLAY_NEW=1 时挂 rib s3 (0x3000_0000), 视频输出口和小窗改由它驱动。
+    // 两个引擎不能同时上: vision 的小窗读口 (win_raddr/win_rclk) 和对外引脚只有一套, 参数固定选一路, 综合只留选中的。
+    // 新显示在 clk 域读小窗 (display.v), 所以 DISPLAY_NEW 时 vision 的读时钟也切到 clk (旧 video 在扫描时钟读)。
+    generate
+        if (DISPLAY_NEW) begin : gen_display
+            wire dsp_pclk, dsp_hsync_n, dsp_vsync_n, dsp_de;
+            wire [23:0] dsp_rgb;
+            wire [14:0] dsp_win_raddr;
+
+            display u_display (
+                .clk        (clk),
+                .rst_n      (rst_n),
+                .addr_i     (s3_addr),
+                .data_i     (s3_wdata),
+                .sel_i      (s3_sel),
+                .we_i       (s3_we),
+                .data_o     (s3_rdata),
+                .req_valid_i(s3_req_valid),
+                .req_ready_o(s3_req_ready),
+                .rsp_valid_o(s3_rsp_valid),
+                .rsp_ready_i(s3_rsp_ready),
+                .pclk       (video_clk),
+                .pclk_o     (dsp_pclk),
+                .hsync_n    (dsp_hsync_n),
+                .vsync_n    (dsp_vsync_n),
+                .de         (dsp_de),
+                .rgb        (dsp_rgb),
+                .win_raddr  (dsp_win_raddr),
+                .win_rdata  (win_rdata)
+            );
+
+            assign video_pclk = dsp_pclk;
+            assign video_hsync_n = dsp_hsync_n;
+            assign video_vsync_n = dsp_vsync_n;
+            assign video_de = dsp_de;
+            assign video_rgb = dsp_rgb;
+            assign win_raddr = dsp_win_raddr;
+        end else begin : gen_no_display
+            // s3 保留: 不握手 (和没接新显示之前一样)
+            assign s3_req_ready = 1'b0;
+            assign s3_rsp_valid = 1'b0;
+            assign s3_rdata = 32'h0;
+
+            assign video_pclk = vid_pclk;
+            assign video_hsync_n = vid_hsync_n;
+            assign video_vsync_n = vid_vsync_n;
+            assign video_de = vid_de;
+            assign video_rgb = vid_rgb;
+            assign win_raddr = vid_win_raddr;
+        end
+    endgenerate
+    wire win_rclk = DISPLAY_NEW ? clk : scan_clk;  // vision 的小窗读口跟着被选中的引擎走
+
     vision u_vision (
-        .win_rclk(scan_clk),
+        .win_rclk(win_rclk),
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(p_addr[P_VISION*32+:32]),
