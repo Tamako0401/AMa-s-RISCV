@@ -33,7 +33,11 @@ def generate(board, app, rom):
     for mem in (ROOT / 'rtl/nn').glob('*.mem'):
         (out / 'rtl/nn').mkdir(parents=True, exist_ok=True)
         shutil.copyfile(mem, out / 'rtl/nn' / mem.name)
-    sources = [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().splitlines() if p and not p.startswith('+')]
+    # soc.f 直接喂给 Verilator (-f), 注释行 (//、#) 按它的语义跳过
+    sources = [
+        ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().splitlines()
+        if p and not p.startswith(('+', '//', '#'))
+    ]
     top = ROOT / 'boards' / board / data['top']
     generate_project(board, data, out, sources, top, hwid(board))
     return out
