@@ -15,6 +15,8 @@ OUT = ROOT / 'build/test'
 
 def command(args, log):
     args = list(map(str, args))
+    if args[0].endswith('.py'):  # Windows CreateProcess 不认 shebang, 经 uv 按内联依赖跑
+        args = ['uv', 'run', '--script', *args]
     print('$ ' + shlex.join(args), file=log, flush=True)
     return subprocess.run(args, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT).returncode
 
