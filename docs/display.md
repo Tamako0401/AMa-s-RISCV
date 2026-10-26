@@ -93,6 +93,39 @@ disp_scanout     pclk: 读显示行 -> 整体混色 -> RGB888 -> 盖文字层
 
 ## 还没做
 
-- SoC 级仿真 (CPU 走总线驱动它)、C 的板上后端 (`gfx.h` -> 这些寄存器)、综合 (`mes2l100hp`, `DISPLAY_NEW=1`) 和上板。
+- C 的板上后端 (`gfx.h` -> 这些寄存器)、综合 (`mes2l100hp`, `DISPLAY_NEW=1`) 和上板。
 - 综合看资源和时序: 调色板现在是 8 份 256x16, 可改 4 份真双口; 行缓存 128 位宽。
 - 超时 (OVERRUN) 时那一行是半成品; 现在的游戏最坏 69%, 还有余量。
+
+**SoC 级仿真已过** (2026-10-26, `tests/soc/display_tb.sv`): CPU 走 rib s3 按 `refmodel.py
+export --soc` 压出来的脚本把一帧写进显示、提交、轮询生效, `video_sink` 收两帧和 `expect.hex`
+逐点比。场景 bg / sprites / affine / overflow (小窗关的四个; 小窗要视觉输入, 以后接
+`video_source` 再加 touhou/fruit) 4/4 全过, LINE_MAX 和上表一致。
+
+## PDS 综合段错误 (阻塞 `mes2l100hp` 的 `DISPLAY_NEW=1`)
+
+PDS 2022.2-SP6.4 (ADS 综合器) 综合新显示时稳定段错误 (signal 11, "Flow-0189: Internal
+error"), 崩在 synthesize 的 RAM 常量传播/装配阶段, 附近日志总是 `Constant propagation done on
+u_sprites/u_w1/mem`。触发者是 `disp_sprites` 的精灵表: **两块 32x1024 的 dpram (u_w0/u_w1,
+共享写地址/写数据/读地址、互补写使能)**。`DISPLAY_NEW=0` 的基线综合完全正常 (位流时序
+video_pll_clk +0.356), 只有带上精灵表才崩。
+
+二分定位 (最小复现: `build/fpga/disp_bisect/mini.tcl`, 只含 display 的 PDS 工程, 13 秒崩):
+
+- stub 掉 `disp_sprites` -> 不崩; 其它子模块全真只 stub 它 -> 也不崩
+- 保留单块 u_w0 (vD)、或把 u_yrange 加宽到 32 位 (vP2) 都不崩 -- 触发要"精灵表这对"特定形态
+
+已排除的绕法 (全部仍崩): 写使能直连 (vJ) / u_w1 改 33、64 位宽 (vH, vAR -- 64 宽反而印证
+崩点是"宽 RAM 装配/级联"路径) / 深度 1025 (vN) / dpram 换 dpram2c (vE, vAC) / 写数据加 XOR
+掩码 (vX) / w1 的 bank 排布镜像 (vAB) / 写口整体打一拍 (vAQ) / 读地址各挂独立寄存器 (vAS,
+被寄存器合并穿透) / 同名 wrapper 隔层次 (vM) / `syn_hier="fixed"` (vAN) / `syn_ramstyle`
+no_rw_check、block_ram,low_power (实例上 vAE/vAF, mem 信号上 vAG)。
+已排除的综合开关: `-selected_syn_tool_opt 1`、`-resource_sharing FALSE`、
+`-enable_prepacking FALSE`、`-pipelining FALSE`、`-rw_check_on_ram`、`-max_parallel_jobs 1`;
+SP1-Lite 的综合器不认 Logos2, 换不了。
+
+可行方向 (按推荐顺序): ① 给 Pango 提工单 (16 个文件 + tcl 的最小复现已就绪); ② PDS 新版本
+试修没修; ③ 精灵表用 `GTP_DRM36K_E1` 原语直例化绕开推断 (黑盒原语不进装配 pass; 参数可从
+`PDS_2022.2-SP6.4/ip/module_ip/ipm2l_flex_ram/.../ipm2l_dpram_v1_9.v.xml` 模板反推; 仿真用
+`ifdef VERILATOR` 走 dpram、综合走原语, 参考 `mes2l100hp_top.v` 里 GPLL 的双路径做法,
+Verilator 没有原语模型必须双路径)。`mes2l100hp_top.v` 的 `DISPLAY_NEW` 默认 0, 绕过后翻 1。
