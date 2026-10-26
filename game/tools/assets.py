@@ -226,7 +226,13 @@ def rgb565(img):
 def font():
     """8x16 字库: 每个字 16 个字节 (一行一字节, 最高位在左)。"""
     menlo = Path('/System/Library/Fonts/Menlo.ttc')
-    path = menlo if menlo.exists() else subprocess.run(['fc-match', '-f', '%{file}', 'monospace'], capture_output=True, text=True).stdout
+    consolas = Path('C:/Windows/Fonts/consola.ttf')
+    if menlo.exists():
+        path = menlo
+    elif consolas.exists():  # Windows 没有 fontconfig, 用等宽的 Consolas
+        path = consolas
+    else:
+        path = subprocess.run(['fc-match', '-f', '%{file}', 'monospace'], capture_output=True, text=True).stdout
     face = ImageFont.truetype(str(path), 13)
     glyphs = np.zeros((128, 16), np.uint8)
     for code in range(32, 127):
