@@ -33,7 +33,7 @@ def program(test, run, out, log):
         *run.get('defines', []),
         '-T',
         run.get('link', 'tests/cpu/link.ld'),
-        *run['program'],
+        *[a.replace('{out}', str(out)) for a in run['program']],  # 同 plusargs: 支持 prepare 生成的源文件
         '-o',
         elf,
     ]

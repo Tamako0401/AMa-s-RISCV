@@ -650,6 +650,29 @@ def bus_writes(header, frame, art):
     return out + [(REG + 4 * COMMIT, 1)]
 
 
+def soc_script(writes):
+    """把总线写压成 C 驱动 (tests/soc/display_check.c) 能重放的脚本 (export --soc 的 script.c)。
+
+    显示的片内 RAM 复位是 0, 所以数据 0 的写和文字层的空白格 (字符 < 33) 可以不重放,
+    效果一样; 寄存器区 (偏移 < 0x1000) 不跳 -- 寄存器写 0 有意义 (FADE=0 等)。
+    剩下的按原顺序合并成 (地址, 个数, 数据...) 的段, 0xFFFFFFFF 结尾。"""
+    kept = []
+    for a, d in writes:
+        if 0x20000 <= a < 0x30000 and d & 0xFF < 33:
+            continue  # 文字层空白格: 复位值 0 也是"不画"
+        if d == 0 and a >= 0x1000:
+            continue
+        kept.append((a, d))
+    words, i = [], 0
+    while i < len(kept):
+        j = i + 1
+        while j < len(kept) and kept[j][0] == kept[i][0] + 4 * (j - i):
+            j += 1
+        words += [kept[i][0], j - i, *(d for _, d in kept[i:j])]
+        i = j
+    return words + [0xFFFFFFFF]
+
+
 def write_hex(path, values, digits):
     Path(path).write_text(''.join(f'{v:0{digits}x}\n' for v in values))
 
@@ -666,6 +689,14 @@ def cmd_export(args):
     out.mkdir(parents=True, exist_ok=True)
     writes = bus_writes(header, frame, art)
     write_hex(out / 'writes.hex', [a << 32 | d for a, d in writes] + [0xFFFFFFFF << 32], 16)
+    if args.soc:  # SoC 级测试 (tests/soc/display_tb.sv) 用: CPU 重放的压缩脚本, 见 soc_script
+        script = assets.c_array(soc_script(writes), 8)
+        (out / 'script.c').write_text(
+            f'/* {args.dump} 的总线重放脚本, refmodel.py export --soc 生成, 不要手改。\n'
+            ' * display_script[]: (地址, 个数, 数据...) 段, 0xFFFFFFFF 结尾; 零值写和空白文字格已跳过 (片内 RAM 复位为 0)。 */\n'
+            '#include <stdint.h>\n\n'
+            'const uint32_t display_script[] = {\n' + script + '};\n'
+        )
     cam = camera_placeholder()
     write_hex(out / 'window.hex', cam.ravel(), 2)
     rgb = compose(header, frame, art, LINE_OBJECTS)
@@ -846,6 +877,7 @@ def main():
     e.add_argument('dump', nargs='?')
     e.add_argument('--frame', type=int)
     e.add_argument('--scene', help='不读存帧, 导出 scenes 里的这个场景')
+    e.add_argument('--soc', action='store_true', help='再写一个 script.c: 压缩的总线重放脚本 (tests/soc 的 SoC 级测试用)')
     e.add_argument('-o', '--output', required=True)
     sc = sub.add_parser('scenes')
     sc.add_argument('-o', '--output', required=True)

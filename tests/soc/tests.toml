@@ -42,6 +42,19 @@ rtl = "rtl/soc.f"
 extra = ["tests/soc/video_sink.sv", "tests/soc/video_source.sv"]
 runs = [{ app = "video_demo" }]
 
+# 新显示的 SoC 级比对 (DISPLAY_NEW=1 在 tb 里写死): CPU 走总线重放 refmodel 的场景再逐点比对。
+# 场景选小窗关的 (tb 没接视觉输入流); touhou/fruit 要小窗, 以后接 video_source 再加。
+[[test]]
+tb = "display_tb.sv"
+rtl = "rtl/soc.f"
+extra = ["tests/soc/video_sink.sv"]
+runs = [
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "bg", "--soc", "-o", "{out}"], program = ["tests/cpu/start.S", "tests/soc/display_check.c", "{out}/script.c"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "sprites", "--soc", "-o", "{out}"], program = ["tests/cpu/start.S", "tests/soc/display_check.c", "{out}/script.c"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "affine", "--soc", "-o", "{out}"], program = ["tests/cpu/start.S", "tests/soc/display_check.c", "{out}/script.c"], plusargs = ["+data={out}"] },
+  { prepare = ["game/tools/refmodel.py", "export", "--scene", "overflow", "--soc", "-o", "{out}"], program = ["tests/cpu/start.S", "tests/soc/display_check.c", "{out}/script.c"], plusargs = ["+data={out}"] },
+]
+
 [[test]]
 tb = "soc_tb.sv"
 rtl = "rtl/soc.f"
