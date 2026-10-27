@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .boards import ROOT, read_board
 from . import local
-from .firmware import hwid, run
+from .firmware import app_params, hwid, run
 
 
 def project_dir(board, app):
@@ -39,7 +39,16 @@ def generate(board, app, rom):
         if p and not p.startswith(('+', '//', '#'))
     ]
     top = ROOT / 'boards' / board / data['top']
-    generate_project(board, data, out, sources, top, hwid(board))
+    params = app_params(app)
+    if params:  # app.toml 的 params: 改写顶层参数的默认值 (同 HW_ID 的做法, 不依赖工具的参数覆盖)
+        text = top.read_text()
+        for name, value in params.items():
+            text, n = re.subn(rf'(parameter\s+(?:\[[^]]*\]\s*)?{name}\s*=\s*)[^,\n]+', rf'\g<1>{value}', text)
+            if n != 1:
+                raise SystemExit(f'{top.relative_to(ROOT)} 里没有参数 {name} (sw/app/{app}/app.toml 的 params)')
+        top = out / top.name
+        top.write_text(text)
+    generate_project(board, data, out, sources, top, hwid(board, params))
     return out
 
 

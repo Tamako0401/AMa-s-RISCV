@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 // 虚拟盘古板: 真实的板顶层, 屏幕模型和串口接在板子的 io 脚上 (接线同 sw/bsp/shield_lcd.h),
-// HDMI 输出接 video_sink, HDMI 输入接 video_source (测试图)。板子由 -DBOARD=<名> 选择, 默认 mes50hp。
+// HDMI 输出接 video_sink, HDMI 输入接 video_source (测试图)。板子由 -DBOARD=<名> 选择, 默认 mes50hp
+// (程序的 app.toml 有 params 时 ama sim 用 mes2l100hp: 只有它的顶层有 DISPLAY_NEW 等参数)。
 module sim_top #(parameter VIDEO_720P = 1);
     reg clk = 0;
     always #10 clk = ~clk;
@@ -11,6 +12,10 @@ module sim_top #(parameter VIDEO_720P = 1);
 `endif
 `include `"boards/`BOARD/pins_top.vh`"
 `define DUT_TOP `BOARD``_top
+// 程序要的板顶层参数 (app.toml 的 params), ama sim 以 -DSIM_PARAMS=,.名字(值)... 传进来
+`ifndef SIM_PARAMS
+`define SIM_PARAMS
+`endif
     wire [`IO_N-1:0] io;
     // 按键是低有效输入, 没人按时板上是高电平
     localparam [127:0] IN_N = `IO_IN_N_MASK;
@@ -23,6 +28,7 @@ module sim_top #(parameter VIDEO_720P = 1);
     `DUT_TOP #(
         .VIDEO_720P(VIDEO_720P),
         .MEM_FILE("")
+        `SIM_PARAMS
     ) board (
         .clk(clk),
         .key1_n(1'b1),

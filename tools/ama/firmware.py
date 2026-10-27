@@ -99,7 +99,9 @@ def write_hex(image, hex_path):
 SUFFIXES = {'.v', '.vh', '.sv', '.xdc', '.fdc', '.csv', '.c', '.h', '.S', '.ld', '.f', '.toml'}
 
 
-def hwid(board):
+def hwid(board, params=None):
+    """位流的硬件版本号: 源码的 CRC; 程序要求的顶层参数 (app.toml 的 params) 也算进去,
+    所以带参数构建的位流和普通位流版本号不同, 下载时能发现位流不对。"""
     crc = 0
     for top in [
         'rtl',
@@ -114,6 +116,8 @@ def hwid(board):
             if path.suffix in SUFFIXES and path.is_file():
                 crc = zlib.crc32(path.relative_to(ROOT).as_posix().encode(), crc)
                 crc = zlib.crc32(path.read_bytes().replace(b'\r\n', b'\n'), crc)
+    if params:
+        crc = zlib.crc32(json.dumps(sorted(params.items())).encode(), crc)
     return crc
 
 
@@ -140,6 +144,17 @@ def check_app(app):
         raise SystemExit(f'没有这个程序: sw/app/{app}\n  现有: {" ".join(apps)}')
 
 
+def app_config(app):
+    """sw/app/<程序>/app.toml (没有就是空): sources、include、cflags、prepare (编译前先跑的命令)、
+    params (位流要用的顶层参数, 如 DISPLAY_NEW = 1)。"""
+    path = ROOT / 'sw/app' / app / 'app.toml'
+    return tomllib.loads(path.read_text()) if path.exists() else {}
+
+
+def app_params(app):
+    return app_config(app).get('params', {}) if app else {}
+
+
 def firmware_dir(app, board):
     return ROOT / 'build/fw' / board / app
 
@@ -149,8 +164,9 @@ def compile_app(app, board, defines, out, **kw):
     out.mkdir(parents=True, exist_ok=True)
     app_dir = ROOT / 'sw/app' / app
     board_dir = app_dir / 'boards' / board
-    config_path = app_dir / 'app.toml'
-    config = tomllib.loads(config_path.read_text()) if config_path.exists() else {}
+    config = app_config(app)
+    if config.get('prepare'):
+        run(*config['prepare'], cwd=ROOT, **kw)
     sources = SW_LIB + sorted(str(p.relative_to(ROOT)) for d in [app_dir, board_dir] for p in d.glob('*.c'))
     sources += config.get('sources', [])
     include = SW_INC + [str(app_dir.relative_to(ROOT))] + config.get('include', [])

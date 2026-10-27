@@ -42,7 +42,10 @@ flowchart LR
 - **本机工具**: ama 调用的外部程序都按名字找, 本机名字或位置不同时在 `ama.local.toml` 里写替代命令,
   规则见 [`ama.local.toml.example`](../../ama.local.toml.example)。
 - **程序**: `sw/app/<程序>/` 下的 .c 一起编译; `boards/<板>/` 子目录放该板的接线; 要额外源文件或选项时写
-  `app.toml` (`sources`、`include`、`cflags`)。
+  `app.toml` (`sources`、`include`、`cflags`; `prepare`: 编译前先跑的命令, 如生成素材;
+  `params`: 程序要的板顶层参数, 如 `DISPLAY_NEW = 1`)。有 `params` 的程序要用自己的位流 (`fpga build --app <程序>`),
+  参数算进硬件版本号, 下载到别的位流上会报不一致; `sim` 遇到它改用 mes2l100hp 的顶层并带上这些参数。
+- **手柄**: `run` / `monitor` 加 `--pad` 时开一个小窗口, 按键的按住 / 松开和鼠标经串口发给板子 (`pad.py`, 格式见 `game/board/pad.h`)。
 - **测试**: 每个测试目录一个 `tests.toml`, 一个 `[[test]]` 是一个测试台, 判定只看仿真退出码 (0 = PASS)。
   字段: `tb`、`rtl`、`extra`、`params` (每组编译一次)、`runs` (每项运行一次: `app` 或 `program`、`defines`、
   `plusargs`、`link`、`ram_init` (默认 true: 从 ELF 预填 RAM; false: 由固件 startup 从 ROM 初始化))、`expect = "fail"`。

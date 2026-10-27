@@ -32,6 +32,7 @@ from .firmware import (
     run,
     write_hex,
     hwid,
+    app_params,
 )
 from .local import CONFIG, TOOLS, tool
 
@@ -117,10 +118,17 @@ def do_upload(app, board, port, force):
     ser = open_port(port, board)
     step(f'下载到 {board} ({port})')
     hw = load.enter_bootloader(ser)
-    if hw != hwid(board) and not force:
+    want = hwid(board, app_params(app))
+    if hw != want and not force:
+        build = (
+            f'ama fpga build -b {board} --app {app}, ama fpga program --app {app}'
+            if app_params(app)
+            else (f'ama fpga build -b {board}, ama fpga program -b {board}')
+        )
         fail(
-            f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{hwid(board):08x} 不一致 (rtl/、boards/、sw/boot/ 改过):\n'
-            f'  先 ama fpga build -b {board}, ama fpga program -b {board}; 或者加 --force 照样下载'
+            f'板上位流的硬件版本 0x{hw:08x} 和本地源码 0x{want:08x} 不一致 (rtl/、boards/、sw/boot/ 改过,\n'
+            f'  或者这个程序要的位流参数 {app_params(app) or "(无)"} 和板上的不同):\n'
+            f'  先 {build}; 或者加 --force 照样下载'
         )
     start = time.monotonic()
     load.download(ser, image)
@@ -156,10 +164,32 @@ def fmt_cmd(fix: bool = typer.Option(False, '--fix', help='直接改写格式不
         raise typer.Exit(1)
 
 
+PadOpt = typer.Option(
+    False, '--pad', help='开一个小窗口当手柄: 按键的按住 / 松开和鼠标经串口发给板子 (game 用, 见 game/board/pad.h)'
+)
+
+
+def console(ser, pad):
+    if pad:
+        from . import pad as gamepad
+
+        typer.secho(f'--- {ser.port} 115200, 手柄窗口已打开, 关窗口或 Ctrl+C 退出 ---', fg='cyan')
+        ser.timeout = 0.1
+        gamepad.run(ser)
+    else:
+        terminal(ser)
+
+
 @cli.command('run')
-def run_cmd(app: str = App, board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt, force: bool = ForceOpt):
+def run_cmd(
+    app: str = App,
+    board: Optional[str] = BoardOpt,
+    port: Optional[str] = PortOpt,
+    force: bool = ForceOpt,
+    pad: bool = PadOpt,
+):
     """编译, 下载, 然后显示串口输出 (最常用)。"""
-    terminal(do_upload(app, board, port, force))
+    console(do_upload(app, board, port, force), pad)
 
 
 @cli.command()
@@ -177,16 +207,19 @@ def upload(app: str = App, board: Optional[str] = BoardOpt, port: Optional[str] 
 
 
 @cli.command()
-def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt):
+def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt, pad: bool = PadOpt):
     """只打开串口终端, 不下载。"""
     board, port = pick_board(board, port)
-    terminal(open_port(port, board))
+    console(open_port(port, board), pad)
 
 
-def sim_binary(out, vga=False):
-    obj = out / ('obj-vga' if vga else 'obj-720p')
+def sim_binary(out, vga=False, params=None):
+    """params: 程序要的板顶层参数 (app.toml); 有的话板子用 mes2l100hp (只有它的顶层有 DISPLAY_NEW 等), 否则 mes50hp。"""
+    board = 'mes2l100hp' if params else 'mes50hp'
+    tag = ''.join(f'-{k}{v}' for k, v in sorted((params or {}).items()))
+    obj = out / (('obj-vga' if vga else 'obj-720p') + (f'-{board}{tag}' if params else ''))
     sources = [
-        'boards/mes50hp/mes50hp_top.v',
+        f'boards/{board}/{board}_top.v',
         'tests/soc/st7789_model.sv',
         'tests/soc/video_sink.sv',
         'tests/soc/video_source.sv',
@@ -194,12 +227,15 @@ def sim_binary(out, vga=False):
         'sim/uart_tx.sv',
         'sim/sim_top.sv',
     ]
-    inputs = [ROOT / p for p in sources + ['rtl/soc.f', 'boards/mes50hp/pins_top.vh', 'sw/memory.ld']]
-    inputs += [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().split() if not p.startswith('+')]
+    inputs = [ROOT / p for p in sources + ['rtl/soc.f', f'boards/{board}/pins_top.vh', 'sw/memory.ld']]
+    inputs += [ROOT / p for p in (ROOT / 'rtl/soc.f').read_text().split() if not p.startswith(('+', '//', '#'))]
     inputs += list((ROOT / 'rtl').rglob('*.vh'))
-    inputs += list((ROOT / 'boards/mes50hp').glob('*.vh'))
+    inputs += list((ROOT / f'boards/{board}').glob('*.vh'))
+    defines = [f'-DBOARD={board}'] if params else []
+    if params:
+        defines.append('-DSIM_PARAMS=' + ''.join(f',.{k}({v})' for k, v in params.items()))
     binary = obj / 'sim'
-    if not binary.exists() or any(p.stat().st_mtime_ns > binary.stat().st_mtime_ns for p in inputs):
+    if not binary.exists() or any(p.stat().st_mtime_ns > binary.stat().st_mtime_ns for p in inputs if p.exists()):
         step('编译仿真外壳')
         # verilator 的进度输出很长, 放进日志; 报错走 stderr 照样显示
         with (out / 'verilator.log').open('w') as log:
@@ -211,6 +247,7 @@ def sim_binary(out, vga=False):
                 '--top-module',
                 'sim_top',
                 f'-GVIDEO_720P={int(not vga)}',
+                *defines,
                 '-f',
                 'rtl/soc.f',
                 *sources,
@@ -234,10 +271,11 @@ def sim(app: str = App, vga: bool = False, frames: int = 0):
     SCREENS['hdmi'] = (640, 480, 1) if vga else (1280, 720, 1)
     check_app(app)
     out = ROOT / 'build/sim'
-    elf = compile_app(app, 'mes50hp', ['-DSIM_CYCLE_DIV=1000'], out / app)
+    params = app_params(app)
+    elf = compile_app(app, 'mes2l100hp' if params else 'mes50hp', ['-DSIM_CYCLE_DIV=1000'], out / app)
     rom = out / f'{app}.hex'
     write_hex(elf_to_rom(elf), rom)
-    binary = sim_binary(out, vga)
+    binary = sim_binary(out, vga, params)
     frame_limit = frames
     frames = {name: out / f'{app}.{name}' for name in SCREENS}
     for name, (w, h, _) in SCREENS.items():
@@ -303,7 +341,7 @@ def fpga_build(board: str = BuildBoardOpt, app: Optional[str] = AppOpt):
     out = projects.generate(board, app, rom)
     projects.build(board, out)
     bit = out / BOARDS[board]['bitstream']
-    bit.with_suffix('.hwid').write_text(f'0x{hwid(board):08x}\n')
+    bit.with_suffix('.hwid').write_text(f'0x{hwid(board, app_params(app)):08x}\n')
     typer.secho(f'✓ {bit.relative_to(ROOT)}; 下一步 ama fpga program{app_arg(app)}', fg='green')
 
 
@@ -343,7 +381,7 @@ def fpga_program(
         if not bit.exists():
             fail(f'还没有位流, 先 ama fpga build{app_arg(app)} --board {board}')
         stamp = bit.with_suffix('.hwid')
-        if not stamp.exists() or int(stamp.read_text(), 0) != hwid(board):
+        if not stamp.exists() or int(stamp.read_text(), 0) != hwid(board, app_params(app)):
             fail(
                 f'{bit.relative_to(ROOT)} 不是用当前源码构建的 (rtl/、boards/、sw/boot/ 改过), 先 ama fpga build{app_arg(app)} --board {board}'
             )

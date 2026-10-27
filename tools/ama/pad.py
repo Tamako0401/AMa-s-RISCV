@@ -1,0 +1,112 @@
+"""ama monitor --pad: 开一个小窗口当手柄, 60 帧/秒把真正的按键状态 (按住 / 松开) 和鼠标经串口发给板子,
+同时在终端显示串口输出。包的格式见 game/board/pad.h; 键位同串口终端 (wasd / 方向键, Shift 慢速, j / 空格 = A ...)。
+M 切换鼠标: 打开后鼠标在窗口里的位置就是画面位置 (640x360), 左键 = 点击。"""
+
+import sys
+import threading
+import tkinter as tk
+
+W, H = 640, 360
+UP, DOWN, LEFT, RIGHT, A, B, SLOW = 1, 2, 4, 8, 16, 32, 64
+KEYS = {
+    'w': UP,
+    'Up': UP,
+    's': DOWN,
+    'Down': DOWN,
+    'a': LEFT,
+    'Left': LEFT,
+    'd': RIGHT,
+    'Right': RIGHT,
+    'j': A,
+    'space': A,
+    'Return': A,
+    'z': A,
+    'k': B,
+    'x': B,
+    'Shift_L': SLOW,
+    'Shift_R': SLOW,
+}
+BUTTONS = {'r': 1, 'q': 2}  # btn 的 bit0 R, bit1 Q
+RELEASE_MS = 30  # X11 的自动连发是 "松开 + 按下" 成对来的: 松开后这么久没再按下才算真的松开
+
+
+def run(ser):
+    root = tk.Tk()
+    root.title('ama pad')
+    canvas = tk.Canvas(root, width=W, height=H, bg='#101018', highlightthickness=0)
+    canvas.pack()
+    info = canvas.create_text(
+        W // 2,
+        H // 2,
+        fill='#c0c0c0',
+        justify='center',
+        text='焦点在这个窗口时按键发给板子\n\nwasd / 方向键 移动, Shift 慢速\nj / 空格 / 回车 = A (bomb、出刀、确定)\n'
+        'r 重开, q 回标题\nm 切换鼠标 (现在: 关)\n\n串口输出在终端里',
+    )
+    state = {'keys': 0, 'btn': 0, 'mouse': False, 'click': False, 'x': 0, 'y': 0}
+    pending = {}  # 等着确认的松开
+    down = set()  # 按着的键 (自动连发的 "按下" 不算新按)
+
+    def name(e):
+        return e.keysym if e.keysym in KEYS or e.keysym in BUTTONS else e.keysym.lower()
+
+    def press(e):
+        k = name(e)
+        if k in pending:
+            root.after_cancel(pending.pop(k))
+        if k == 'm' and k not in down:
+            state['mouse'] = not state['mouse']
+            canvas.itemconfigure(
+                info,
+                text=canvas.itemcget(info, 'text').rsplit('(现在', 1)[0]
+                + f'(现在: {"开" if state["mouse"] else "关"})\n\n串口输出在终端里',
+            )
+        down.add(k)
+        state['keys'] |= KEYS.get(k, 0)
+        state['btn'] |= BUTTONS.get(k, 0)
+
+    def release(e):
+        k = name(e)
+
+        def really():
+            pending.pop(k, None)
+            down.discard(k)
+            state['keys'] &= ~KEYS.get(k, 0)
+            state['btn'] &= ~BUTTONS.get(k, 0)
+
+        if k in pending:
+            root.after_cancel(pending.pop(k))
+        pending[k] = root.after(RELEASE_MS, really)
+
+    def motion(e):
+        state['x'] = min(max(e.x, 0), W - 1)
+        state['y'] = min(max(e.y, 0), H - 1)
+
+    root.bind('<KeyPress>', press)
+    root.bind('<KeyRelease>', release)
+    canvas.bind('<Motion>', motion)
+    canvas.bind('<ButtonPress-1>', lambda e: state.update(click=True))
+    canvas.bind('<ButtonRelease-1>', lambda e: state.update(click=False))
+
+    def tick():
+        btn = state['btn'] | (4 if state['mouse'] else 0) | (8 if state['mouse'] and state['click'] else 0)
+        x, y = state['x'], state['y']
+        ser.write(bytes([0x80 | state['keys'], btn, x >> 7, x & 127, y >> 7, y & 127]))
+        root.after(16, tick)
+
+    def reader():
+        while True:
+            try:
+                data = ser.read(ser.in_waiting or 1)
+            except Exception:
+                return
+            sys.stdout.write(data.decode('utf-8', 'replace'))
+            sys.stdout.flush()
+
+    threading.Thread(target=reader, daemon=True).start()
+    tick()
+    root.focus_force()
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        pass
