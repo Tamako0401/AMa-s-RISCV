@@ -366,8 +366,7 @@ module disp_render (
                         state <= OBJ_PREP;
                     end
                     OBJ_PREP: begin
-                        // 位切片本身是无符号的: $signed 显式标回有符号, 否则 PDS 打包 APM 时
-                        // 因符号扩展不一致报错 (进而段错误); 对仿真语义没有影响
+                        // 位切片本身是无符号的, $signed 显式标回有符号 (位宽相同, 语义不变)
                         pa  <= $signed(pa_full[33:14]);
                         pb  <= $signed(pb_full[33:14]);
                         dx0 <= ((g_x0 - o_x) <<< 1) + 14'sd1;
