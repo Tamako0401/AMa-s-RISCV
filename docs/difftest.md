@@ -19,6 +19,7 @@ mkdir build && cd build && ../configure --prefix=$HOME/.local/spike && make -j &
 
 RTL 日志由 `tests/cpu/cpu_tb.sv` 在传入 `+commitlog=文件` 时输出，不传则不记录，不影响回归。
 提交判定：EX 级未暂停，且指令不是 `0x00000000`（冲刷气泡）或 `0x00000013`（取指气泡）。
+load 在 EX 提交，但结果晚一拍以上才写回，日志里这一行的寄存器值等写回时再补上。
 
 ## 已知差异（不是 CPU 的 bug）
 

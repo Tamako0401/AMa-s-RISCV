@@ -51,8 +51,10 @@ module idu_exu (
 );
 
     wire en = !stall_i[`STALL_EX] | flush_i;
+    // 冲刷, 或 ID 停住而 EX 照走 (等 load 结果) 时, 送进 EX 的是气泡
+    wire bubble = flush_i | stall_i[`STALL_ID];
 
-    wire [`DECINFO_WIDTH-1:0] i_dec_info_bus = flush_i ? {`DECINFO_WIDTH{1'b0}} : dec_info_bus_i;
+    wire [`DECINFO_WIDTH-1:0] i_dec_info_bus = bubble ? {`DECINFO_WIDTH{1'b0}} : dec_info_bus_i;
     wire [`DECINFO_WIDTH-1:0] dec_info_bus;
     gen_en_dff #(`DECINFO_WIDTH) info_bus_ff (
         clk,
@@ -63,7 +65,7 @@ module idu_exu (
     );
     assign dec_info_bus_o = dec_info_bus;
 
-    wire [31:0] i_dec_imm = flush_i ? 32'h0 : dec_imm_i;
+    wire [31:0] i_dec_imm = bubble ? 32'h0 : dec_imm_i;
     wire [31:0] dec_imm;
     gen_en_dff #(32) imm_ff (
         clk,
@@ -74,7 +76,7 @@ module idu_exu (
     );
     assign dec_imm_o = dec_imm;
 
-    wire [31:0] i_dec_pc = flush_i ? 32'h0 : dec_pc_i;
+    wire [31:0] i_dec_pc = bubble ? 32'h0 : dec_pc_i;
     wire [31:0] dec_pc;
     gen_en_dff #(32) pc_ff (
         clk,
@@ -85,7 +87,7 @@ module idu_exu (
     );
     assign dec_pc_o = dec_pc;
 
-    wire [31:0] i_rs1_rdata = flush_i ? 32'h0 : rs1_rdata_i;
+    wire [31:0] i_rs1_rdata = bubble ? 32'h0 : rs1_rdata_i;
     wire [31:0] rs1_rdata;
     gen_en_dff #(32) rs1_rdata_ff (
         clk,
@@ -96,7 +98,7 @@ module idu_exu (
     );
     assign rs1_rdata_o = rs1_rdata;
 
-    wire [31:0] i_rs2_rdata = flush_i ? 32'h0 : rs2_rdata_i;
+    wire [31:0] i_rs2_rdata = bubble ? 32'h0 : rs2_rdata_i;
     wire [31:0] rs2_rdata;
     gen_en_dff #(32) rs2_rdata_ff (
         clk,
@@ -107,7 +109,7 @@ module idu_exu (
     );
     assign rs2_rdata_o = rs2_rdata;
 
-    wire [4:0] i_rd_waddr = flush_i ? 5'h0 : rd_waddr_i;
+    wire [4:0] i_rd_waddr = bubble ? 5'h0 : rd_waddr_i;
     wire [4:0] rd_waddr;
     gen_en_dff #(5) rd_waddr_ff (
         clk,
@@ -118,7 +120,7 @@ module idu_exu (
     );
     assign rd_waddr_o = rd_waddr;
 
-    wire i_pred_taken = flush_i ? 1'b0 : pred_taken_i;
+    wire i_pred_taken = bubble ? 1'b0 : pred_taken_i;
     wire pred_taken;
     gen_en_dff #(1) pred_taken_ff (
         clk,
@@ -129,7 +131,7 @@ module idu_exu (
     );
     assign pred_taken_o = pred_taken;
 
-    wire i_rd_we = flush_i ? 1'b0 : rd_we_i;
+    wire i_rd_we = bubble ? 1'b0 : rd_we_i;
     wire rd_we;
     gen_en_dff #(1) rd_we_ff (
         clk,
@@ -140,7 +142,7 @@ module idu_exu (
     );
     assign rd_we_o = rd_we;
 
-    wire [31:0] i_inst = flush_i ? 32'h0 : inst_i;
+    wire [31:0] i_inst = bubble ? 32'h0 : inst_i;
     wire [31:0] inst;
     gen_en_dff #(32) inst_ff (
         clk,

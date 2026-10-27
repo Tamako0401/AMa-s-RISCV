@@ -50,6 +50,12 @@ module exu (
     output wire [31:0] reg_wdata_o,  // 写寄存器数据
     output wire        reg_we_o,     // 是否要写通用寄存器
     output wire [ 4:0] reg_waddr_o,  // 写通用寄存器地址
+    // load 结果晚一拍写回 (寄存器堆第二个写口) 和译码级要避开的目的寄存器, 见 exu_mem
+    output wire        load_we_o,
+    output wire [ 4:0] load_waddr_o,
+    output wire [31:0] load_wdata_o,
+    output wire [ 4:0] load_ex_rd_o,
+    output wire [ 4:0] load_wait_rd_o,
 
     // csr_reg
     input  wire [31:0] csr_rdata_i,
@@ -279,7 +285,6 @@ module exu (
         .bjp_cmp_res_o(bjp_cmp_res_o)
     );
 
-    wire mem_reg_we_o;
     wire mem_mem_we_o;
     wire [31:0] mem_wdata;
     wire mem_stall_o;
@@ -288,6 +293,7 @@ module exu (
         .clk(clk),
         .rst_n(rst_n),
         .req_mem_i(req_mem_o),
+        .mem_rd_i(rd_waddr_i),
         .mem_addr_i(mem_addr),
         .mem_rs2_data_i(mem_rs2_data_o),
         .mem_req_ready_i(mem_req_ready_i),
@@ -305,11 +311,15 @@ module exu (
         .mem_stall_o(mem_stall_o),
         .mem_addr_o(mem_addr_o),
         .mem_wdata_o(mem_wdata),
-        .mem_reg_we_o(mem_reg_we_o),
         .mem_mem_we_o(mem_mem_we_o),
         .mem_sel_o(mem_sel_o),
         .mem_req_valid_o(mem_req_valid_o),
-        .mem_rsp_ready_o(mem_rsp_ready_o)
+        .mem_rsp_ready_o(mem_rsp_ready_o),
+        .load_we_o(load_we_o),
+        .load_waddr_o(load_waddr_o),
+        .load_wdata_o(load_wdata_o),
+        .load_ex_rd_o(load_ex_rd_o),
+        .load_wait_rd_o(load_wait_rd_o)
     );
 
     wire [31:0] muldiv_reg_wdata_o;
@@ -344,9 +354,6 @@ module exu (
         .muldiv_reg_waddr_i(rd_waddr_i),
         .muldiv_reg_wdata_i(muldiv_reg_wdata_o),
         .req_mem_i(req_mem_o),
-        .mem_reg_we_i(mem_reg_we_o),
-        .mem_reg_waddr_i(rd_waddr_i),
-        .mem_reg_wdata_i(mem_wdata),
         .req_csr_i(req_csr_o),
         .csr_reg_we_i(req_csr_o),
         .csr_reg_waddr_i(rd_waddr_i),

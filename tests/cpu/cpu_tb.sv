@@ -93,6 +93,8 @@ module cpu_tb;
                 $fatal(1, "Unknown CPU bus control I=%b/%b D=%b/%b", iv, iq, dv, dq);
             if (dut.ex_reg_we_o && dut.ex_reg_waddr_o != 0 && ((^dut.ex_reg_wdata_o) === 1'bx))
                 $fatal(1, "Unknown register writeback");
+            if (dut.ex_load_we && dut.ex_load_waddr != 0 && ((^dut.ex_load_wdata) === 1'bx))
+                $fatal(1, "Unknown load writeback");
             if (i_wait && (!iv || ia !== held_ia)) $fatal(1, "Unstable stalled fetch");
             if (d_wait && (!dv || {da, dw, dsel, dwe} !== held_d))
                 $fatal(1, "Unstable stalled data request");
@@ -173,9 +175,17 @@ module cpu_tb;
                 end
             end
         end
+    // load 在 EX 提交, 结果晚一拍以上才从寄存器堆第二个写口写回: 这一行等写回时再补上值和换行
+    reg log_wait_load = 0;
     always @(posedge clk)
         if (rst_n) begin
             if (commit_log_fd != 0) begin
+                if (log_wait_load && dut.ex_load_we) begin
+                    if (dut.ex_load_waddr < 10)
+                        $fwrite(commit_log_fd, " x%0d  0x%08h\n", dut.ex_load_waddr, dut.ex_load_wdata);
+                    else $fwrite(commit_log_fd, " x%0d 0x%08h\n", dut.ex_load_waddr, dut.ex_load_wdata);
+                    log_wait_load = 0;
+                end
                 if (dut.ie_inst_o != 32'h00000000 && dut.ie_inst_o != 32'h00000013 &&
                     dut.ctrl_stall_o[`STALL_EX] == 0) begin
                     // 没有真指令的时候不打印, 在等数据的时候不打印
@@ -198,7 +208,8 @@ module cpu_tb;
                                 dut.ex_reg_wdata_o
                             );
                     // 写非x0寄存器时
-                    $fwrite(commit_log_fd, "\n");
+                    if (dut.ie_inst_o[6:0] == 7'b0000011 && dut.ie_inst_o[11:7] != 0) log_wait_load = 1;
+                    else $fwrite(commit_log_fd, "\n");
                 end
             end
         end

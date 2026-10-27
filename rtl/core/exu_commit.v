@@ -30,10 +30,7 @@ module exu_commit (
     input wire [4:0] muldiv_reg_waddr_i,
     input wire [31:0] muldiv_reg_wdata_i,
 
-    input wire req_mem_i,
-    input wire mem_reg_we_i,
-    input wire [4:0] mem_reg_waddr_i,
-    input wire [31:0] mem_reg_wdata_i,
+    input wire req_mem_i,  // load 不在这里写回 (见 exu_mem), 只用来屏蔽 ALU 结果
 
     input wire req_csr_i,
     input wire csr_reg_we_i,
@@ -57,7 +54,7 @@ module exu_commit (
 
     wire use_alu_res = (~req_muldiv_i) & (~req_mem_i) & (~req_csr_i) & (~req_bjp_i);
 
-    assign reg_we_o = muldiv_reg_we_i | mem_reg_we_i | csr_reg_we_i | use_alu_res | bjp_reg_we_i;
+    assign reg_we_o = muldiv_reg_we_i | csr_reg_we_i | use_alu_res | bjp_reg_we_i;
 
     reg [4:0] reg_waddr;
 
@@ -65,7 +62,6 @@ module exu_commit (
         reg_waddr = 5'h0;
         case (1'b1)
             muldiv_reg_we_i: reg_waddr = muldiv_reg_waddr_i;
-            mem_reg_we_i:    reg_waddr = mem_reg_waddr_i;
             csr_reg_we_i:    reg_waddr = csr_reg_waddr_i;
             bjp_reg_we_i:    reg_waddr = bjp_reg_waddr_i;
             rd_we_i:         reg_waddr = rd_waddr_i;
@@ -80,7 +76,6 @@ module exu_commit (
         reg_wdata = 32'h0;
         case (1'b1)
             muldiv_reg_we_i: reg_wdata = muldiv_reg_wdata_i;
-            mem_reg_we_i:    reg_wdata = mem_reg_wdata_i;
             csr_reg_we_i:    reg_wdata = csr_reg_wdata_i;
             bjp_reg_we_i:    reg_wdata = bjp_reg_wdata_i;
             use_alu_res:     reg_wdata = alu_reg_wdata_i;

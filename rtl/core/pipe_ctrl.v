@@ -51,8 +51,9 @@ module pipe_ctrl (
             stall[`STALL_IF] = 1'b1;
             stall[`STALL_PC] = 1'b1;
         end else if (stall_from_id_i) begin
+            // 译码级的指令留在 ID (ifu_idu 保持、取指不出队), EX 收到气泡 (见 idu_exu)
             stall[`STALL_EX] = 1'b0;
-            stall[`STALL_ID] = 1'b0;
+            stall[`STALL_ID] = 1'b1;
             stall[`STALL_IF] = 1'b1;
             stall[`STALL_PC] = 1'b1;
         end else begin

@@ -28,6 +28,11 @@ module gpr_reg (
     input wire [ 4:0] waddr_i,  // 写寄存器地址
     input wire [31:0] wdata_i,  // 写寄存器数据
 
+    // 第二个写口: load 结果 (指令已离开 EX)。译码级保证它和第一个写口不会同拍写同一个寄存器
+    input wire        load_we_i,
+    input wire [ 4:0] load_waddr_i,
+    input wire [31:0] load_wdata_i,
+
     input  wire [ 4:0] raddr1_i,  // 读寄存器1地址
     output wire [31:0] rdata1_o,  // 读寄存器1数据
 
@@ -48,19 +53,22 @@ module gpr_reg (
                 assign we[i]   = 1'b0;
                 assign regs[i] = 32'h0;
             end else begin : not_x0
-                assign we[i] = we_i & (waddr_i == i);
+                wire load_we = load_we_i & (load_waddr_i == i);
+                assign we[i] = (we_i & (waddr_i == i)) | load_we;
                 gen_en_dffnr #(32) rf_dff (
                     clk,
                     we[i],
-                    wdata_i,
+                    load_we ? load_wdata_i : wdata_i,
                     regs[i]
                 );
             end
         end
     endgenerate
 
-    assign rdata1_o = (|raddr1_i)? ((we_i & (waddr_i == raddr1_i))? wdata_i: regs[raddr1_i]): 32'h0;
-    assign rdata2_o = (|raddr2_i)? ((we_i & (waddr_i == raddr2_i))? wdata_i: regs[raddr2_i]): 32'h0;
+    assign rdata1_o = (|raddr1_i)? ((we_i & (waddr_i == raddr1_i))? wdata_i:
+                                    (load_we_i & (load_waddr_i == raddr1_i))? load_wdata_i: regs[raddr1_i]): 32'h0;
+    assign rdata2_o = (|raddr2_i)? ((we_i & (waddr_i == raddr2_i))? wdata_i:
+                                    (load_we_i & (load_waddr_i == raddr2_i))? load_wdata_i: regs[raddr2_i]): 32'h0;
 
     // for debug
     wire [31:0] ra = regs[1];

@@ -107,6 +107,11 @@ module tinyriscv_core #(
     wire ex_reg_we_o;
     wire [4:0] ex_reg_waddr_o;
     wire ex_hold_flag_o;
+    wire ex_load_we;
+    wire [4:0] ex_load_waddr;
+    wire [31:0] ex_load_wdata;
+    wire [4:0] ex_load_ex_rd;
+    wire [4:0] ex_load_wait_rd;
     wire ex_jump_flag_o;
     wire [31:0] ex_jump_addr_o;
     wire [31:0] ex_csr_wdata_o;
@@ -191,10 +196,20 @@ module tinyriscv_core #(
         .upd_taken(btb_upd_taken)
     );
 
+    // load 的结果在请求之后才写回 (见 exu_mem): 译码级的指令要读或写一个还没写回的 load 目的寄存器时,
+    // 留在 ID 一拍 (EX 收到气泡)。写也要等, 否则 load 晚到的写回会盖掉它。冲刷时 ID 里的指令作废, 不用等。
+    // 响应到的那一拍不用停: 寄存器堆读口旁路第二个写口。
+    function automatic load_hit(input [4:0] r, input [4:0] rs1, input [4:0] rs2, input [4:0] rd);
+        load_hit = (r != 5'd0) && (r == rs1 || r == rs2 || r == rd);
+    endfunction
+    wire load_use_stall = !ctrl_flush_o &&
+        (load_hit(ex_load_ex_rd, id_rs1_raddr_o, id_rs2_raddr_o, id_rd_waddr_o) ||
+         load_hit(ex_load_wait_rd, id_rs1_raddr_o, id_rs2_raddr_o, id_rd_waddr_o));
+
     pipe_ctrl u_pipe_ctrl (
         .clk(clk),
         .rst_n(rst_n),
-        .stall_from_id_i(id_stall_o),
+        .stall_from_id_i(id_stall_o | load_use_stall),
         .stall_from_ex_i(ex_hold_flag_o),
         .stall_from_jtag_i(1'b0),
         .stall_from_clint_i(clint_stall_flag_o),
@@ -211,6 +226,9 @@ module tinyriscv_core #(
         .we_i(ex_reg_we_o),
         .waddr_i(ex_reg_waddr_o),
         .wdata_i(ex_reg_wdata_o),
+        .load_we_i(ex_load_we),
+        .load_waddr_i(ex_load_waddr),
+        .load_wdata_i(ex_load_wdata),
         .raddr1_i(id_rs1_raddr_o),
         .rdata1_o(regs_rdata1_o),
         .raddr2_i(id_rs2_raddr_o),
@@ -310,6 +328,11 @@ module tinyriscv_core #(
         .reg_wdata_o(ex_reg_wdata_o),
         .reg_we_o(ex_reg_we_o),
         .reg_waddr_o(ex_reg_waddr_o),
+        .load_we_o(ex_load_we),
+        .load_waddr_o(ex_load_waddr),
+        .load_wdata_o(ex_load_wdata),
+        .load_ex_rd_o(ex_load_ex_rd),
+        .load_wait_rd_o(ex_load_wait_rd),
         .hold_flag_o(ex_hold_flag_o),
         .jump_flag_o(ex_jump_flag_o),
         .jump_addr_o(ex_jump_addr_o),

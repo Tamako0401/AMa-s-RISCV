@@ -12,4 +12,5 @@ runs = [
   { program = ["tests/cpu/start.S", "tests/cpu/boot.c"], plusargs = ["+stores=-1"] },
   { program = ["tests/cpu/memory.S"], plusargs = ["+stores=8"] },
   { program = ["tests/cpu/extensions.S"], plusargs = ["+stores=0"] },
+  { program = ["tests/cpu/loaduse.S"], plusargs = ["+stores=2"] },
 ]
