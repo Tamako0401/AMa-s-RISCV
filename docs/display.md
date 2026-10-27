@@ -93,7 +93,8 @@ disp_scanout     pclk: 读显示行 -> 整体混色 -> RGB888 -> 盖文字层
 
 ## 还没做
 
-- C 的板上后端 (`gfx.h` -> 这些寄存器) 和上板。`mes2l100hp` 置 `DISPLAY_NEW=1` 已能综合、时序满足 (见下)。
+- 上板。C 的板上后端已写好 (`game/board/gfx_hw.c`, 程序 `sw/app/game`, 见 [game/README.md](../game/README.md)),
+  `ama sim game` 里两个游戏的画面都出来了; `mes2l100hp` 置 `DISPLAY_NEW=1` 已能综合、时序满足 (见下), 但还没在板上跑过。
 - 超时 (OVERRUN) 时那一行是半成品; 现在的游戏最坏 69%, 还有余量。
 
 **SoC 级仿真已过** (2026-10-26, `tests/soc/display_tb.sv`): CPU 走 rib s3 按 `refmodel.py

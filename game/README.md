@@ -33,6 +33,31 @@ tools/       assets.py: 图案和字库 -> build/assets.c (占位图; game/asset
 
 板上只换掉右边: `hand_udp.c` 换成读视觉寄存器, `gfx_mem.c` + `render.c` 换成写显示硬件, `core/` 一行不改。
 
+## 板上 (盘古 100HP, 新显示)
+
+```
+board/gfx_hw.c   gfx.h 的板上版: 精灵记在内存里, 每帧写进显示的后台精灵表再提交; 背景、文字直接写
+board/pad.c      串口来的按键: 终端打字 (ama monitor) 或手柄窗口 (ama monitor --pad) 的包, 格式见 pad.h
+board/mem.c      memset / memcpy (-nostdlib 下 gcc 清大结构体要用)
+build/display_assets.c   开机写进显示的调色板和图案库 (refmodel.py firmware 生成, 和参考模型同一份 256 色量化)
+sw/app/game/     主程序: 标题画面选游戏、键盘 -> 两个游戏的输入、60 帧/秒的主循环 (等显示换帧)
+```
+
+```sh
+./ama fpga build -b mes2l100hp --app game   # 位流要 DISPLAY_NEW=1 (sw/app/game/app.toml 的 params), 和普通位流分开
+./ama fpga program --app game
+./ama run game -b mes2l100hp --pad          # 改了 C 以后: 下载并打开手柄窗口; 不加 --pad 就在终端里打字玩
+./ama sim game                              # 没板子: Verilator 跑整个 SoC + 新显示, 很慢 (约 6 秒一帧), 只看画面对不对
+```
+
+键位: 标题画面上下选、j / 空格 / 回车开始; 游戏里 wasd 或方向键移动 (终端里大写 = Shift = 东方的慢速),
+j / 空格 = A (东方 bomb、水果出刀), r 重开, q 回标题, 结束后 A 重开。手柄窗口里按 m 切换成鼠标 (位置 = 画面位置)。
+水果用键盘: 方向键移动刀尖, A 沿最近移动的方向冲出去一刀 (5 帧 x 32 点, 够快才切得开)。
+串口每局结束打印成绩, 每 5 秒打印 CPU 最忙一帧的拍数 (一帧 83 万拍) 和显示最忙一行的拍数。
+
+终端只发 "按下" 和自动连发, 不发 "松开", 所以终端里按住方向键会先走一小步、停约半秒再连续走; `--pad` 没有这个问题。
+串口接收有 16 字节 FIFO (`rtl/perips/uart.v`), CPU 算一帧时来的几个字节不会丢。
+
 ## 跑
 
 ```sh

@@ -24,6 +24,7 @@ boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), �
 | [snake](app/snake/README.md) | 贪吃蛇, 按键或串口 wasd 控制 |
 | [coremark](app/coremark/README.md) | CoreMark 跑分 |
 | video_demo | HDMI 出图: 背景 + 弹跳的球 (精灵), 右上角小窗显示 HDMI 输入 |
+| game | 两个游戏 (东方式、水果忍者式) 的板上版, 新显示出图, 键盘经串口玩; 只在 mes2l100hp, 见 [game/README.md](../game/README.md) |
 
 **引脚功能只在 components / bsp 里选。** `io_connect_out` / `io_connect_in` (把引脚接到 SPI、UART) 只允许出现在
 components 和 bsp 里 (现在只有 `components/lcd/lcd_io.c`), 程序里只用 `io_dir` / `io_write` / `io_read`。

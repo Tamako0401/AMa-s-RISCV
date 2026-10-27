@@ -20,6 +20,8 @@
       expect.hex (期望的 1280x720 RGB888)。tests/display/ 用。
   game/tools/refmodel.py scenes -o 目录
       程序造的边界场景 (混合、翻转、clip、半出屏、旋转、每行超过上限...), 每个存成一个 <名字>.jsonl, 格式同 --dump。
+  game/tools/refmodel.py firmware -o build/display_assets.c
+      板上程序开机要写进显示的东西 (调色板、图案表、图案库) 写成 C 数组, 外加字库; 板上后端 game/board/ 用。
   game/tools/refmodel.py tables -o rtl/display/disp_tables.vh
       生成 RTL 的 sin、1/scale 查找表 (和这里的 SIN、INV 同一份)。
 
@@ -673,6 +675,37 @@ def soc_script(writes):
     return words + [0xFFFFFFFF]
 
 
+def cmd_firmware(args):
+    """开机写一次的部分 (同 bus_writes 的前半, 不跳过 0: 板上显示的 RAM 里可能是上一个程序留下的)。
+    字库按字节存 (总线上一行占一个字, 直接存要 8 KB), 由板上程序展开。"""
+    art = Assets()
+    writes = [(PAL + 4 * i, int(c) & 0xFFFF) for i, c in enumerate(art.palette)]
+    table, words = image_table(art)
+    writes += [(IMG + 4 * i, code << 13 | base) for i, (code, base) in enumerate(table)]
+    for i, w in enumerate(words):
+        writes += [(PAT + 8 * i, w & 0xFFFFFFFF), (PAT + 8 * i + 4, w >> 32)]
+    script, i = [], 0
+    while i < len(writes):
+        j = i + 1
+        while j < len(writes) and writes[j][0] == writes[i][0] + 4 * (j - i):
+            j += 1
+        script += [writes[i][0], j - i, *(d for _, d in writes[i:j])]
+        i = j
+    font = [int(art.font[code][r]) for code in range(128) for r in range(16)]
+    out = Path(args.output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        '/* refmodel.py firmware 生成, 不要手改。板上开机写进显示 (见 docs/display.md "每帧怎么用" 第 1 步)。\n'
+        f' * {len(table)} 张图案, 图案库 {len(words) * 8} 字节。 */\n'
+        '#include <stdint.h>\n\n'
+        '/* (偏移, 个数, 数据...) 段, 0xFFFFFFFF 结尾; 偏移相对显示基址 */\n'
+        'const uint32_t display_assets[] = {\n' + assets.c_array(script + [0xFFFFFFFF], 8) + '\n};\n\n'
+        '/* 128 个字 x 16 行, 一行一字节 (最高位在左) */\n'
+        'const uint8_t display_font[128 * 16] = {\n' + assets.c_array(font) + '\n};\n'
+    )
+    print(f'{out}: {len(table)} 张图案, 写 {len(writes)} 次, {4 * len(script) + len(font)} 字节')
+
+
 def write_hex(path, values, digits):
     Path(path).write_text(''.join(f'{v:0{digits}x}\n' for v in values))
 
@@ -881,11 +914,13 @@ def main():
     e.add_argument('-o', '--output', required=True)
     sc = sub.add_parser('scenes')
     sc.add_argument('-o', '--output', required=True)
+    fw = sub.add_parser('firmware')
+    fw.add_argument('-o', '--output', required=True)
     t = sub.add_parser('tables')
     t.add_argument('-o', '--output', required=True)
     args = parser.parse_args()
     commands = {'render': cmd_render, 'cost': cmd_cost, 'colors': cmd_colors, 'memory': cmd_memory, 'export': cmd_export,
-                'scenes': cmd_scenes, 'tables': cmd_tables}
+                'scenes': cmd_scenes, 'tables': cmd_tables, 'firmware': cmd_firmware}
     commands[args.cmd](args)
 
 

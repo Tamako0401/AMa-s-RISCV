@@ -14,6 +14,12 @@ build/%: pc/%_pc.c $(DEPS)
 build/assets.c build/assets.h: tools/assets.py $(wildcard assets/*.png)
 	uv run tools/assets.py build
 
+# 板上 (sw/app/game) 要的: 图案编号的头文件, 和开机写进显示的素材 (调色板 + 256 色图案库)
+board: build/assets.h build/display_assets.c
+
+build/display_assets.c: tools/refmodel.py tools/assets.py $(wildcard assets/*.png)
+	uv run tools/refmodel.py firmware -o $@
+
 # core/ 不能依赖电脑上的东西: 单独编一遍, 只给 core/ 和生成的素材头文件
 check-core: build/assets.h
 	$(CC) -std=c11 -Wall -Wextra -Werror -ffreestanding -fsyntax-only -Icore -Ibuild $(CORE)
@@ -21,4 +27,4 @@ check-core: build/assets.h
 clean:
 	rm -rf build
 
-.PHONY: all check-core clean
+.PHONY: all board check-core clean
