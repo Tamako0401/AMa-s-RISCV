@@ -13,6 +13,9 @@
 //
 // 同一拍读写同一格时做旁路(write-through), 把这一拍的更新结果直接送到查表输出,
 // 这样刚训练好的分支紧接着执行也能看到最新结果。
+//
+// tag/target/counter 不复位, 写成组合读的数组, 综合成分布式 RAM (一个写口, 查表和更新各一个读口);
+// 只有 valid 是带复位的寄存器。全用寄存器时 32 项就要约 1900 FF + 850 LUT。
 module btb #(
     parameter integer ENTRIES = 32,
     parameter integer IDX_W   = 5
@@ -37,7 +40,7 @@ module btb #(
     reg [TAG_W-1:0] tag[0:ENTRIES-1];
     reg [31:0] target[0:ENTRIES-1];
     reg [1:0] counter[0:ENTRIES-1];
-    reg valid[0:ENTRIES-1];
+    reg [ENTRIES-1:0] valid;
 
     // PC[1:0] 恒为 0, 不参与索引和 tag
     wire [IDX_W-1:0] lookup_idx = lookup_pc[IDX_W+1:2];
@@ -69,23 +72,20 @@ module btb #(
     assign lookup_taken = lookup_hit && eff_cnt[1];
     assign lookup_target = eff_target;
 
-    integer i;
+    wire upd_wr = upd_en && (upd_taken || upd_hit);
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            for (i = 0; i < ENTRIES; i = i + 1) begin
-                valid[i] <= 1'b0;
-                tag[i] <= {TAG_W{1'b0}};
-                target[i] <= 32'h0;
-                counter[i] <= 2'd0;
-            end
-        end else if (upd_en && (upd_taken || upd_hit)) begin
-            // 不跳又没命中时不写: 预测本来就是"不跳", 不需要表项
-            valid[upd_idx] <= next_valid;
+    always @(posedge clk) begin
+        // 不跳又没命中时不写: 预测本来就是"不跳", 不需要表项
+        if (upd_wr) begin
             tag[upd_idx] <= next_tag;
             target[upd_idx] <= next_target;
             counter[upd_idx] <= next_cnt;
         end
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) valid <= {ENTRIES{1'b0}};
+        else if (upd_wr) valid[upd_idx] <= next_valid;
     end
 
 endmodule

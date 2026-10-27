@@ -182,8 +182,8 @@ module tinyriscv_core #(
     );
 
     btb #(
-        .ENTRIES(32),
-        .IDX_W(5)
+        .ENTRIES(128),
+        .IDX_W(7)
     ) u_btb (
         .clk(clk),
         .rst_n(rst_n),
