@@ -1,5 +1,6 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
 // Changes: Normalize line endings to LF and remove trailing whitespace. Remove dependency on upstream core/defines.v.
+// Memory address no longer goes through this datapath (exu_dispatch has its own adder).
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
 /*
  Copyright 2020 Blue Liang, liangkangnan@163.com
@@ -55,11 +56,6 @@ module exu_alu_datapath (
     input wire bjp_op_jump_i,
     input wire [31:0] bjp_jump_op1_i,
     input wire [31:0] bjp_jump_op2_i,
-
-    // MEM
-    input wire req_mem_i,
-    input wire [31:0] mem_op1_i,
-    input wire [31:0] mem_op2_i,
 
     // CSR
     input wire req_csr_i,
@@ -211,26 +207,6 @@ module exu_alu_datapath (
                   bjp_op_bltu_i,
                   bjp_op_bge_i,
                   bjp_op_bgeu_i
-                 }) |
-                ({`DATAPATH_MUX_WIDTH{req_mem_i}} & {
-                  mem_op1_i,
-                  mem_op2_i,
-                  1'b1,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0
                  }) |
                 ({`DATAPATH_MUX_WIDTH{req_csr_i}} & {
                   csr_op1_i,

@@ -85,8 +85,7 @@ module exu_dispatch (
 
     // dispatch to MEM
     output wire req_mem_o,
-    output wire [31:0] mem_op1_o,
-    output wire [31:0] mem_op2_o,
+    output wire [31:0] mem_addr_o,
     output wire [31:0] mem_rs2_data_o,
     output wire mem_op_lb_o,
     output wire mem_op_lh_o,
@@ -196,8 +195,9 @@ module exu_dispatch (
     assign mem_op_sb_o = mem_info[`DECINFO_MEM_SB];
     assign mem_op_sh_o = mem_info[`DECINFO_MEM_SH];
     assign mem_op_sw_o = mem_info[`DECINFO_MEM_SW];
-    assign mem_op1_o = op_mem ? rs1_rdata_i : 32'h0;
-    assign mem_op2_o = op_mem ? dec_imm_i : 32'h0;
+    // 访存地址用自己的加法器, 不经共享 ALU 的操作数选择 (CSR 等), 缩短 dbus 地址路径。
+    // 不按 op_mem 清零: 只在 req_mem_o 时被使用
+    assign mem_addr_o = rs1_rdata_i + dec_imm_i;
     assign mem_rs2_data_o = op_mem ? rs2_rdata_i : 32'h0;
     assign req_mem_o = op_mem;
 

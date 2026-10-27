@@ -132,8 +132,7 @@ module exu (
     wire csr_csrrc_o;
     // dispatch to MEM
     wire req_mem_o;
-    wire [31:0] mem_op1_o;
-    wire [31:0] mem_op2_o;
+    wire [31:0] mem_addr;
     wire [31:0] mem_rs2_data_o;
     wire mem_op_lb_o;
     wire mem_op_lh_o;
@@ -209,8 +208,7 @@ module exu (
         .csr_csrrc_o(csr_csrrc_o),
         // dispatch to MEM
         .req_mem_o(req_mem_o),
-        .mem_op1_o(mem_op1_o),
-        .mem_op2_o(mem_op2_o),
+        .mem_addr_o(mem_addr),
         .mem_rs2_data_o(mem_rs2_data_o),
         .mem_op_lb_o(mem_op_lb_o),
         .mem_op_lh_o(mem_op_lh_o),
@@ -268,10 +266,6 @@ module exu (
         .bjp_op_jump_i(bjp_op_jump_o),
         .bjp_jump_op1_i(bjp_jump_op1_o),
         .bjp_jump_op2_i(bjp_jump_op2_o),
-        // MEM
-        .req_mem_i(req_mem_o),
-        .mem_op1_i(mem_op1_o),
-        .mem_op2_i(mem_op2_o),
         // CSR
         .req_csr_i(req_csr_o),
         .csr_op1_i(csr_op1),
@@ -294,7 +288,7 @@ module exu (
         .clk(clk),
         .rst_n(rst_n),
         .req_mem_i(req_mem_o),
-        .mem_addr_i(alu_res_o),
+        .mem_addr_i(mem_addr),
         .mem_rs2_data_i(mem_rs2_data_o),
         .mem_req_ready_i(mem_req_ready_i),
         .mem_rsp_valid_i(mem_rsp_valid_i),

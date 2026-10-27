@@ -27,9 +27,6 @@ module alu_tb;
     reg bjp_op_jump_i = 0;
     reg [31:0] bjp_jump_op1_i = 0;
     reg [31:0] bjp_jump_op2_i = 0;
-    reg req_mem_i = 0;
-    reg [31:0] mem_op1_i = 0;
-    reg [31:0] mem_op2_i = 0;
     reg req_csr_i = 0;
     reg [31:0] csr_op1_i = 0;
     reg [31:0] csr_op2_i = 0;
@@ -67,9 +64,6 @@ module alu_tb;
         .bjp_op_jump_i(bjp_op_jump_i),
         .bjp_jump_op1_i(bjp_jump_op1_i),
         .bjp_jump_op2_i(bjp_jump_op2_i),
-        .req_mem_i(req_mem_i),
-        .mem_op1_i(mem_op1_i),
-        .mem_op2_i(mem_op2_i),
         .req_csr_i(req_csr_i),
         .csr_op1_i(csr_op1_i),
         .csr_op2_i(csr_op2_i),
@@ -191,12 +185,6 @@ module alu_tb;
         #1;
         if (bjp_cmp_res_o !== 0) $fatal(1, "not equal branch");
         req_bjp_i = 0;
-        req_mem_i = 1;
-        mem_op1_i = 100;
-        mem_op2_i = -4;
-        #1;
-        if (alu_res_o !== 96) $fatal(1, "memory effective address");
-        req_mem_i   = 0;
         req_csr_i   = 1;
         csr_op1_i   = 8'ha5;
         csr_op2_i   = 8'h50;

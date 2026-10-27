@@ -43,6 +43,7 @@
 | `exu_mem.v` | 每条访存指令只发一次请求；在请求阶段给出写使能；响应那一拍就写回并放行 EX，不再多等一拍 `done`（读数据在响应拍直接取总线值，其余时候用锁存值）；非对齐请求不发往外部 |
 | `tinyriscv_core.v` | 参数化复位 PC；JAL/JALR 返回地址和 FENCE 后继地址使用执行中指令的 PC+4，而非译码级当前地址 |
 | `exu.v` | JALR 目标地址清除 bit 0 |
+| `exu_dispatch.v`、`exu_alu_datapath.v` | 访存地址 `rs1 + imm` 用 dispatch 里单独的加法器，共享 ALU 去掉 MEM 一路。原来 dbus 地址要经过 CSR 读选择和 ALU 操作数选择，是 sys_clk 的最差路径之一 |
 
 ## 尚未证明的范围
 
