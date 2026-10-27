@@ -59,18 +59,16 @@ module disp_blend (
             {sr, sg, sb} = {7'b0, s[15:11], 6'b0, s[10:5], 7'b0, s[4:0]};
             {dr, dg, db} = {7'b0, d[15:11], 6'b0, d[10:5], 7'b0, d[4:0]};
             ka = {7'b0, a};
-            kd = 12'd16 - ka;
-            if (mode[1]) begin
-                r = dr + ((sr * ka) >> 4);
-                g = dg + ((sg * ka) >> 4);
-                b = db + ((sb * ka) >> 4);
-                blend = {r > 31 ? 5'd31 : r[4:0], g > 63 ? 6'd63 : g[5:0], b > 31 ? 5'd31 : b[4:0]};
-            end else if (mode[0]) begin
-                r = (sr * ka + dr * kd) >> 4;
-                g = (sg * ka + dg * kd) >> 4;
-                b = (sb * ka + db * kd) >> 4;
-                blend = {r[4:0], g[5:0], b[4:0]};
-            end else blend = s;
+            // 加法也走同一条乘加: kd 取 16 时 (s * a + d * 16) >> 4 == d + ((s * a) >> 4), 逐位相同。
+            // 不要拆回两条路径: 加法写成 d + ((s * a) >> 4)、和半透明共用 s * a 时, PDS 2022.2-SP6.4
+            // 综合段错误 (见 docs/display.md)
+            kd = mode[1] ? 12'd16 : 12'd16 - ka;
+            r = (sr * ka + dr * kd) >> 4;
+            g = (sg * ka + dg * kd) >> 4;
+            b = (sb * ka + db * kd) >> 4;
+            if (mode[1]) blend = {r > 31 ? 5'd31 : r[4:0], g > 63 ? 6'd63 : g[5:0], b > 31 ? 5'd31 : b[4:0]};
+            else if (mode[0]) blend = {r[4:0], g[5:0], b[4:0]};
+            else blend = s;
         end
     endfunction
 

@@ -1,5 +1,5 @@
-// 调色板: 256 项 RGB565, 一拍查 8 个色号 (一格 8 个点)。先用 8 份简单双口 RAM, 写口一起写。
-// 资源紧了可以改成 4 份真双口, 每份查 2 个。
+// 调色板: 256 项 RGB565, 一拍查 8 个色号 (一格 8 个点)。8 份简单双口 RAM, 写口一起写;
+// 用 LUT RAM (每份 256x16 很浅, 放 DRM 要占 8 个 18 Kb 块, 片上 DRM 是最紧的资源)。
 module disp_palette (
     input wire clk,
     input wire we,
@@ -11,7 +11,7 @@ module disp_palette (
     genvar i;
     generate
         for (i = 0; i < 8; i = i + 1) begin : g_copy
-            dpram #(
+            dpram_lut #(
                 .DW(16),
                 .DP(256)
             ) u_ram (

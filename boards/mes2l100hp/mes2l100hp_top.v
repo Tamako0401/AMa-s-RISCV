@@ -4,10 +4,8 @@ module mes2l100hp_top #(
     parameter BREAK_CYCLES = 500000,
     parameter VIDEO_720P = 1,
     // 1 = 画面由新显示 (rtl/display, rib s3) 出; 0 = 旧 video (s2, 现有 demo 用它)。
-    // **暂时必须是 0**: PDS 2022.2-SP6.4 综合新显示时段错误 -- 精灵表那对 32x1024 RAM 被
-    // 装配/合并优化时崩 (见 docs/display.md, 最小复现 build/fpga/disp_bisect/mini.tcl);
-    // 20+ 种 RTL 变体和综合开关都绕不过。等 bug 绕过 (Pango 工单 / PDS 升级 /
-    // GTP_DRM 原语直例化, 参考 GPLL 的 VERILATOR 双路径做法) 再翻成 1。
+    // 置 1 能综合、时序满足 (PDS 2022.2-SP6.4 的段错误已在 disp_blend 绕过, 资源和时序见 docs/display.md);
+    // 默认还是 0: 新显示的 C 后端还没写, 现有 demo 都画在旧 video 上。
     parameter DISPLAY_NEW = 0,
     parameter IO_N = `IO_N,
     parameter MEM_FILE = "firmware.hex"

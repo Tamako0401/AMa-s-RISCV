@@ -6,6 +6,8 @@ rtl/utils/gen_ram.v
 rtl/utils/vld_rdy.v
 rtl/utils/dpram.v
 rtl/utils/dpram2c.v
+rtl/utils/dpram_lut.v
+rtl/utils/dpram2c_lut.v
 rtl/core/btb.v
 rtl/core/ras.v
 rtl/core/clint.v
@@ -34,7 +36,7 @@ rtl/perips/gpio_matrix.v
 rtl/perips/uart.v
 rtl/perips/video_render.v
 rtl/perips/video.v
-// 新显示 (soc_top 的 DISPLAY_NEW=1 才例化; dpram/dpram2c 上面已有)
+// 新显示 (soc_top 的 DISPLAY_NEW=1 才例化; dpram/dpram2c 和 LUT RAM 版上面已有)
 +incdir+rtl/display
 rtl/display/disp_timing.v
 rtl/display/disp_scanout.v
