@@ -37,9 +37,10 @@ module btb #(
 
     localparam integer TAG_W = 32 - 2 - IDX_W;
 
-    reg [TAG_W-1:0] tag[0:ENTRIES-1];
-    reg [31:0] target[0:ENTRIES-1];
-    reg [1:0] counter[0:ENTRIES-1];
+    // 强制用 LUT RAM: 不加时 PDS 会把一部分放进 DRM (半块), 而 DRM 要留给显示和 nn
+    (* syn_ramstyle = "select_ram" *) reg [TAG_W-1:0] tag[0:ENTRIES-1];
+    (* syn_ramstyle = "select_ram" *) reg [31:0] target[0:ENTRIES-1];
+    (* syn_ramstyle = "select_ram" *) reg [1:0] counter[0:ENTRIES-1];
     reg [ENTRIES-1:0] valid;
 
     // PC[1:0] 恒为 0, 不参与索引和 tag
