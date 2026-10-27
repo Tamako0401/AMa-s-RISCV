@@ -5,11 +5,14 @@
 # ///
 """训练手势小网络 (handnet.py): MediaPipe 的标注 (label.py) 当答案。每几轮在验证集上打印指标, 最后存模型。
 
-用法: model/train.py <训练用的 session 目录...> --val <验证用的 session 目录...>
-        [--size 160] [--width 8] [--epochs 30] [--name 名字]
+用法: model/train.py <session 目录或装着 session 的目录...> (--val <验证用的 session...> | --val-person <人...>)
+        [--size 160] [--width 8] [--dw-k 3] [--extra 0] [--epochs 30] [--name 名字]
+  给 model/data 这样的上层目录时, 用里面所有已经标注过 (有 labels.npz) 的 session。
+  --val-person: 这些人的 session 全部拿去验证, 其余训练 (人名是 record.py 时给的, 存在 meta.json)。
   --size: 输入宽度 (80 / 160 / 320), 高是宽的 3/4; 从 640x480 原图按块平均缩小, 和硬件一样。
   --width: 网络宽度, 第一层的通道数, 后面是它的 2、4 倍。
-  验证集只用来评估, 不参与训练。以后要按人分: 验证集里的人不出现在训练集。
+  --dw-k、--extra: 结构试验, 见 handnet.py; 硬件现在只支持默认值 (3、0)。
+  验证集只用来评估, 不参与训练。验证集里的人不要出现在训练集, 才能看出对没见过的人好不好用。
 存到 model/runs/<名字>.pt。第一次读 session 会把缩小后的图存成 session 目录下的 small_<宽>.npy, 以后直接读。
 
 用哪些帧 (见 docs/hand-model.md):
@@ -58,6 +61,43 @@ def load_session(session, w):
 def load_all(sessions, w):
     parts = [load_session(Path(s), w) for s in sessions]
     return [np.concatenate(x) for x in zip(*parts)]
+
+
+def expand(paths):
+    """命令行给的目录 -> session 列表: 本身有 meta.json 的就是 session, 否则取它下面已经标注过的 session。"""
+    out = []
+    for p in map(Path, paths):
+        if (p / 'meta.json').exists():
+            out.append(p)
+        else:
+            subs = sorted(d for d in p.iterdir() if (d / 'meta.json').exists())
+            for d in subs:
+                if (d / 'labels.npz').exists():
+                    out.append(d)
+                else:
+                    print(f'跳过 {d.name}: 还没标注 (先跑 model/label.py)')
+    return out
+
+
+def meta_of(session):
+    return json.loads((session / 'meta.json').read_text())
+
+
+def person_of(session):
+    """录的是谁 (record.py 写进 meta.json; 早期录制没有时取目录名 <日期>_<人>_<场景>_... 的第二段)。"""
+    return meta_of(session).get('person') or session.name.split('_')[1]
+
+
+def summarize(sessions, title):
+    """按人、场景数 session 和帧数, 看数据够不够、偏不偏。"""
+    table = {}
+    for s in sessions:
+        key = (person_of(s), meta_of(s).get('scene') or s.name.split('_')[2])
+        n = len(np.load(s / 'labels.npz')['files'])
+        table[key] = (table.get(key, (0, 0))[0] + 1, table.get(key, (0, 0))[1] + n)
+    print(f'{title}: {len(sessions)} 个 session, {len({p for p, _ in table})} 个人')
+    for (person, scene), (n_sess, n_frames) in sorted(table.items()):
+        print(f'  {person:<10}{scene:<10}{n_sess:>3} 次 {n_frames:>6} 帧')
 
 
 def augment(image, centers):
@@ -192,22 +232,39 @@ def evaluate(model, data, device):
 def main():
     parser = argparse.ArgumentParser(usage=__doc__)
     parser.add_argument('sessions', nargs='+')
-    parser.add_argument('--val', nargs='+', required=True)
+    val = parser.add_mutually_exclusive_group(required=True)
+    val.add_argument('--val', nargs='+')
+    val.add_argument('--val-person', nargs='+')
     parser.add_argument('--size', type=int, default=160)
     parser.add_argument('--width', type=int, default=8)
+    parser.add_argument('--dw-k', type=int, default=3, choices=[3, 5])
+    parser.add_argument('--extra', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--name')
     args = parser.parse_args()
-    name = args.name or f'w{args.width}_{args.size}_{time.strftime("%m%d_%H%M")}'
+    arch = (f'_k{args.dw_k}' if args.dw_k != 3 else '') + (f'_x{args.extra}' if args.extra else '')
+    name = args.name or f'w{args.width}{arch}_{args.size}_{time.strftime("%m%d_%H%M")}'
 
-    train_data = load_all(args.sessions, args.size)
-    val_data = load_all(args.val, args.size)
+    sessions = expand(args.sessions)
+    if args.val_person:
+        val_sessions = [s for s in sessions if person_of(s) in args.val_person]
+        sessions = [s for s in sessions if person_of(s) not in args.val_person]
+    else:
+        val_sessions = expand(args.val)
+        sessions = [s for s in sessions if s not in val_sessions]
+    if not sessions or not val_sessions:
+        parser.error('训练集或验证集是空的')
+    summarize(sessions, '训练')
+    summarize(val_sessions, '验证')
+
+    train_data = load_all(sessions, args.size)
+    val_data = load_all(val_sessions, args.size)
     print(f'训练 {len(train_data[0])} 帧, 验证 {len(val_data[0])} 帧, 输入 {args.size}x{args.size * 3 // 4}')
 
-    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-    model = HandNet(args.width)
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    model = HandNet(args.width, args.dw_k, args.extra)
     n_macs, n_params = macs(model, args.size, args.size * 3 // 4)
-    print(f'网络宽度 {args.width}: 每帧 {n_macs / 1e6:.2f} M 次乘加, {n_params} 个参数; 在 {device} 上训练')
+    print(f'网络宽度 {args.width}, 深度卷积 {args.dw_k}x{args.dw_k}, 多 {args.extra} 块: 每帧 {n_macs / 1e6:.2f} M 次乘加, {n_params} 个参数; 在 {device} 上训练')
     model.to(device).train()
 
     loader = torch.utils.data.DataLoader(Frames(train_data, True), batch_size=64, shuffle=True, drop_last=True)
@@ -228,7 +285,7 @@ def main():
             evaluate(model, val_data, device)
 
     RUNS.mkdir(exist_ok=True)
-    save(RUNS / f'{name}.pt', model.cpu(), args.width, args.size)
+    save(RUNS / f'{name}.pt', model.cpu(), args.width, args.size, args.dw_k, args.extra)
     print(f'存到 {RUNS / name}.pt')
 
 

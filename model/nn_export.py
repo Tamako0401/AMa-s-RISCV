@@ -19,6 +19,7 @@
     model/nn_export.py                        # 固定种子的随机权重 (没有 .pt 时也能验证 RTL)
     model/nn_export.py model/runs/x.pt        # 从 model/train.py 存的权重导出 (需要 torch)
     model/nn_export.py --calib frames.raw     # 用真实画面标定 (每帧 120*160*3 字节, 可多帧)
+    model/nn_export.py model/runs/x.pt --calib model/data   # 标定直接用录的数据 (train.py 缓存的 small_160.npy)
 
 量化 (PTQ: 每通道对称权重, 每张量非对称激活):
     q_in  = round(real/s_in) + Z_in
@@ -313,20 +314,42 @@ def emit_tables(qmodel, path):
     )
 
 
+def calib_from_sessions(path, n=64, seed=7):
+    """从录的数据里均匀抽 n 帧当标定画面。用 train.py 缓存的 small_160.npy (160x120, BGR), 转成这里要的 RGB。"""
+    caches = [path / 'small_160.npy'] if (path / 'small_160.npy').exists() else sorted(path.glob('*/small_160.npy'))
+    if not caches:
+        sys.exit(f'{path} 下没有 small_160.npy: 先用这些数据跑一次 model/train.py (它会缓存缩小后的图)')
+    frames = np.concatenate([np.load(c) for c in caches])
+    pick = np.random.default_rng(seed).choice(len(frames), min(n, len(frames)), replace=False)
+    print(f'标定: 从 {len(caches)} 个 session 的 {len(frames)} 帧里抽 {len(pick)} 帧')
+    return [frames[i][:, :, ::-1] for i in sorted(pick)]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('ckpt', nargs='?', help='model/train.py 存的 .pt (不给就用固定种子的随机权重)')
-    ap.add_argument('--width', type=int, default=16)
-    ap.add_argument('--calib', help='标定用的原始画面文件 (每帧 120*160*3 字节)')
+    ap.add_argument('--width', type=int, default=16, help='没有 .pt 时的网络宽度 (有 .pt 时从里面读)')
+    ap.add_argument('--calib', help='标定用的原始画面文件 (每帧 120*160*3 字节, RGB), 或 session / 装着 session 的目录')
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('-o', '--out', default=str(ROOT))
     args = ap.parse_args()
     out = Path(args.out)
 
-    layers = spec(args.width)
+    width = args.width
+    if args.ckpt:
+        import torch
+
+        saved = torch.load(args.ckpt, map_location='cpu')
+        width = saved['width']
+        if saved.get('size', 160) != 160 or saved.get('dw_k', 3) != 3 or saved.get('extra', 0) != 0:
+            sys.exit(f'{args.ckpt}: 输入 {saved.get("size")}、深度卷积 {saved.get("dw_k", 3)}x{saved.get("dw_k", 3)}、'
+                     f'多 {saved.get("extra", 0)} 块; 硬件现在只支持 160 输入、3x3、不多加块 (见 docs/hand-model.md "结构试验")')
+    layers = spec(width)
     ws = make_weights(layers, args.ckpt, args.seed)
 
-    if args.calib:
+    if args.calib and Path(args.calib).is_dir():
+        imgs = calib_from_sessions(Path(args.calib))
+    elif args.calib:
         raw = np.fromfile(args.calib, dtype=np.uint8)
         n = max(len(raw) // (120 * 160 * 3), 1)
         imgs = [raw[i * 120 * 160 * 3 : (i + 1) * 120 * 160 * 3].reshape(120, 160, 3) for i in range(n)]

@@ -32,17 +32,70 @@ model/play.py models/gesture_recognizer.task --student model/runs/<名字>.pt   
 | 2. MediaPipe 当老师自动标注 | `model/label.py` | 已写 |
 | 3. 抽查标注, 手工点一批真值 | `model/check.py` | 待写 |
 | 4. 训练小 CNN (浮点) | `model/handnet.py`、`model/train.py` | 已写, 第一版结果见结论记录 |
-| 5. 评估 (按人分开的测试集) | 暂时在 `train.py` 里 (每 10 轮按段打表) | 只有一个人, 先按 session 分 |
+| 5. 评估 (按人分开的测试集) | `train.py` 里 (每 10 轮按段打表), `--val-person` 按人留出 | 等多人数据 |
 | 6. 比较输入尺寸 (80x60 / 160x120 / 320x240) 和网络宽度 | 同上 | 待做 |
 | 7. 实时试玩: 平滑、手势防抖、简单自机和刀光 | `model/demo.py` | 待写 |
 | 8. INT8 量化, 写整数参考实现 (以后 C 和 RTL 的标准答案) | `model/nn_export.py`、`model/nnref.py` | 已写, RTL 见 [handnet 加速器](nn.md); 权重还要用真实数据重训 |
 
+## 录数据、汇总、训练
+
+全部在仓库里做, 数据放 `model/data/`, 训练结果放 `model/runs/`, MediaPipe 模型放 `models/`; 这三处都不进 git
+(`.gitignore`)。脚本是 `uv run --script`, 第一次运行自动装依赖。训练有 NVIDIA 显卡 (CUDA) 或 Mac (MPS) 就用, 否则用 CPU。
+
+第一次准备 (每台机器一次):
+
 ```sh
-model/record.py ps front          # 录一次, 约 115 秒, 存到 model/data/<日期>_ps_front_<时间>/
-model/label.py gesture_recognizer.task model/data/<session>   # 标注并打印每段统计
+mkdir -p models && curl -L -o models/gesture_recognizer.task \
+  https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/latest/gesture_recognizer.task
 ```
 
-模型文件 (`*.task`) 和 `model/data/` 不进仓库。gesture_recognizer.task 的下载地址在 `label.py` 开头。
+每个人、每种场景录一次, 再标注:
+
+```sh
+model/record.py <人> <场景>          # 跟着屏幕提示做 13 段动作, 约 2 分钟; 存到 model/data/<日期>_<人>_<场景>_<时分秒>/
+model/label.py models/gesture_recognizer.task model/data/<刚录的目录>   # MediaPipe 自动标注, 打印每段统计
+```
+
+- **人**: 同一个人每次用同一个名字 (字母数字, 如 ps、yh), 训练时按它分训练集和验证集。
+- **场景**: front (顺光)、back (逆光, 比如背后是窗)、messy (背景杂乱) 等, 名字自己定, 统计里按它分开数。
+- 摄像头在显示器上方对着人, 手在胸前 (见上面"结论记录": 平拍不好玩, 老师也认不出手势)。
+- 录多少: 至少 4~5 个人, 每人 2~3 种场景。一次约 1000 帧、70 MB, 15 次约 1 GB。
+- 边玩边录也算数据, 正好是游戏里真实的手部动作: `model/play.py models/gesture_recognizer.task --record <人> <场景>`。
+
+汇总不同人的数据: 每次录制是一个自带全部信息的目录 (图片 + `meta.json` 记着人和场景, 标注后多一个 `labels.npz`),
+目录名带时间, 不会重名。所以汇总就是**把这些目录都放进训练那台机器的 `model/data/`**:
+
+- 别人在自己电脑上录: 装好仓库后照上面录, 把 `model/data/<目录>` 打包 (zip) 发过来, 解压到 `model/data/`。
+  没标注的在这边补跑 `label.py`。数据太大不走 git, 用网盘或 U 盘。
+- 或者人来这台机器前录, 直接就在 `model/data/` 里。
+
+训练 (`model/data` 下所有标注过的 session; 一个人整个留出来当验证集, 看对没见过的人好不好用):
+
+```sh
+model/train.py model/data --val-person ps --width 16
+```
+
+开训前会按人、场景打印 session 数和帧数, 看数据偏不偏。存到 `model/runs/w16_160_<时间>.pt`。
+最后导出给硬件 (标定直接用录的数据):
+
+```sh
+model/nn_export.py model/runs/<名字>.pt --calib model/data   # 改写 rtl/nn/ 的权重和 tests/nn/ 的测试向量
+./ama test tests/nn                                         # RTL 和整数参考逐字节对上
+```
+
+## 结构试验
+
+默认结构的最后一格在 160x120 里只看得到约 47x47 点 (感受野), 手离镜头近时有 60~80 点大, 第一次训练的漏检里
+"手太近太大"是一类。`train.py` 有两个选项扩大感受野, 先在 PyTorch 里比漏检和 P95, 明显变好再改硬件:
+
+| 选项 | 感受野 | 乘加 / 帧 (宽度 16) | 参数 | 硬件 |
+| --- | --- | --- | --- | --- |
+| 默认 | 约 47 点 | 6.44 M | 13.9 k | 支持 |
+| `--dw-k 5` (不缩小的块用 5x5 深度卷积) | 约 79 点 | 7.06 M | 15.9 k | 要给层表加 5x5 深度卷积的 mode |
+| `--extra 1` (多一个不缩小的块) | 约 63 点 | 7.84 M | 18.8 k | 层表支持, `nn_export.py` 还要跟着加层 |
+| `--dw-k 5 --extra 1` | 约 111 点 | 8.76 M | 21.9 k | 两样都要 |
+
+`nn_export.py` 遇到非默认结构会直接报错, 不会导出硬件跑不了的权重。
 
 ## 数据
 
