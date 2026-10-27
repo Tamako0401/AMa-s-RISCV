@@ -41,67 +41,42 @@ module gpr_reg (
 
 );
 
-    wire [32-1:0] regs[32-1:0];
-    wire [32-1:0] we;
+    // 存储用 LUT RAM (每块一个写口、一个组合读口), 不用 32x32 个触发器 (约 900 LUT + 990 FF)。
+    // 两个写口各写一组, 每组复制两份给两个读口; lvt 记下每个寄存器最后是哪个写口写的,
+    // 读的时候按它选组 (Live Value Table)。两个写口不会同拍写同一个寄存器 (见上), lvt 没有冲突。
+    (* syn_ramstyle = "select_ram" *) reg [31:0] bank_a1[0:31];
+    (* syn_ramstyle = "select_ram" *) reg [31:0] bank_a2[0:31];
+    (* syn_ramstyle = "select_ram" *) reg [31:0] bank_b1[0:31];
+    (* syn_ramstyle = "select_ram" *) reg [31:0] bank_b2[0:31];
+    reg [31:0] lvt;  // 1: 最后由 load 写口写
 
-    genvar i;
-
-    generate
-        for (i = 0; i < 32; i = i + 1) begin : gpr_rw
-            // x0 cannot be wrote since it is constant-zeros
-            if (i == 0) begin : is_x0
-                assign we[i]   = 1'b0;
-                assign regs[i] = 32'h0;
-            end else begin : not_x0
-                wire load_we = load_we_i & (load_waddr_i == i);
-                assign we[i] = (we_i & (waddr_i == i)) | load_we;
-                gen_en_dffnr #(32) rf_dff (
-                    clk,
-                    we[i],
-                    load_we ? load_wdata_i : wdata_i,
-                    regs[i]
-                );
-            end
+    // 写 x0 无害: 读 x0 恒为 0
+    always @(posedge clk) begin
+        if (we_i) begin
+            bank_a1[waddr_i] <= wdata_i;
+            bank_a2[waddr_i] <= wdata_i;
         end
-    endgenerate
+        if (load_we_i) begin
+            bank_b1[load_waddr_i] <= load_wdata_i;
+            bank_b2[load_waddr_i] <= load_wdata_i;
+        end
+    end
 
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) lvt <= 32'h0;
+        else begin
+            if (we_i) lvt[waddr_i] <= 1'b0;
+            if (load_we_i) lvt[load_waddr_i] <= 1'b1;
+        end
+    end
+
+    wire [31:0] rf1 = lvt[raddr1_i] ? bank_b1[raddr1_i] : bank_a1[raddr1_i];
+    wire [31:0] rf2 = lvt[raddr2_i] ? bank_b2[raddr2_i] : bank_a2[raddr2_i];
+
+    // 同拍写的值直接旁路给读口
     assign rdata1_o = (|raddr1_i)? ((we_i & (waddr_i == raddr1_i))? wdata_i:
-                                    (load_we_i & (load_waddr_i == raddr1_i))? load_wdata_i: regs[raddr1_i]): 32'h0;
+                                    (load_we_i & (load_waddr_i == raddr1_i))? load_wdata_i: rf1): 32'h0;
     assign rdata2_o = (|raddr2_i)? ((we_i & (waddr_i == raddr2_i))? wdata_i:
-                                    (load_we_i & (load_waddr_i == raddr2_i))? load_wdata_i: regs[raddr2_i]): 32'h0;
-
-    // for debug
-    wire [31:0] ra = regs[1];
-    wire [31:0] sp = regs[2];
-    wire [31:0] gp = regs[3];
-    wire [31:0] tp = regs[4];
-    wire [31:0] t0 = regs[5];
-    wire [31:0] t1 = regs[6];
-    wire [31:0] t2 = regs[7];
-    wire [31:0] s0 = regs[8];
-    wire [31:0] fp = regs[8];
-    wire [31:0] s1 = regs[9];
-    wire [31:0] a0 = regs[10];
-    wire [31:0] a1 = regs[11];
-    wire [31:0] a2 = regs[12];
-    wire [31:0] a3 = regs[13];
-    wire [31:0] a4 = regs[14];
-    wire [31:0] a5 = regs[15];
-    wire [31:0] a6 = regs[16];
-    wire [31:0] a7 = regs[17];
-    wire [31:0] s2 = regs[18];
-    wire [31:0] s3 = regs[19];
-    wire [31:0] s4 = regs[20];
-    wire [31:0] s5 = regs[21];
-    wire [31:0] s6 = regs[22];
-    wire [31:0] s7 = regs[23];
-    wire [31:0] s8 = regs[24];
-    wire [31:0] s9 = regs[25];
-    wire [31:0] s10 = regs[26];
-    wire [31:0] s11 = regs[27];
-    wire [31:0] t3 = regs[28];
-    wire [31:0] t4 = regs[29];
-    wire [31:0] t5 = regs[30];
-    wire [31:0] t6 = regs[31];
+                                    (load_we_i & (load_waddr_i == raddr2_i))? load_wdata_i: rf2): 32'h0;
 
 endmodule
