@@ -9,7 +9,9 @@
 //   - counter 是 2 bit 饱和计数器, counter[1] 为 1 时预测跳转。
 //     比 1 bit 好在循环退出这种一次性反向时只错一次。
 //
-// 只预测条件分支和 jal。jalr 的目标来自寄存器(每次调用点都不同), 不放进 BTB。
+// 预测条件分支、jal 和 jalr; ret (jalr x0, 0(ra/t0)) 的目标不用表里的, 由 RAS 给出,
+// 其它 jalr 预测成上次的目标 (EX 会核对)。
+// kind 标出调用 (jal 写 ra/t0) 和返回, 取指据此压栈/弹栈, 见 ras.v。
 //
 // 同一拍读写同一格时做旁路(write-through), 把这一拍的更新结果直接送到查表输出,
 // 这样刚训练好的分支紧接着执行也能看到最新结果。
@@ -27,12 +29,14 @@ module btb #(
     input  wire [31:0] lookup_pc,
     output wire        lookup_taken,
     output wire [31:0] lookup_target,
+    output wire [ 1:0] lookup_kind,
 
     // EX 解析分支时更新
     input wire        upd_en,
     input wire [31:0] upd_pc,
     input wire [31:0] upd_target,
-    input wire        upd_taken
+    input wire        upd_taken,
+    input wire [ 1:0] upd_kind
 );
 
     localparam integer TAG_W = 32 - 2 - IDX_W;
@@ -41,6 +45,7 @@ module btb #(
     (* syn_ramstyle = "select_ram" *) reg [TAG_W-1:0] tag[0:ENTRIES-1];
     (* syn_ramstyle = "select_ram" *) reg [31:0] target[0:ENTRIES-1];
     (* syn_ramstyle = "select_ram" *) reg [1:0] counter[0:ENTRIES-1];
+    (* syn_ramstyle = "select_ram" *) reg [1:0] kind[0:ENTRIES-1];
     reg [ENTRIES-1:0] valid;
 
     // PC[1:0] 恒为 0, 不参与索引和 tag
@@ -67,11 +72,13 @@ module btb #(
     wire [TAG_W-1:0] eff_tag = same_idx ? next_tag : tag[lookup_idx];
     wire [31:0] eff_target = same_idx ? next_target : target[lookup_idx];
     wire [1:0] eff_cnt = same_idx ? next_cnt : counter[lookup_idx];
+    wire [1:0] eff_kind = same_idx ? upd_kind : kind[lookup_idx];
 
     wire lookup_hit = eff_valid && (eff_tag == lookup_tag);
 
     assign lookup_taken = lookup_hit && eff_cnt[1];
     assign lookup_target = eff_target;
+    assign lookup_kind = eff_kind;
 
     wire upd_wr = upd_en && (upd_taken || upd_hit);
 
@@ -81,6 +88,7 @@ module btb #(
             tag[upd_idx] <= next_tag;
             target[upd_idx] <= next_target;
             counter[upd_idx] <= next_cnt;
+            kind[upd_idx] <= upd_kind;
         end
     end
 

@@ -123,3 +123,8 @@
 `define CSR_MSTATUS 12'h300
 `define CSR_MSCRATCH 12'h340
 
+
+// BTB 表项类别: 普通分支/跳转, 调用 (jal 写 ra/t0), 返回 (jalr x0, 0(ra/t0)), 见 btb.v、ras.v
+`define BTB_KIND_NONE 2'd0
+`define BTB_KIND_CALL 2'd1
+`define BTB_KIND_RET 2'd2

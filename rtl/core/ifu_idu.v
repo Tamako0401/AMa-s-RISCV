@@ -31,10 +31,12 @@ module ifu_idu (
     input wire                    flush_i,      // 流水线冲刷
     input wire                    inst_valid_i,
     input wire                    pred_taken_i,  // 取指时的 BTB 预测
+    input wire [            31:0] pred_target_i,
 
     output wire [31:0] inst_o,      // 指令内容
     output wire [31:0] inst_addr_o,  // 指令地址
-    output wire pred_taken_o
+    output wire pred_taken_o,
+    output wire [31:0] pred_target_o
 
 );
 
@@ -72,5 +74,14 @@ module ifu_idu (
         pred_taken
     );
     assign pred_taken_o = pred_taken;
+
+    // 只在 pred_taken 时有意义, 不用清零
+    gen_en_dff #(32) pred_target_ff (
+        clk,
+        rst_n,
+        en,
+        pred_target_i,
+        pred_target_o
+    );
 
 endmodule

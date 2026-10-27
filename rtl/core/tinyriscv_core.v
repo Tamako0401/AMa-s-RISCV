@@ -58,11 +58,22 @@ module tinyriscv_core #(
     wire [31:0] ifetch_pc_o;
     wire ifetch_inst_valid_o;
     wire ifetch_pred_taken_o;
+    wire [31:0] ifetch_pred_target_o;
 
     // BTB: 取指查表 + EX 训练
     wire [31:0] btb_lookup_pc, btb_lookup_target, btb_upd_pc, btb_upd_target;
     wire btb_lookup_taken, btb_upd_en, btb_upd_taken;
+    wire [1:0] btb_lookup_kind, btb_upd_kind;
+    wire btb_use;
     wire if_pred_taken_o;
+    wire [31:0] if_pred_target_o;
+
+    // RAS: 取指投机压栈/弹栈, EX 提交
+    wire [31:0] ras_top, ras_cmt_addr;
+    wire ras_cmt_push, ras_cmt_pop;
+    wire btb_is_ret = (btb_lookup_kind == `BTB_KIND_RET);
+    // ret 的预测目标取 RAS 栈顶, 其它取 BTB 记下的目标
+    wire [31:0] pred_target = btb_is_ret ? ras_top : btb_lookup_target;
 
     // ifu_idu模块输出信号
     wire [31:0] if_inst_o;
@@ -94,6 +105,7 @@ module tinyriscv_core #(
     wire [4:0] ie_rd_waddr_o;
     wire ie_rd_we_o;
     wire ie_pred_taken_o;
+    wire [31:0] ie_pred_rs1_o;
 
     // exu模块输出信号
     wire [31:0] ex_mem_wdata_o;
@@ -167,9 +179,11 @@ module tinyriscv_core #(
         .pc_o(ifetch_pc_o),
         .inst_valid_o(ifetch_inst_valid_o),
         .pred_taken_o(ifetch_pred_taken_o),
+        .pred_target_o(ifetch_pred_target_o),
         .btb_pc_o(btb_lookup_pc),
         .btb_taken_i(btb_lookup_taken),
-        .btb_target_i(btb_lookup_target),
+        .btb_target_i(pred_target),
+        .btb_use_o(btb_use),
         .ibus_addr_o(ibus_addr_o),
         .ibus_data_i(ibus_data_i),
         .ibus_data_o(ibus_data_o),
@@ -190,10 +204,30 @@ module tinyriscv_core #(
         .lookup_pc(btb_lookup_pc),
         .lookup_taken(btb_lookup_taken),
         .lookup_target(btb_lookup_target),
+        .lookup_kind(btb_lookup_kind),
         .upd_en(btb_upd_en),
         .upd_pc(btb_upd_pc),
         .upd_target(btb_upd_target),
-        .upd_taken(btb_upd_taken)
+        .upd_taken(btb_upd_taken),
+        .upd_kind(btb_upd_kind)
+    );
+
+    wire btb_pred_use = btb_use && btb_lookup_taken;
+
+    ras #(
+        .DEPTH(4),
+        .AW(2)
+    ) u_ras (
+        .clk(clk),
+        .rst_n(rst_n),
+        .flush_i(ctrl_flush_o),
+        .spec_push_i(btb_pred_use && (btb_lookup_kind == `BTB_KIND_CALL)),
+        .spec_pop_i(btb_pred_use && btb_is_ret),
+        .spec_addr_i(btb_lookup_pc + 32'd4),
+        .top_o(ras_top),
+        .cmt_push_i(ras_cmt_push),
+        .cmt_pop_i(ras_cmt_pop),
+        .cmt_addr_i(ras_cmt_addr)
     );
 
     // load 的结果在请求之后才写回 (见 exu_mem): 译码级的指令要读或写一个还没写回的 load 目的寄存器时,
@@ -260,9 +294,11 @@ module tinyriscv_core #(
         .flush_i(ctrl_flush_o),
         .inst_valid_i(ifetch_inst_valid_o),
         .pred_taken_i(ifetch_pred_taken_o),
+        .pred_target_i(ifetch_pred_target_o),
         .inst_o(if_inst_o),
         .inst_addr_o(if_inst_addr_o),
-        .pred_taken_o(if_pred_taken_o)
+        .pred_taken_o(if_pred_taken_o),
+        .pred_target_o(if_pred_target_o)
     );
 
     idu u_idu (
@@ -299,6 +335,8 @@ module tinyriscv_core #(
         .rd_waddr_i(id_rd_waddr_o),
         .rd_we_i(id_rd_we_o),
         .pred_taken_i(if_pred_taken_o),
+        // jalr 要对上的 rs1, 在 ID 先减掉 imm, EX 核对时就不用经过加法器
+        .pred_rs1_i(if_pred_target_o - id_dec_imm_o),
         .inst_o(ie_inst_o),
         .dec_info_bus_o(ie_dec_info_bus_o),
         .dec_imm_o(ie_dec_imm_o),
@@ -307,7 +345,8 @@ module tinyriscv_core #(
         .rs2_rdata_o(ie_rs2_rdata_o),
         .rd_waddr_o(ie_rd_waddr_o),
         .rd_we_o(ie_rd_we_o),
-        .pred_taken_o(ie_pred_taken_o)
+        .pred_taken_o(ie_pred_taken_o),
+        .pred_rs1_o(ie_pred_rs1_o)
     );
 
     exu u_exu (
@@ -340,7 +379,13 @@ module tinyriscv_core #(
         .btb_upd_pc_o(btb_upd_pc),
         .btb_upd_target_o(btb_upd_target),
         .btb_upd_taken_o(btb_upd_taken),
+        .btb_upd_kind_o(btb_upd_kind),
+        .ras_push_o(ras_cmt_push),
+        .ras_pop_o(ras_cmt_pop),
+        .ras_addr_o(ras_cmt_addr),
+        .rs1_raddr_i(ie_inst_o[19:15]),
         .pred_taken_i(ie_pred_taken_o),
+        .pred_rs1_i(ie_pred_rs1_o),
         .int_assert_i(clint_int_assert_o),
         .int_addr_i(clint_int_addr_o),
         .inst_ecall_o(ex_inst_ecall_o),

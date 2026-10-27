@@ -55,11 +55,13 @@ module ifu #(
     output wire [31:0] pc_o,
     output wire inst_valid_o,
     output wire        pred_taken_o,  // 本条指令取指时 BTB 是否预测跳转
+    output wire [31:0] pred_target_o,  // 预测跳转时取指走的目标; EX 用它核对 jalr (ret 的目标来自 RAS)
 
     // BTB 查表: 用 fetch_pc 查, 命中且预测跳转时下一笔直接从目标取
     output wire [31:0] btb_pc_o,
     input  wire        btb_taken_i,
     input  wire [31:0] btb_target_i,
+    output wire        btb_use_o,  // 这一拍按 fetch_pc 的预测前进了 (RAS 据此投机压栈/弹栈)
 
     output wire [31:0] ibus_addr_o,
     input wire [31:0] ibus_data_i,
@@ -77,12 +79,12 @@ module ifu #(
     localparam PTRW = AW + 1;             // 指针多一位，用来区分满和空
     localparam EW = 8;                    // epoch 位宽，够覆盖任何在途事务的生命期
 
-    // 指令队列: 每项 {pred_taken, pc, inst}
-    reg [64:0] inst_mem[0:FETCH_DEPTH-1];
+    // 指令队列: 每项 {pred_target, pred_taken, pc, inst}
+    reg [96:0] inst_mem[0:FETCH_DEPTH-1];
     reg [PTRW-1:0] inst_wptr, inst_rptr;
 
-    // 在途请求标签: 每项 {epoch, pred_taken, pc}
-    reg [EW+32:0] tag_mem[0:FETCH_DEPTH-1];
+    // 在途请求标签: 每项 {epoch, pred_target, pred_taken, pc}
+    reg [EW+64:0] tag_mem[0:FETCH_DEPTH-1];
     reg [PTRW-1:0] tag_wptr, tag_rptr;
 
     // 取指地址与代际
@@ -94,6 +96,7 @@ module ifu #(
     reg [31:0] req_addr;
     reg [EW-1:0] req_epoch;
     reg req_pred_taken;
+    reg [31:0] req_pred_target;
 
     wire [PTRW-1:0] inst_cnt = inst_wptr - inst_rptr;
     wire [PTRW-1:0] tag_cnt = tag_wptr - tag_rptr;
@@ -128,20 +131,20 @@ module ifu #(
     assign ibus_we_o = 1'b0;
 
     // 响应按发出顺序配对；epoch 不匹配说明这笔取指在重定向之前，直接丢弃
-    wire [EW+32:0] tag_head = tag_mem[tag_rptr[AW-1:0]];
+    wire [EW+64:0] tag_head = tag_mem[tag_rptr[AW-1:0]];
     wire rsp_take = rst_n && rsp_valid_i && !tag_empty;
-    wire rsp_match = rsp_take && (tag_head[EW+32:33] == epoch);
+    wire rsp_match = rsp_take && (tag_head[EW+64:65] == epoch);
 
     // 队列空且下游这一拍就要拿走时, 直接旁路响应, 省掉"写队列再读出"的一拍。
     // 停顿时下游拿不走, 必须先存进队列, 否则这条指令会丢。
     wire fifo_bypass = rsp_match && inst_empty && !stall_i[`STALL_ID];
-    wire [64:0] inst_head = fifo_bypass ? {tag_head[32], tag_head[31:0], ibus_data_i}
-                                        : inst_mem[inst_rptr[AW-1:0]];
+    wire [96:0] inst_head = fifo_bypass ? {tag_head[64:0], ibus_data_i} : inst_mem[inst_rptr[AW-1:0]];
 
     assign inst_valid_o = rst_n && !flush_i && !jtag_halt_i && (fifo_bypass || !inst_empty);
     assign inst_o = inst_valid_o ? inst_head[31:0] : `INST_NOP;
     assign pc_o = inst_valid_o ? inst_head[63:32] : fetch_pc;
     assign pred_taken_o = inst_valid_o && inst_head[64];
+    assign pred_target_o = inst_head[96:65];
 
     // ifu_idu 在 !stall[ID] 或 flush 时锁存；flush 那一拍指令已被丢弃, 不用出队
     wire inst_pop = inst_valid_o && !stall_i[`STALL_ID] && !fifo_bypass;
@@ -159,7 +162,7 @@ module ifu #(
             inst_rptr <= {PTRW{1'b0}};
         end else begin
             if (inst_push) begin
-                inst_mem[inst_wptr[AW-1:0]] <= {tag_head[32], tag_head[31:0], ibus_data_i};
+                inst_mem[inst_wptr[AW-1:0]] <= {tag_head[64:0], ibus_data_i};
                 inst_wptr <= inst_wptr + 1'b1;
             end
             if (inst_pop) inst_rptr <= inst_rptr + 1'b1;
@@ -173,7 +176,7 @@ module ifu #(
             tag_rptr <= {PTRW{1'b0}};
         end else begin
             if (issue_fire) begin
-                tag_mem[tag_wptr[AW-1:0]] <= {req_epoch, req_pred_taken, req_addr};
+                tag_mem[tag_wptr[AW-1:0]] <= {req_epoch, req_pred_target, req_pred_taken, req_addr};
                 tag_wptr <= tag_wptr + 1'b1;
             end
             if (rsp_take) tag_rptr <= tag_rptr + 1'b1;
@@ -202,6 +205,7 @@ module ifu #(
             req_addr       <= RESET_PC;
             req_epoch      <= {EW{1'b0}};
             req_pred_taken <= 1'b0;
+            req_pred_target <= 32'h0;
         end else if (redirect_now) begin
             req_pending    <= 1'b1;
             req_addr       <= flush_addr_i;
@@ -213,6 +217,7 @@ module ifu #(
                 req_addr       <= fetch_pc;
                 req_epoch      <= epoch;
                 req_pred_taken <= btb_taken_i;
+                req_pred_target <= btb_target_i;
             end else begin
                 req_pending <= 1'b0;
             end
@@ -221,9 +226,12 @@ module ifu #(
             req_addr       <= fetch_pc;
             req_epoch      <= epoch;
             req_pred_taken <= btb_taken_i;
+            req_pred_target <= btb_target_i;
         end
     end
 
     assign btb_pc_o = fetch_pc;
+    // 与上面 fetch_pc 按预测前进的条件相同
+    assign btb_use_o = issue_start || (issue_fire && issue_next);
 
 endmodule

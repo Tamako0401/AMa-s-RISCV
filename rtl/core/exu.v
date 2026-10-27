@@ -74,6 +74,12 @@ module exu (
     output wire [31:0] btb_upd_pc_o,
     output wire [31:0] btb_upd_target_o,
     output wire        btb_upd_taken_o,
+    output wire [ 1:0] btb_upd_kind_o,
+
+    // RAS 提交栈: 执行到调用时压入返回地址, 执行到返回时弹出
+    output wire        ras_push_o,
+    output wire        ras_pop_o,
+    output wire [31:0] ras_addr_o,
 
     // from idu_exu
     input wire [`DECINFO_WIDTH-1:0] dec_info_bus_i,
@@ -84,7 +90,9 @@ module exu (
     input wire [              31:0] reg1_rdata_i,    // 通用寄存器1输入数据
     input wire [              31:0] reg2_rdata_i,    // 通用寄存器2输入数据
     input wire                      rd_we_i,
-    input wire                      pred_taken_i  // 取指时 BTB 是否预测跳转
+    input wire [               4:0] rs1_raddr_i,
+    input wire                      pred_taken_i,  // 取指时 BTB 是否预测跳转
+    input wire [              31:0] pred_rs1_i  // 预测的 jalr 要对上的 rs1 (= 预测目标 - imm, ID 算好)
 
 );
 
@@ -379,9 +387,21 @@ module exu (
     wire bjp_taken = bjp_cmp_res_o | bjp_op_jump_o;
     wire [31:0] bjp_target = is_jalr ? {bjp_res_o[31:1], 1'b0} : bjp_res_o;
 
-    // 预测只看"跳不跳": 同一静态分支的目标地址是固定的(B 型立即数 + PC),
+    // 调用: jal/jalr 写 ra 或 t0; 返回: jalr x0, 0(ra 或 t0)。与 RISC-V 规范里的 RAS 提示一致
+    wire rd_link = (rd_waddr_i == 5'd1) || (rd_waddr_i == 5'd5);
+    wire rs1_link = (rs1_raddr_i == 5'd1) || (rs1_raddr_i == 5'd5);
+    wire is_call = bjp_op_jump_o && rd_link;
+    wire is_ret = is_jalr && (rd_waddr_i == 5'd0) && rs1_link && (dec_imm_i == 32'h0);
+    // imm 为奇数的 jalr 不预测 (见下面的核对); 正常代码里不会出现
+    wire jalr_pred = is_jalr && !dec_imm_i[0];
+
+    // 条件分支和 jal 只看"跳不跳": 同一静态分支的目标地址是固定的(B 型立即数 + PC),
     // 所以预测跳转且实际也跳时, 取指走的一定是对的路径。
-    wire pred_ok = (pred_taken_i == bjp_taken);
+    // jalr 的目标随寄存器变 (ret 由 RAS 预测, 其它用 BTB 记下的上次目标), 要核对取指走的目标
+    // 等于 (rs1 + imm) & ~1。ID 已经算好 pred_rs1 = 预测目标 - imm, 这里只比 rs1, 不经过目标加法器;
+    // 预测目标和 imm 都是偶数, 所以比 [31:1] 就等价。
+    wire jalr_ok = pred_taken_i && jalr_pred && (reg1_rdata_i[31:1] == pred_rs1_i[31:1]);
+    wire pred_ok = is_jalr ? jalr_ok : (pred_taken_i == bjp_taken);
     wire hold_flag = muldiv_stall_o | mem_stall_o;
 
     // 预测对就不冲刷, 让取指已经填好的目标路径继续往下走
@@ -392,12 +412,18 @@ module exu (
                          bjp_target;
     assign hold_flag_o = hold_flag;
 
-    // 只训练条件分支和 jal; jalr 的目标每次调用点都不同, 不进 BTB。
+    // 训练条件分支、jal 和 jalr。ret 的目标由 RAS 给, 其它 jalr 预测成上次的目标
+    // (远调用 auipc+jalr 的目标固定, 函数指针也常常连续调同一个)。
     // EX 被暂停时同一条指令会停留多拍, 用 ~hold_flag 保证只训练一次。
-    assign btb_upd_en_o = (is_jal | is_cond_branch) & ~hold_flag;
+    assign btb_upd_en_o = (is_jal | is_cond_branch | jalr_pred) & ~hold_flag;
     assign btb_upd_pc_o = dec_pc_i;
     assign btb_upd_target_o = bjp_target;
     assign btb_upd_taken_o = bjp_taken;
+    assign btb_upd_kind_o = is_ret ? `BTB_KIND_RET : is_call ? `BTB_KIND_CALL : `BTB_KIND_NONE;
+
+    assign ras_push_o = is_call & ~hold_flag;
+    assign ras_pop_o = is_ret & ~hold_flag;
+    assign ras_addr_o = next_pc_i;
 
     assign csr_raddr_o = csr_addr_o;
     assign csr_waddr_o = csr_addr_o;

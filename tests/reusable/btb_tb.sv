@@ -36,7 +36,9 @@ module btb_tb;
         .upd_en(upd_en),
         .upd_pc(upd_pc),
         .upd_target(upd_target),
-        .upd_taken(upd_taken)
+        .upd_taken(upd_taken),
+        .upd_kind(2'd0),
+        .lookup_kind()
     );
 
     integer errors = 0;

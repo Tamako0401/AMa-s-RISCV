@@ -37,6 +37,7 @@ module idu_exu (
     input wire [4:0] rd_waddr_i,
     input wire rd_we_i,
     input wire pred_taken_i,
+    input wire [31:0] pred_rs1_i,
 
     output wire [31:0] inst_o,
     output wire [`DECINFO_WIDTH-1:0] dec_info_bus_o,
@@ -46,7 +47,8 @@ module idu_exu (
     output wire [31:0] rs2_rdata_o,
     output wire [4:0] rd_waddr_o,
     output wire rd_we_o,
-    output wire pred_taken_o
+    output wire pred_taken_o,
+    output wire [31:0] pred_rs1_o
 
 );
 
@@ -130,6 +132,15 @@ module idu_exu (
         pred_taken
     );
     assign pred_taken_o = pred_taken;
+
+    // 只在 pred_taken 时有意义, 气泡不用清零
+    gen_en_dff #(32) pred_rs1_ff (
+        clk,
+        rst_n,
+        en,
+        pred_rs1_i,
+        pred_rs1_o
+    );
 
     wire i_rd_we = bubble ? 1'b0 : rd_we_i;
     wire rd_we;
