@@ -59,7 +59,7 @@ def run_layer(layer, x):
     cout 向上取整到 16 的倍数, 多出来的通道写 0 (和 RTL 的整字写一致)。
     """
     k, stride = layer['k'], layer['stride']
-    pad = 1 if k == 3 else 0
+    pad = k // 2  # 1x1 不补, 3x3 补 1, 5x5 补 2
     cin, cout = layer['cin'], layer['cout']
     out_h, out_w = layer['out_h'], layer['out_w']
     xp = pad_input(x, pad, layer['pad_q'])

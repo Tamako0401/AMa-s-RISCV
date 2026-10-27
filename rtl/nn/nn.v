@@ -7,6 +7,7 @@
 // 存储: 输入图像 RAM 19200 字 x 32 位 (一个字一个像素, BGR + 0);
 //       特征缓冲 A/B 若干 128 位字, 层与层之间乒乓; 层表见 nn_layers.v (脚本生成)。
 // 时序: 每个 (输出像素, 通道组) 一拍一个抽头 (16 次乘加), 再约 18 拍定点化 (16 个通道 + 流水 2 拍)。
+//       核大小 1 / 3 / 5 (层表的 k), 补边 k/2。
 //       整网约 75 万拍 (50 MHz 下 15 ms)。
 //
 // 寄存器 (偏移, 见 docs/nn.md):
@@ -53,7 +54,7 @@ module nn (
 
     // ---------------- 层表 ----------------
     wire cfg_mode, cfg_stride2, cfg_relu, cfg_src_in, cfg_dst_b;
-    wire [1:0] cfg_k;
+    wire [2:0] cfg_k;  // 核大小 1 / 3 / 5
     wire [6:0] cfg_cin, cfg_cout;
     wire [7:0] cfg_in_w, cfg_in_h, cfg_out_w, cfg_out_h;
     wire [10:0] cfg_w_base;
@@ -107,7 +108,8 @@ module nn (
     reg [127:0] out_word;
 
     reg [1:0] cshift_in, cshift_out;
-    wire [5:0] k_last = (cfg_k == 2'd3) ? 6'd2 : 6'd0;  // 核内最后一个下标 (k-1)
+    wire [5:0] k_last = {3'd0, cfg_k} - 6'd1;          // 核内最后一个下标 (k-1)
+    wire [1:0] k_pad = cfg_k[2:1];                      // 补边 k/2: 1x1 -> 0, 3x3 -> 1, 5x5 -> 2
     wire [5:0] cin_last = cfg_cin[5:0] - 6'd1;          // 最后一个输入通道
     wire [7:0] cgroups_x = {1'b0, (cfg_cout + 7'd15)} >> 4;
     reg [2:0] cgroups_out;
@@ -124,16 +126,20 @@ module nn (
     wire signed [20:0] ix = col_x21 + tx21;
     wire in_range = (iy >= 21'sd0) && (iy < ih_s) && (ix >= 21'sd0) && (ix < iw_s);
 
-    // ty 只可能是 0/1/2: 用选择器代替乘法
+    // ty 只可能是 0..4: 用移位和一个加法代替乘法
+    wire signed [20:0] iw_x2 = $signed({iw_s[19:0], 1'b0});
+    wire signed [20:0] iw_x4 = $signed({iw_s[18:0], 2'b0});
     wire signed [20:0] ty_off = (ty == 6'd0) ? 21'sd0
                               : (ty == 6'd1) ? iw_s
-                              : $signed({iw_s[19:0], 1'b0});
+                              : (ty == 6'd2) ? iw_x2
+                              : (ty == 6'd3) ? iw_x2 + iw_s
+                              : iw_x4;
     wire signed [20:0] addr_pix = row_base + ty_off + col_x21 + tx21;
 
-    // 抽头序号 = 输入通道 * k*k + 核内位置; k 只有 1 和 3 两种
-    wire [13:0] t_index_x = (cfg_k == 2'd3)
-        ? ({8'd0, ti} * 14'd9 + {8'd0, ty} * 14'd3 + {8'd0, tx})
-        : {8'd0, ti};
+    // 抽头序号 = 输入通道 * k*k + 核内位置; k 是 1、3、5
+    wire [13:0] t_index_x = (cfg_k == 3'd5) ? ({8'd0, ti} * 14'd25 + {8'd0, ty} * 14'd5 + {8'd0, tx})
+                          : (cfg_k == 3'd3) ? ({8'd0, ti} * 14'd9 + {8'd0, ty} * 14'd3 + {8'd0, tx})
+                          : {8'd0, ti};
     wire [9:0] t_index = t_index_x[9:0];
     wire [11:0] w_addr_x = {1'b0, cfg_w_base} + ({2'd0, t_index} << cshift_out) + {10'd0, cg};
     wire [10:0] bm_addr_x = {1'b0, cfg_bm_base} + {5'd0, cg, 4'd0} + {6'd0, rq_n};
@@ -365,9 +371,9 @@ module nn (
                     px <= 8'd0;
                     cg <= 2'd0;
                     out_pix <= 13'd0;
-                    col_x <= (cfg_k == 2'd3) ? -9'sd1 : 9'sd0;
-                    row_y <= (cfg_k == 2'd3) ? -19'sd1 : 19'sd0;
-                    row_base <= (cfg_k == 2'd3) ? (21'sd0 - iw_s) : 21'sd0;
+                    col_x <= -$signed({7'd0, k_pad});
+                    row_y <= -$signed({17'd0, k_pad});
+                    row_base <= (k_pad == 2'd2) ? (21'sd0 - iw_x2) : (k_pad == 2'd1) ? (21'sd0 - iw_s) : 21'sd0;
                     cshift_in <= ((cfg_mode ? cfg_cout : cfg_cin) > 7'd32) ? 2'd2
                                : ((cfg_mode ? cfg_cout : cfg_cin) > 7'd16) ? 2'd1 : 2'd0;
                     cshift_out <= (cfg_cout > 7'd32) ? 2'd2 : (cfg_cout > 7'd16) ? 2'd1 : 2'd0;
@@ -460,7 +466,7 @@ module nn (
                             state <= S_PIX;
                         end else begin
                             px <= 8'd0;
-                            col_x <= (cfg_k == 2'd3) ? -9'sd1 : 9'sd0;
+                            col_x <= -$signed({7'd0, k_pad});
                             if (py + 8'd1 != cfg_out_h) begin
                                 py <= py + 8'd1;
                                 row_y <= row_y + (cfg_stride2 ? 19'sd2 : 19'sd1);

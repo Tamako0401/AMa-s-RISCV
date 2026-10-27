@@ -16,7 +16,7 @@
     tests/nn/model.npz      量化后的模型, model/nnref.py 读它
 
 用法:
-    model/nn_export.py                        # 固定种子的随机权重 (没有 .pt 时也能验证 RTL)
+    model/nn_export.py                        # 固定种子的随机权重 (没有 .pt 时也能验证 RTL); --dw-k 3 导出旧结构
     model/nn_export.py model/runs/x.pt        # 从 model/train.py 存的权重导出 (需要 torch)
     model/nn_export.py --calib frames.raw     # 用真实画面标定 (每帧 120*160*3 字节, 可多帧)
     model/nn_export.py model/runs/x.pt --calib model/data   # 标定直接用录的数据 (train.py 缓存的 small_160.npy)
@@ -41,17 +41,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 LANES = 16  # 一个 128 位字里的通道数, 和 RTL 的并行度一致
 
 
-def spec(width, in_w=160, in_h=120):
-    """handnet 的层表 (和 model/handnet.py 的 body/head 逐层对应)。"""
+def spec(width, dw_k=3, in_w=160, in_h=120):
+    """handnet 的层表 (和 model/handnet.py 的 body/head 逐层对应); dw_k: 不缩小的两块 (dw3、dw4) 的深度卷积核。"""
     layers = [
         {'name': 'conv0', 'mode': 'conv', 'k': 3, 'stride': 2, 'cin': 3, 'cout': width, 'relu': True},
         {'name': 'dw1', 'mode': 'dw', 'k': 3, 'stride': 2, 'cin': width, 'cout': width, 'relu': True},
         {'name': 'pw1', 'mode': 'conv', 'k': 1, 'stride': 1, 'cin': width, 'cout': 2 * width, 'relu': True},
         {'name': 'dw2', 'mode': 'dw', 'k': 3, 'stride': 2, 'cin': 2 * width, 'cout': 2 * width, 'relu': True},
         {'name': 'pw2', 'mode': 'conv', 'k': 1, 'stride': 1, 'cin': 2 * width, 'cout': 4 * width, 'relu': True},
-        {'name': 'dw3', 'mode': 'dw', 'k': 3, 'stride': 1, 'cin': 4 * width, 'cout': 4 * width, 'relu': True},
+        {'name': 'dw3', 'mode': 'dw', 'k': dw_k, 'stride': 1, 'cin': 4 * width, 'cout': 4 * width, 'relu': True},
         {'name': 'pw3', 'mode': 'conv', 'k': 1, 'stride': 1, 'cin': 4 * width, 'cout': 4 * width, 'relu': True},
-        {'name': 'dw4', 'mode': 'dw', 'k': 3, 'stride': 1, 'cin': 4 * width, 'cout': 4 * width, 'relu': True},
+        {'name': 'dw4', 'mode': 'dw', 'k': dw_k, 'stride': 1, 'cin': 4 * width, 'cout': 4 * width, 'relu': True},
         {'name': 'pw4', 'mode': 'conv', 'k': 1, 'stride': 1, 'cin': 4 * width, 'cout': 4 * width, 'relu': True},
         {'name': 'head', 'mode': 'conv', 'k': 1, 'stride': 1, 'cin': 4 * width, 'cout': 4, 'relu': False},
     ]
@@ -128,7 +128,7 @@ def forward_float(layers, ws, img):
     x = x[:, :, ::-1]  # RGB -> BGR, 和 model/handnet.py 一致
     outs = []
     for la, (w, b) in zip(layers, ws):
-        k, s, pad = la['k'], la['stride'], 1 if la['k'] == 3 else 0
+        k, s, pad = la['k'], la['stride'], la['k'] // 2
         xp = np.pad(x, ((pad, pad), (pad, pad), (0, 0)))
         oh, ow = la['out_h'], la['out_w']
         acc = np.zeros((oh, ow, la['cout']), dtype=np.float32)
@@ -241,7 +241,7 @@ def emit_layers_v(layers, path):
         'module nn_layers (',
         '    input wire [3:0] idx,',
         '    output reg mode,  // 0 = 普通卷积, 1 = depthwise',
-        '    output reg [1:0] k,',
+        '    output reg [2:0] k,  // 核大小 1 / 3 / 5',
         '    output reg stride2,',
         '    output reg [6:0] cin,',
         '    output reg [6:0] cout,',
@@ -265,7 +265,7 @@ def emit_layers_v(layers, path):
         lines.append(f'            // {i}: {la["name"]} {la["mode"]} k{la["k"]} s{la["stride"]} '
                      f'{la["cin"]}->{la["cout"]} {la["in_w"]}x{la["in_h"]}->{la["out_w"]}x{la["out_h"]}')
         lines.append(f'            4\'d{i}: begin')
-        lines.append(f'                mode = 1\'b{int(la["mode"] == "dw")}; k = 2\'d{la["k"]}; '
+        lines.append(f'                mode = 1\'b{int(la["mode"] == "dw")}; k = 3\'d{la["k"]}; '
                      f'stride2 = 1\'b{int(la["stride"] == 2)};')
         lines.append(f'                cin = 7\'d{la["cin"]}; cout = 7\'d{la["cout"]};')
         lines.append(f'                in_w = 8\'d{la["in_w"]}; in_h = 8\'d{la["in_h"]}; '
@@ -278,7 +278,7 @@ def emit_layers_v(layers, path):
         lines.append('            end')
     lines += [
         '            default: begin',
-        "                mode = 1'b0; k = 2'd1; stride2 = 1'b0; cin = 7'd1; cout = 7'd16;",
+        "                mode = 1'b0; k = 3'd1; stride2 = 1'b0; cin = 7'd1; cout = 7'd16;",
         "                in_w = 8'd1; in_h = 8'd1; out_w = 8'd1; out_h = 8'd1;",
         "                relu = 1'b0; src_in = 1'b1; dst_b = 1'b0;",
         "                w_base = 11'd0; bm_base = 10'd0; sh = 6'd0; zout = 8'sh80; pad_q = 8'sh80;",
@@ -329,22 +329,23 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('ckpt', nargs='?', help='model/train.py 存的 .pt (不给就用固定种子的随机权重)')
     ap.add_argument('--width', type=int, default=16, help='没有 .pt 时的网络宽度 (有 .pt 时从里面读)')
+    ap.add_argument('--dw-k', type=int, default=5, choices=[3, 5], help='没有 .pt 时 dw3、dw4 的核大小 (有 .pt 时从里面读)')
     ap.add_argument('--calib', help='标定用的原始画面文件 (每帧 120*160*3 字节, RGB), 或 session / 装着 session 的目录')
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('-o', '--out', default=str(ROOT))
     args = ap.parse_args()
     out = Path(args.out)
 
-    width = args.width
+    width, dw_k = args.width, args.dw_k
     if args.ckpt:
         import torch
 
         saved = torch.load(args.ckpt, map_location='cpu')
-        width = saved['width']
-        if saved.get('size', 160) != 160 or saved.get('dw_k', 3) != 3 or saved.get('extra', 0) != 0:
-            sys.exit(f'{args.ckpt}: 输入 {saved.get("size")}、深度卷积 {saved.get("dw_k", 3)}x{saved.get("dw_k", 3)}、'
-                     f'多 {saved.get("extra", 0)} 块; 硬件现在只支持 160 输入、3x3、不多加块 (见 docs/hand-model.md "结构试验")')
-    layers = spec(width)
+        width, dw_k = saved['width'], saved.get('dw_k', 3)
+        if saved.get('size', 160) != 160 or saved.get('extra', 0) != 0:
+            sys.exit(f'{args.ckpt}: 输入 {saved.get("size")}、多 {saved.get("extra", 0)} 块; '
+                     f'硬件现在只支持 160 输入、不多加块 (见 docs/hand-model.md "结构试验")')
+    layers = spec(width, dw_k)
     ws = make_weights(layers, args.ckpt, args.seed)
 
     if args.calib and Path(args.calib).is_dir():

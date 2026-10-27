@@ -42,7 +42,7 @@ def separable(cin, cout, stride, k=3):
 
 class HandNet(nn.Module):
     def __init__(self, width=8, dw_k=3, extra=0):
-        """dw_k: 不缩小的块里深度卷积的核大小 (3 或 5); extra: 额外的不缩小的块数。默认值就是硬件现在的结构。"""
+        """dw_k: 不缩小的块里深度卷积的核大小 (3 或 5); extra: 额外的不缩小的块数。硬件支持 dw_k 3 和 5 (rtl/nn 的层表), extra 只能是 0。"""
         super().__init__()
         w = width
         self.body = nn.Sequential(
