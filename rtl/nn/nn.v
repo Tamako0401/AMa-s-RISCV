@@ -1,13 +1,13 @@
 // handnet 加速器 (外设子总线 0x4000_6000): 一层一层跑完整张网络, 权重在片上 ROM。
 //
 // 数据通路: 16 路 int8 乘加并行 (一个 128 位字 = 16 个通道), int32 累加;
-//           之后每输出通道一拍做定点化, 乘数/偏置也是每通道一个。
+//           之后定点化 (三级流水, 每拍进一个输出通道), 乘数/偏置也是每通道一个。
 //           两种模式 —— 普通卷积 (16 个输出通道并行, 同一个输入字节广播)
 //           和 depthwise (16 个通道各取自己那个字节)。
 // 存储: 输入图像 RAM 19200 字 x 32 位 (一个字一个像素, BGR + 0);
 //       特征缓冲 A/B 若干 128 位字, 层与层之间乒乓; 层表见 nn_layers.v (脚本生成)。
-// 时序: 每个 (输出像素, 通道组) 一拍一个抽头 (16 次乘加), 再 16 拍定点化。
-//       整网约 71 万拍 (50 MHz 下 14 ms)。
+// 时序: 每个 (输出像素, 通道组) 一拍一个抽头 (16 次乘加), 再约 18 拍定点化 (16 个通道 + 流水 2 拍)。
+//       整网约 75 万拍 (50 MHz 下 15 ms)。
 //
 // 寄存器 (偏移, 见 docs/nn.md):
 //   0x00 CTRL     bit0 写 1 开始一次推理 (忙时忽略); bit1 写 1 清除 DONE
@@ -152,20 +152,26 @@ module nn (
     wire [127:0] act_raw = cfg_src_in ? {96'd0, in_rdata} : f_rdata;
     wire [127:0] act_q = in_range_r ? act_raw : {16{cfg_pad_q}};
 
-    // ---------------- 定点化 (一拍一个输出通道) ----------------
+    // ---------------- 定点化 (三级流水, 一拍进一个输出通道) ----------------
     // nn_bm.mem 的一个字: 低 32 位是定点乘数, 高 32 位是偏置 (见 model/nn_export.py)
+    // 级 1: 选累加器 + 偏置 (33 位够); 级 2: 乘定点乘数, 33x32 取低 64 位, 和原先 64x64
+    // 截成 64 位的结果相同; 级 3 (组合, 写 out_word): 舍入、移位、加零点、限幅。
+    // 原来五步串在一拍里, 是整片 sys 时钟的最差路径。
     wire signed [31:0] acc_sel = acc[rq_m[3:0]];
     wire signed [31:0] b_sel = bm_data[63:32];
-    wire signed [63:0] sum_64 = $signed({{32{acc_sel[31]}}, acc_sel}) + $signed({{32{b_sel[31]}}, b_sel});
-    wire signed [63:0] m_64 = $signed({{32{bm_data[31]}}, bm_data[31:0]});
-    wire signed [63:0] prod_64 = sum_64 * m_64;
+    reg rq1_v, rq2_v;
+    reg [3:0] rq1_m, rq2_m;
+    reg signed [32:0] rq1_sum;
+    reg signed [31:0] rq1_mul;
+    reg signed [63:0] rq2_prod;
+    wire signed [64:0] prod_65 = rq1_sum * rq1_mul;
     wire signed [63:0] rnd = (cfg_sh == 6'd0) ? 64'sd0 : (64'sd1 << (cfg_sh - 6'd1));
     wire signed [63:0] z_64 = $signed({{56{cfg_zout[7]}}, cfg_zout});
-    wire signed [63:0] shifted = ((prod_64 + rnd) >>> cfg_sh) + z_64;
+    wire signed [63:0] shifted = ((rq2_prod + rnd) >>> cfg_sh) + z_64;
     wire signed [63:0] lo_64 = cfg_relu ? z_64 : -64'sd128;
     wire signed [63:0] clamped = (shifted < lo_64) ? lo_64 : (shifted > 64'sd127) ? 64'sd127 : shifted;
     wire [7:0] rq_byte = clamped[7:0];
-    wire [7:0] oc_sel = {2'd0, cg, 4'd0} + {3'd0, rq_m};
+    wire [7:0] oc_sel = {2'd0, cg, 4'd0} + {4'd0, rq2_m};
     wire rq_valid = oc_sel < {1'b0, cfg_cout};
 
     // ---------------- 存储 ----------------
@@ -281,6 +287,13 @@ module nn (
             in_range_r <= 1'b0;
             rq_n <= 5'd0;
             rq_m <= 5'd0;
+            rq1_v <= 1'b0;
+            rq2_v <= 1'b0;
+            rq1_m <= 4'd0;
+            rq2_m <= 4'd0;
+            rq1_sum <= 33'sd0;
+            rq1_mul <= 32'sd0;
+            rq2_prod <= 64'sd0;
             out_word <= 128'h0;
             cshift_in <= 2'd0;
             cshift_out <= 2'd0;
@@ -408,16 +421,26 @@ module nn (
                     end
                 end
                 S_RQ: begin
+                    // use_v: 乘数/偏置 ROM 这一拍的读数有效 (rq_n 上一拍发的地址)
+                    rq1_v <= use_v;
+                    rq2_v <= rq1_v;
                     if (use_v) begin
-                        out_word[8*rq_m[3:0]+:8] <= rq_valid ? rq_byte : 8'h0;
+                        rq1_m <= rq_m[3:0];
+                        rq1_sum <= $signed({acc_sel[31], acc_sel}) + $signed({b_sel[31], b_sel});
+                        rq1_mul <= $signed(bm_data[31:0]);
                         rq_m <= rq_m + 5'd1;
                     end
+                    if (rq1_v) begin
+                        rq2_m <= rq1_m;
+                        rq2_prod <= prod_65[63:0];
+                    end
+                    if (rq2_v) out_word[8*rq2_m+:8] <= rq_valid ? rq_byte : 8'h0;
                     if (rq_n != 5'd16) begin
                         rq_n <= rq_n + 5'd1;
                         use_v <= 1'b1;
-                    end else if (use_v) begin
+                    end else begin
                         use_v <= 1'b0;
-                        state <= S_WRITE;
+                        if (!use_v && !rq1_v && rq2_v) state <= S_WRITE;
                     end
                 end
                 S_WRITE: begin
