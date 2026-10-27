@@ -16,14 +16,6 @@ module alu_tb;
     reg alu_op_or_i = 0;
     reg alu_op_and_i = 0;
     reg req_bjp_i = 0;
-    reg [31:0] bjp_op1_i = 0;
-    reg [31:0] bjp_op2_i = 0;
-    reg bjp_op_beq_i = 0;
-    reg bjp_op_bne_i = 0;
-    reg bjp_op_blt_i = 0;
-    reg bjp_op_bltu_i = 0;
-    reg bjp_op_bge_i = 0;
-    reg bjp_op_bgeu_i = 0;
     reg bjp_op_jump_i = 0;
     reg [31:0] bjp_jump_op1_i = 0;
     reg [31:0] bjp_jump_op2_i = 0;
@@ -35,7 +27,6 @@ module alu_tb;
     reg csr_csrrc_i = 0;
     wire [31:0] alu_res_o;
     wire [31:0] bjp_res_o;
-    wire bjp_cmp_res_o;
     exu_alu_datapath dut (
         .clk(clk),
         .rst_n(rst_n),
@@ -53,14 +44,6 @@ module alu_tb;
         .alu_op_or_i(alu_op_or_i),
         .alu_op_and_i(alu_op_and_i),
         .req_bjp_i(req_bjp_i),
-        .bjp_op1_i(bjp_op1_i),
-        .bjp_op2_i(bjp_op2_i),
-        .bjp_op_beq_i(bjp_op_beq_i),
-        .bjp_op_bne_i(bjp_op_bne_i),
-        .bjp_op_blt_i(bjp_op_blt_i),
-        .bjp_op_bltu_i(bjp_op_bltu_i),
-        .bjp_op_bge_i(bjp_op_bge_i),
-        .bjp_op_bgeu_i(bjp_op_bgeu_i),
         .bjp_op_jump_i(bjp_op_jump_i),
         .bjp_jump_op1_i(bjp_jump_op1_i),
         .bjp_jump_op2_i(bjp_jump_op2_i),
@@ -71,8 +54,7 @@ module alu_tb;
         .csr_csrrs_i(csr_csrrs_i),
         .csr_csrrc_i(csr_csrrc_i),
         .alu_res_o(alu_res_o),
-        .bjp_res_o(bjp_res_o),
-        .bjp_cmp_res_o(bjp_cmp_res_o)
+        .bjp_res_o(bjp_res_o)
     );
     task static clear_ops;
         begin
@@ -156,34 +138,10 @@ module alu_tb;
         clear_ops();
         req_alu_i = 0;
         req_bjp_i = 1;
-        bjp_op1_i = 32'hffffffff;
-        bjp_op2_i = 1;
         bjp_jump_op1_i = 32'h80000000;
         bjp_jump_op2_i = 16;
-        bjp_op_blt_i = 1;
         #1;
-        if (bjp_cmp_res_o !== 1 || bjp_res_o !== 32'h80000010) $fatal(1, "signed branch/target");
-        bjp_op_blt_i  = 0;
-        bjp_op_bltu_i = 1;
-        #1;
-        if (bjp_cmp_res_o !== 0) $fatal(1, "unsigned branch");
-        bjp_op_bltu_i = 0;
-        bjp_op_bgeu_i = 1;
-        #1;
-        if (bjp_cmp_res_o !== 1) $fatal(1, "unsigned greater/equal");
-        bjp_op_bgeu_i = 0;
-        bjp_op_bge_i  = 1;
-        #1;
-        if (bjp_cmp_res_o !== 0) $fatal(1, "signed greater/equal");
-        bjp_op_bge_i = 0;
-        bjp_op_beq_i = 1;
-        bjp_op2_i = bjp_op1_i;
-        #1;
-        if (bjp_cmp_res_o !== 1) $fatal(1, "equal branch");
-        bjp_op_beq_i = 0;
-        bjp_op_bne_i = 1;
-        #1;
-        if (bjp_cmp_res_o !== 0) $fatal(1, "not equal branch");
+        if (bjp_res_o !== 32'h80000010) $fatal(1, "branch target");
         req_bjp_i = 0;
         req_csr_i   = 1;
         csr_op1_i   = 8'ha5;
@@ -196,7 +154,7 @@ module alu_tb;
         csr_op2_i   = ~32'h5;
         #1;
         if (alu_res_o !== 8'ha0) $fatal(1, "CSR clear pre-inverted mask contract");
-        $display("PASS ALU: 2560 arithmetic vectors, branches, address and CSR datapaths");
+        $display("PASS ALU: 2560 arithmetic vectors, branch target and CSR datapaths");
         $finish;
     end
 endmodule

@@ -50,8 +50,6 @@ module exu_dispatch (
 
     // dispatch to BJP
     output wire req_bjp_o,
-    output wire [31:0] bjp_op1_o,
-    output wire [31:0] bjp_op2_o,
     output wire [31:0] bjp_jump_op1_o,
     output wire [31:0] bjp_jump_op2_o,
     output wire bjp_op_jump_o,
@@ -143,8 +141,6 @@ module exu_dispatch (
     // BJP op2
     wire [31:0] bjp_op2 = dec_imm_i;
     assign bjp_jump_op2_o = op_bjp ? bjp_op2 : 32'h0;
-    assign bjp_op1_o = op_bjp ? rs1_rdata_i : 32'h0;
-    assign bjp_op2_o = op_bjp ? rs2_rdata_i : 32'h0;
     assign bjp_op_jump_o = bjp_info[`DECINFO_BJP_JUMP];
     assign bjp_op_beq_o = bjp_info[`DECINFO_BJP_BEQ];
     assign bjp_op_bne_o = bjp_info[`DECINFO_BJP_BNE];

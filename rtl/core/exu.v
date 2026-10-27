@@ -113,8 +113,6 @@ module exu (
     wire alu_op_or_o;
     wire alu_op_and_o;
     // dispatch to BJP
-    wire [31:0] bjp_op1_o;
-    wire [31:0] bjp_op2_o;
     wire [31:0] bjp_jump_op1_o;
     wire [31:0] bjp_jump_op2_o;
     wire req_bjp_o;
@@ -189,8 +187,6 @@ module exu (
         .alu_op_or_o(alu_op_or_o),
         .alu_op_and_o(alu_op_and_o),
         // dispatch to BJP
-        .bjp_op1_o(bjp_op1_o),
-        .bjp_op2_o(bjp_op2_o),
         .bjp_jump_op1_o(bjp_jump_op1_o),
         .bjp_jump_op2_o(bjp_jump_op2_o),
         .req_bjp_o(req_bjp_o),
@@ -246,7 +242,16 @@ module exu (
 
     wire [31:0] alu_res_o;
     wire [31:0] bjp_res_o;
-    wire bjp_cmp_res_o;
+
+    // 分支比较用自己的比较器, 直接比 rs1/rs2。原来经过共享 ALU 的操作数选择 (和 CSR 读数据同一个与或),
+    // 是 "分支解析 -> 冲刷 -> fetch_pc" 这条 sys_clk 最差路径的大头。
+    // 操作码已经按 op_bjp 门控过 (exu_dispatch), 不是分支时结果为 0
+    wire br_eq = (reg1_rdata_i == reg2_rdata_i);
+    wire br_lt = ($signed(reg1_rdata_i) < $signed(reg2_rdata_i));
+    wire br_ltu = (reg1_rdata_i < reg2_rdata_i);
+    wire bjp_cmp_res_o = (bjp_op_beq_o & br_eq) | (bjp_op_bne_o & ~br_eq) |
+                         (bjp_op_blt_o & br_lt) | (bjp_op_bge_o & ~br_lt) |
+                         (bjp_op_bltu_o & br_ltu) | (bjp_op_bgeu_o & ~br_ltu);
     wire [31:0] csr_op1 = csr_csrrc_o ? (~csr_op1_o) : csr_op1_o;
     wire [31:0] csr_op2 = csr_csrrw_o ? (32'h0) : csr_rdata_i;
 
@@ -269,14 +274,6 @@ module exu (
         .alu_op_and_i(alu_op_and_o),
         // BJP
         .req_bjp_i(req_bjp_o),
-        .bjp_op1_i(bjp_op1_o),
-        .bjp_op2_i(bjp_op2_o),
-        .bjp_op_beq_i(bjp_op_beq_o),
-        .bjp_op_bne_i(bjp_op_bne_o),
-        .bjp_op_blt_i(bjp_op_blt_o),
-        .bjp_op_bltu_i(bjp_op_bltu_o),
-        .bjp_op_bge_i(bjp_op_bge_o),
-        .bjp_op_bgeu_i(bjp_op_bgeu_o),
         .bjp_op_jump_i(bjp_op_jump_o),
         .bjp_jump_op1_i(bjp_jump_op1_o),
         .bjp_jump_op2_i(bjp_jump_op2_o),
@@ -289,8 +286,7 @@ module exu (
         .csr_csrrc_i(csr_csrrc_o),
 
         .alu_res_o(alu_res_o),
-        .bjp_res_o(bjp_res_o),
-        .bjp_cmp_res_o(bjp_cmp_res_o)
+        .bjp_res_o(bjp_res_o)
     );
 
     wire mem_mem_we_o;

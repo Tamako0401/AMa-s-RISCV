@@ -48,6 +48,7 @@
 | `exu.v` | JALR 目标地址清除 bit 0 |
 | `exu_muldiv.v` | 乘法仍是两拍，寄存器从操作数挪到乘积：第一拍按有无符号把操作数扩成 33 位做带符号乘法并寄存 64 位乘积，第二拍只取高/低半写回。去掉了乘前、乘后两次求补，sys_clk 64.0 → 75.2 MHz，u_core 少约 550 LUT |
 | `exu_dispatch.v`、`exu_alu_datapath.v` | 访存地址 `rs1 + imm` 用 dispatch 里单独的加法器，共享 ALU 去掉 MEM 一路。原来 dbus 地址要经过 CSR 读选择和 ALU 操作数选择，是 sys_clk 的最差路径之一 |
+| `exu.v`、`exu_alu_datapath.v` | 分支比较（eq / 有符号 lt / 无符号 lt）用 exu 里单独的比较器直接比 rs1/rs2，共享 ALU 只留跳转目标的加法。原来比较要经过和 CSR 读数据同一个与或选择，是"分支解析 → 冲刷 → fetch_pc"的大头；mes2l100hp 上 sys Fmax 68.6 → 78.8 MHz |
 
 ## 尚未证明的范围
 

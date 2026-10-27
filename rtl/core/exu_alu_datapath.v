@@ -1,6 +1,7 @@
 // Imported and adapted for AMa-s-RISCV, 2026-09-25.
 // Changes: Normalize line endings to LF and remove trailing whitespace. Remove dependency on upstream core/defines.v.
 // Memory address no longer goes through this datapath (exu_dispatch has its own adder).
+// Branch comparison no longer goes through this datapath (exu has its own comparator); only the jump target adder remains.
 // Provenance: docs/third-party.md and third_party/tinyriscv-manifest.json.
 /*
  Copyright 2020 Blue Liang, liangkangnan@163.com
@@ -20,7 +21,7 @@
 
 
 
-`define DATAPATH_MUX_WIDTH (32+32+16)
+`define DATAPATH_MUX_WIDTH (32+32+10)
 
 
 module exu_alu_datapath (
@@ -45,14 +46,6 @@ module exu_alu_datapath (
 
     // BJP
     input wire req_bjp_i,
-    input wire [31:0] bjp_op1_i,
-    input wire [31:0] bjp_op2_i,
-    input wire bjp_op_beq_i,
-    input wire bjp_op_bne_i,
-    input wire bjp_op_blt_i,
-    input wire bjp_op_bltu_i,
-    input wire bjp_op_bge_i,
-    input wire bjp_op_bgeu_i,
     input wire bjp_op_jump_i,
     input wire [31:0] bjp_jump_op1_i,
     input wire [31:0] bjp_jump_op2_i,
@@ -66,8 +59,7 @@ module exu_alu_datapath (
     input wire csr_csrrc_i,
 
     output wire [31:0] alu_res_o,
-    output wire [31:0] bjp_res_o,
-    output wire bjp_cmp_res_o
+    output wire [31:0] bjp_res_o
 
 );
 
@@ -83,12 +75,6 @@ module exu_alu_datapath (
     wire op_sra;
     wire op_or;
     wire op_and;
-    wire op_beq;
-    wire op_bne;
-    wire op_blt;
-    wire op_bltu;
-    wire op_bge;
-    wire op_bgeu;
 
     // 异或
     wire [31:0] xor_res = mux_op1 ^ mux_op2;
@@ -112,16 +98,6 @@ module exu_alu_datapath (
     wire op1_ge_op2_signed = ($signed(mux_op1) >= $signed(mux_op2));
     // 无符号数比较
     wire op1_ge_op2_unsigned = (mux_op1 >= mux_op2);
-
-    wire op1_neq_op2 = (|xor_res);
-    wire op1_eq_op2 = (~op1_neq_op2);
-
-    wire cmp_res_eq = op_beq & op1_eq_op2;
-    wire cmp_res_neq = op_bne & op1_neq_op2;
-    wire cmp_res_lt = op_blt & (~op1_ge_op2_signed);
-    wire cmp_res_ltu = op_bltu & (~op1_ge_op2_unsigned);
-    wire cmp_res_gt = op_bge & op1_ge_op2_signed;
-    wire cmp_res_gtu = op_bgeu & op1_ge_op2_unsigned;
 
     wire [31:0] slt_res = (~op1_ge_op2_signed) ? 32'h1 : 32'h0;
     wire [31:0] sltu_res = (~op1_ge_op2_unsigned) ? 32'h1 : 32'h0;
@@ -148,8 +124,6 @@ module exu_alu_datapath (
 
     assign bjp_res_o = alu_datapath_res;
 
-    assign bjp_cmp_res_o = cmp_res_eq | cmp_res_neq | cmp_res_lt | cmp_res_ltu | cmp_res_gt | cmp_res_gtu;
-
     assign {mux_op1,
             mux_op2,
             op_add,
@@ -161,13 +135,7 @@ module exu_alu_datapath (
             op_srl,
             op_sra,
             op_or,
-            op_and,
-            op_beq,
-            op_bne,
-            op_blt,
-            op_bltu,
-            op_bge,
-            op_bgeu
+            op_and
             } = ({`DATAPATH_MUX_WIDTH{req_alu_i}} & {
                   alu_op1_i,
                   alu_op2_i,
@@ -180,17 +148,11 @@ module exu_alu_datapath (
                   alu_op_srl_i,
                   alu_op_sra_i,
                   alu_op_or_i,
-                  alu_op_and_i,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0
+                  alu_op_and_i
                  }) |
                 ({`DATAPATH_MUX_WIDTH{req_bjp_i}} & {
-                  bjp_op1_i,
-                  bjp_op2_i,
+                  32'h0,
+                  32'h0,
                   1'b1,
                   1'b0,
                   1'b0,
@@ -200,13 +162,7 @@ module exu_alu_datapath (
                   1'b0,
                   1'b0,
                   1'b0,
-                  1'b0,
-                  bjp_op_beq_i,
-                  bjp_op_bne_i,
-                  bjp_op_blt_i,
-                  bjp_op_bltu_i,
-                  bjp_op_bge_i,
-                  bjp_op_bgeu_i
+                  1'b0
                  }) |
                 ({`DATAPATH_MUX_WIDTH{req_csr_i}} & {
                   csr_op1_i,
@@ -220,13 +176,7 @@ module exu_alu_datapath (
                   1'b0,
                   1'b0,
                   csr_csrrw_i | csr_csrrs_i,
-                  csr_csrrc_i,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0,
-                  1'b0
+                  csr_csrrc_i
                  });
 
 endmodule
