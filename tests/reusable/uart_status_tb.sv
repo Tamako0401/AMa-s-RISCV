@@ -157,6 +157,20 @@ module uart_status_tb;
         end
         $display(
             "PASS uart_status B: STATUS write on the RX-complete edge (offsets -3..3) keeps the new byte");
+
+        // ---- C: 接收 FIFO: 软件没来得及取时连着来 20 个字节, 前 16 个按顺序都在, 后 4 个丢掉 ----
+        restart;
+        for (integer i = 0; i < 20; i = i + 1) send_rx(8'h30 + i[7:0]);
+        for (integer i = 0; i < 16; i = i + 1) begin
+            access (0, 4, 0, r);
+            if (r[1] !== 1'b1) $fatal(1, "C byte %0d: FIFO empty too early", i);
+            access (0, 16, 0, r);
+            if (r[7:0] !== 8'h30 + i[7:0]) $fatal(1, "C byte %0d: RXDATA=%h", i, r[7:0]);
+            access (1, 4, 0, r);  // 取走
+        end
+        access (0, 4, 0, r);
+        if (r[1] !== 1'b0) $fatal(1, "C: FIFO not empty after 16 reads");
+        $display("PASS uart_status C: RX FIFO keeps 16 back-to-back bytes in order, drops the rest");
         $finish;
     end
     initial begin

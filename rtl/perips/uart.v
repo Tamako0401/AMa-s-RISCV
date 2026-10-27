@@ -82,8 +82,10 @@ module uart #(
 
     // UART状态寄存器
     // 只读，bit[0]: TX空闲状态标志, 1: busy, 0: idle
-    // 可读可写，bit[1]: RX接收完成标志, 1: over, 0: receiving
+    // bit[1]: 接收 FIFO 非空 (读时现算, 见下面的 RX FIFO; 这里的 bit[1] 不用); 写 0 = 取走一个字节
+    /* verilator lint_off UNUSEDSIGNAL */
     reg [31:0] uart_status;
+    /* verilator lint_on UNUSEDSIGNAL */
 
     // UART波特率寄存器(分频系数)，可读可写
     reg [31:0] uart_baud;
@@ -109,16 +111,31 @@ module uart #(
     assign tx_pin = tx_bit;
 
 
-    // 写uart_rxdata
+    // 收到的字节先进 FIFO (RX_FIFO 个): CPU 忙着算一帧时串口上连着来的几个字节不会互相覆盖。
+    // RXDATA 读的是最早的那个; 软件写 STATUS 清 bit1 = 取走它 (同原来"读 RXDATA 再清标志"的用法), bit1 = FIFO 非空。
+    // 满了再来的字节丢掉。FIFO 空时 RXDATA 还是最后收到的那个 (同原来: 清了标志数据还在)。
+    localparam RX_FIFO = 16;
+    reg [7:0] rx_fifo[0:RX_FIFO-1];
+    reg [3:0] rx_head, rx_tail;
+    reg [4:0] rx_count;
+    wire rx_push = rx_recv_over && rx_count != RX_FIFO;
+    wire rx_pop = write_reg_status_en && sel_i[0] && !data_i[1] && rx_count != 0;
+    always @(posedge clk) begin
+        if (rx_push) rx_fifo[rx_tail] <= rx_data;
+    end
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            uart_rx <= 32'h0;
+            rx_head  <= 4'd0;
+            rx_tail  <= 4'd0;
+            rx_count <= 5'd0;
         end else begin
-            // 接收完成时，保存接收到的数据
-            if (rx_recv_over) begin
-                uart_rx[7:0] <= rx_data;
-            end
+            if (rx_push) rx_tail <= rx_tail + 4'd1;
+            if (rx_pop) rx_head <= rx_head + 4'd1;
+            rx_count <= rx_count + {4'd0, rx_push} - {4'd0, rx_pop};
         end
+    end
+    always @(*) begin
+        uart_rx = {24'h0, rx_fifo[rx_count != 0 ? rx_head : rx_head - 4'd1]};
     end
 
     // 写uart_txdata
@@ -146,12 +163,6 @@ module uart #(
                 // 发送完成时，清TX忙标志
             end else if ((state == S_STOP) & (cycle_cnt == uart_baud[15:0])) begin
                 uart_status[0] <= 1'b0;
-            end
-            // RX完成标志: 接收完成置位优先于软件清除, 同一拍收到的新字节不会丢
-            if (rx_recv_over) begin
-                uart_status[1] <= 1'b1;
-            end else if (write_reg_status_en & sel_i[0]) begin
-                uart_status[1] <= data_i[1];
             end
         end
     end
@@ -199,7 +210,7 @@ module uart #(
             if (ren) begin
                 case (addr_i[7:0])
                     UART_CTRL:   data_r <= uart_ctrl;
-                    UART_STATUS: data_r <= uart_status;
+                    UART_STATUS: data_r <= {uart_status[31:2], rx_count != 0, uart_status[0]};
                     UART_BAUD:   data_r <= uart_baud;
                     UART_RXDATA: data_r <= uart_rx;
                     default:     data_r <= 32'h0;
