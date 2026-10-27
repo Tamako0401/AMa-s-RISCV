@@ -1,6 +1,8 @@
 +incdir+rtl/display
 rtl/utils/dpram.v
 rtl/utils/dpram2c.v
+rtl/utils/dpram_lut.v
+rtl/utils/dpram2c_lut.v
 rtl/display/disp_timing.v
 rtl/display/disp_scanout.v
 rtl/display/disp_palette.v

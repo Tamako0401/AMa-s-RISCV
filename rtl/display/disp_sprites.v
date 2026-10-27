@@ -30,7 +30,7 @@ module disp_sprites (
     reg [31:0] pend_w0, pend_w1;
     wire [2:0] code;
 
-    dpram #(
+    dpram_lut #(
         .DW(32),
         .DP(1024)
     ) u_w0 (
@@ -41,7 +41,7 @@ module disp_sprites (
         .raddr({front, raddr}),
         .rdata(rdata[31:0])
     );
-    dpram #(
+    dpram_lut #(
         .DW(32),
         .DP(1024)
     ) u_w1 (
@@ -52,7 +52,7 @@ module disp_sprites (
         .raddr({front, raddr}),
         .rdata(rdata[63:32])
     );
-    dpram #(
+    dpram_lut #(
         .DW(3),
         .DP(1024)
     ) u_size (
@@ -74,7 +74,7 @@ module disp_sprites (
     wire signed [12:0] top = y - $signed({3'b0, side[10:1]});
     wire signed [12:0] bottom = top + $signed({2'b0, side});
 
-    dpram #(
+    dpram_lut #(
         .DW(26),
         .DP(1024)
     ) u_yrange (

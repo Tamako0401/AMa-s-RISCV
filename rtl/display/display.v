@@ -7,6 +7,7 @@
 // 每逻辑行的流水: 显示第 n 行时, 渲染第 n+1 行, 扫描 (Y 分桶) 第 n+2 行。
 // 场消隐开头 (第 720 条物理行) 如果 CPU 提交过 (COMMIT), 精灵表前后台交换, 帧参数换成 CPU 写的新值。
 // 内存只能整字写, 读回 0; 寄存器可读。
+// 存储: 图案库和文字层放 DRM, 其余的表用 LUT RAM (*_lut) -- 片上 DRM 是最紧的资源 (docs/display.md)。
 module display (
     input wire clk,
     input wire rst_n,
@@ -157,7 +158,7 @@ module display (
         .count1(count1),
         .dropped(scan_drop)
     );
-    dpram #(
+    dpram_lut #(
         .DW(9),
         .DP(256)
     ) u_list (  // 对象列表: {行号[0], 第几个}
@@ -175,7 +176,7 @@ module display (
     wire [11:0] map_raddr;
     wire [12:0] pat_raddr;
     wire [63:0] pat_rdata;
-    dpram #(
+    dpram_lut #(
         .DW(16),
         .DP(1024)
     ) u_images (  // {尺寸码[15:13], 起始字[12:0]}
@@ -208,7 +209,7 @@ module display (
         .raddr(pat_raddr),
         .rdata(pat_rdata[63:32])
     );
-    dpram #(
+    dpram_lut #(
         .DW(10),
         .DP(4096)
     ) u_map (
@@ -305,7 +306,7 @@ module display (
         .show_we(show_we),
         .show_waddr(show_waddr)
     );
-    dpram #(
+    dpram_lut #(
         .DW(128),
         .DP(80)
     ) u_work (  // 工作行: 正在画的那一行, 混合时读出底下的颜色
@@ -319,7 +320,7 @@ module display (
 
     wire [  7:0] show_raddr;
     wire [127:0] show_rdata;
-    dpram2c #(
+    dpram2c_lut #(
         .DW(128),
         .DP(256)
     ) u_show (  // 显示行: {行号[0], 格号}, 两行轮换
@@ -349,7 +350,7 @@ module display (
         .raddr(text_raddr),
         .rdata(text_rdata)
     );
-    dpram2c #(
+    dpram2c_lut #(
         .DW(8),
         .DP(2048)
     ) u_font (  // 128 个字 x 16 行
