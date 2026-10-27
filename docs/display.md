@@ -129,3 +129,33 @@ SP1-Lite 的综合器不认 Logos2, 换不了。
 `PDS_2022.2-SP6.4/ip/module_ip/ipm2l_flex_ram/.../ipm2l_dpram_v1_9.v.xml` 模板反推; 仿真用
 `ifdef VERILATOR` 走 dpram、综合走原语, 参考 `mes2l100hp_top.v` 里 GPLL 的双路径做法,
 Verilator 没有原语模型必须双路径)。`mes2l100hp_top.v` 的 `DISPLAY_NEW` 默认 0, 绕过后翻 1。
+
+### 最小复现 (13 秒崩, 供工单 / 队友验证)
+
+新建目录 `mini/` (相对仓库根), 放一个 `mini.tcl`, 用仓库根的
+`C:/pango/PDS_2022.2-SP6.4/bin/pds_shell.exe -file mini.tcl` 跑:
+
+```tcl
+set_arch -family Logos2 -device PG2L100H -speedgrade -6 -package FBG676
+add_design {../rtl/utils/gen_dff.v}
+add_design {../rtl/utils/gen_buf.v}
+add_design {../rtl/utils/gen_ram.v}
+add_design {../rtl/utils/vld_rdy.v}
+add_design {../rtl/utils/dpram.v}
+add_design {../rtl/utils/dpram2c.v}
+add_design {../rtl/display/disp_timing.v}
+add_design {../rtl/display/disp_palette.v}
+add_design {../rtl/display/disp_span.v}
+add_design {../rtl/display/disp_affine.v}
+add_design {../rtl/display/disp_render.v}
+add_design {../rtl/display/disp_blend.v}
+add_design {../rtl/display/disp_scanout.v}
+add_design {../rtl/display/disp_scan.v}
+add_design {../rtl/display/disp_sprites.v}
+add_design {../rtl/display/display.v}
+compile -top_module display -include_path {..}
+synthesize -ads -selected_syn_tool_opt 2
+```
+
+约 13 秒后 `pds_shell received signal 11` + `Flow-0189: Internal error`。把
+`disp_sprites.v` 换成"删掉 u_w0/u_w1 两块 dpram 例化"的版本即可对比出不崩。
