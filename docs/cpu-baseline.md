@@ -45,6 +45,7 @@
 | `tinyriscv_core.v`、`pipe_ctrl.v`、`idu_exu.v` | 译码级的指令读或写一个还没写回的 load 目的寄存器时留在 ID 一拍，EX 收到气泡（写也要等，否则晚到的 load 会盖掉新值）。响应到达那拍靠旁路，不停 |
 | `tinyriscv_core.v` | 参数化复位 PC；JAL/JALR 返回地址和 FENCE 后继地址使用执行中指令的 PC+4，而非译码级当前地址 |
 | `exu.v` | JALR 目标地址清除 bit 0 |
+| `exu_muldiv.v` | 乘法仍是两拍，寄存器从操作数挪到乘积：第一拍按有无符号把操作数扩成 33 位做带符号乘法并寄存 64 位乘积，第二拍只取高/低半写回。去掉了乘前、乘后两次求补，sys_clk 64.0 → 75.2 MHz，u_core 少约 550 LUT |
 | `exu_dispatch.v`、`exu_alu_datapath.v` | 访存地址 `rs1 + imm` 用 dispatch 里单独的加法器，共享 ALU 去掉 MEM 一路。原来 dbus 地址要经过 CSR 读选择和 ALU 操作数选择，是 sys_clk 的最差路径之一 |
 
 ## 尚未证明的范围
