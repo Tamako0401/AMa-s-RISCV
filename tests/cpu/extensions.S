@@ -75,6 +75,94 @@ call_site:
 break_site:
     ebreak
     check s8, 2
+    /* 7: 乘法的符号/边界组合; 结果紧跟着用, 也连续乘 */
+    li s11, 7
+    li t0, 0x80000000
+    li t1, 0x80000000
+    mul t2, t0, t1
+    check t2, 0x00000000
+    mulh t2, t0, t1
+    check t2, 0x40000000
+    mulhu t2, t0, t1
+    check t2, 0x40000000
+    mulhsu t2, t0, t1
+    check t2, 0xc0000000
+    li t0, 0xffffffff
+    li t1, 0xffffffff
+    mul t2, t0, t1
+    check t2, 0x00000001
+    mulh t2, t0, t1
+    check t2, 0x00000000
+    mulhu t2, t0, t1
+    check t2, 0xfffffffe
+    mulhsu t2, t0, t1
+    check t2, 0xffffffff
+    li t0, 0x80000000
+    li t1, 0xffffffff
+    mul t2, t0, t1
+    check t2, 0x80000000
+    mulh t2, t0, t1
+    check t2, 0x00000000
+    mulhu t2, t0, t1
+    check t2, 0x7fffffff
+    mulhsu t2, t0, t1
+    check t2, 0x80000000
+    li t0, 0xffffffff
+    li t1, 0x80000000
+    mul t2, t0, t1
+    check t2, 0x80000000
+    mulh t2, t0, t1
+    check t2, 0x00000000
+    mulhu t2, t0, t1
+    check t2, 0x7fffffff
+    mulhsu t2, t0, t1
+    check t2, 0xffffffff
+    li t0, 0x7fffffff
+    li t1, 0x7fffffff
+    mul t2, t0, t1
+    check t2, 0x00000001
+    mulh t2, t0, t1
+    check t2, 0x3fffffff
+    mulhu t2, t0, t1
+    check t2, 0x3fffffff
+    mulhsu t2, t0, t1
+    check t2, 0x3fffffff
+    li t0, 0x12345678
+    li t1, 0x9abcdef0
+    mul t2, t0, t1
+    check t2, 0x242d2080
+    mulh t2, t0, t1
+    check t2, 0xf8cc93d6
+    mulhu t2, t0, t1
+    check t2, 0x0b00ea4e
+    mulhsu t2, t0, t1
+    check t2, 0x0b00ea4e
+    li t0, 0xfedcba98
+    li t1, 0x00000003
+    mul t2, t0, t1
+    check t2, 0xfc962fc8
+    mulh t2, t0, t1
+    check t2, 0xffffffff
+    mulhu t2, t0, t1
+    check t2, 0x00000002
+    mulhsu t2, t0, t1
+    check t2, 0xffffffff
+    li t0, 0x00000000
+    li t1, 0xffffffff
+    mul t2, t0, t1
+    check t2, 0x00000000
+    mulh t2, t0, t1
+    check t2, 0x00000000
+    mulhu t2, t0, t1
+    check t2, 0x00000000
+    mulhsu t2, t0, t1
+    check t2, 0x00000000
+    li t0, 3
+    mul t1, t0, t0
+    mul t1, t1, t0
+    mulh t2, t1, t1
+    add t2, t2, t1
+    check t2, 27
     li a0, 1
     j finish
 handler:
