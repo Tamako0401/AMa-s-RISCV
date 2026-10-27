@@ -83,6 +83,24 @@ model/nn_export.py model/runs/<名字>.pt --calib model/data   # 改写 rtl/nn/ 
 ./ama test tests/nn                                         # RTL 和整数参考逐字节对上
 ```
 
+### 外部数据: HaGRID
+
+自己录的人少、背景少。补上 HaGRID (https://github.com/hukenovs/hagrid, 上万人用手机拍的手势照片, 许可 CC BY-SA 4.0,
+用了要在文档和答辩材料里注明出处) 的 384p 抽样版
+(https://huggingface.co/datasets/cj-mills/hagrid-sample-120k-384p, 3.5 GB zip, 同样 CC BY-SA 4.0), 只用 fist、palm、stop 三类:
+
+```sh
+mkdir -p model/external   # 不进 git
+curl -L -C - -o model/external/hagrid-sample-120k-384p.zip \
+  https://huggingface.co/datasets/cj-mills/hagrid-sample-120k-384p/resolve/main/hagrid-sample-120k-384p.zip
+model/import_hagrid.py model/external/hagrid-sample-120k-384p.zip   # 每类 2000 张 -> model/data/<日期>_hg00..hg09_hagrid_000000
+model/label.py models/gesture_recognizer.task model/data/*_hg*_hagrid_*   # 照片逐张标 (IMAGE 模式)
+```
+
+导入时裁成 4:3、让手占画面宽度 10%~25% (和摄像头在显示器上方时差不多), 再缩到 640x480; 同一个人的照片在同一组,
+组名 hg00..hg09 当人名, 所以 `--val-person` 仍然只该留自己录的真人 (要看的是对我们摄像头好不好用)。
+都是静止照片, 没有运动模糊和逆光, 补不了这些, 只补人和背景的多样性。
+
 ## 结构试验
 
 默认结构的最后一格在 160x120 里只看得到约 47x47 点 (感受野), 手离镜头近时有 60~80 点大, 第一次训练的漏检里
@@ -218,3 +236,16 @@ W = 宽度 (--width)                                                            
 - 2026-10-23 第一次用自己的模型试玩 (`play.py --student`, 宽度 16 + 左右翻转那版, 阈值 0.5):
   三局坚持 43、18、80 秒 (MediaPipe 时 44、47 秒), 没找到手 8%、1%、1%, 自己的模型每帧约 5 ms (CPU)。
   主观: 已经可用。少量突然的中短距离跳变, 有几段小幅抖动, 不如 MediaPipe 平滑。
+- 2026-10-27 结构和外部数据对比 (宽度 16, 30 轮, RTX 上训练; 验证集同上 face_013812, 1500 个有手帧):
+
+  | 训练数据 | 结构 | 漏检 | 误差中位 | P95 | >10 点 | 手势对 |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | ps 4 次 (同 10-23) | 默认, 跑两次 | 27%、28% | 3.8、3.8 | 21.6、18.3 | 13%、13% | 97%、96% |
+  | ps 4 次 | `--dw-k 5`, 跑两次 | 15%、13% | 3.1、3.7 | 16.8、15.8 | 10%、11% | 97%、93% |
+  | ps 5 次 (加 10-27 那次) | 默认 | 28% | 3.0 | 16.0 | 9% | 99% |
+  | ps 5 次 + HaGRID 6000 张 | 默认 | 39% | 2.9 | 8.3 | 4% | 99% |
+
+  - **5x5 深度卷积 (感受野 47 -> 79 点) 漏检减半**, 两次都是, 不是随机波动; 硬件要给层表加 5x5 深度卷积的 mode。
+  - **HaGRID 让定位准很多** (P95 16 -> 8.3, 换手段 27 -> 22, 远近段 30 -> 5.7), 但漏检反而多了: 照片里都是
+    静止、清楚、掌心朝镜头的手, 模型对我们的模糊、侧面、半只手更不敢说 "有"。下一步: HaGRID 少放一些或降权,
+    和 `--dw-k 5` 一起试, 再看阈值 (现在 0.5) 要不要按验证集调。

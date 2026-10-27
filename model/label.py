@@ -33,11 +33,11 @@ FIST, OPEN, IGNORE = 0, 1, -1
 TEACHER = {'Closed_Fist': FIST, 'Open_Palm': OPEN}  # 其余 (None、Victory 等) 都算 IGNORE
 
 
-def recognizer(model):
+def recognizer(model, still=False):
+    """still: 帧之间互不相关 (导入的照片, 见 import_hagrid.py), 用 IMAGE 模式逐张识别; 否则 VIDEO 模式利用前后帧。"""
+    mode = vision.RunningMode.IMAGE if still else vision.RunningMode.VIDEO
     return vision.GestureRecognizer.create_from_options(
-        vision.GestureRecognizerOptions(
-            base_options=BaseOptions(model_asset_path=model), running_mode=vision.RunningMode.VIDEO, num_hands=MAX_HANDS
-        )
+        vision.GestureRecognizerOptions(base_options=BaseOptions(model_asset_path=model), running_mode=mode, num_hands=MAX_HANDS)
     )
 
 
@@ -65,7 +65,7 @@ def merge(teacher, by_rule):
     return IGNORE
 
 
-def label(detector, session):
+def label(detector, session, still=False):
     meta = json.loads((session / 'meta.json').read_text())
     frames = meta['frames']
     n = len(frames)
@@ -87,7 +87,7 @@ def label(detector, session):
         vga = cv2.imread(str(session / f['file']))
         stamp = max(stamp + 1, f['t_ms'])  # VIDEO 模式要求时间戳严格增大
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(vga, cv2.COLOR_BGR2RGB))
-        result = detector.recognize_for_video(image, stamp)
+        result = detector.recognize(image) if still else detector.recognize_for_video(image, stamp)
         hands = list(zip(result.hand_landmarks, result.hand_world_landmarks, result.gestures))
         hands.sort(key=lambda h: np.mean([q.x for q in h[0]]))  # 两只手按左右排, 顺序固定
         out['hands'][i] = len(hands)
@@ -157,9 +157,10 @@ def main():
     for arg in sys.argv[2:]:
         session = Path(arg)
         print(f'{session.name}:')
+        still = json.loads((session / 'meta.json').read_text()).get('still', False)
         # 每个 session 新建一个识别器: VIDEO 模式会利用前后帧, 不能跨 session 接着用
-        with recognizer(sys.argv[1]) as detector:
-            report(label(detector, session))
+        with recognizer(sys.argv[1], still) as detector:
+            report(label(detector, session, still))
 
 
 if __name__ == '__main__':
