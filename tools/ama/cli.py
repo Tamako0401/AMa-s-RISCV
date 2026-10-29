@@ -366,6 +366,12 @@ def fpga_program(
     ),
 ):
     """把位流烧进板子: 写进 flash (上电自动加载) 并马上运行。"""
+    if not board and app:
+        # 不写 -b 时, 有 --app 的位流只可能属于一块板; 用它, 不靠插着的串口芯片猜
+        # (盘古的 USB Cable II 也是 FT2232, 会被认成 ego1)
+        built = [name for name in BOARDS if fpga_bit(name, app).exists()]
+        if len(built) == 1:
+            board = built[0]
     board, _ = pick_board(board)
     data, _ = projects.backend(board)
     if bit_file:
@@ -392,7 +398,10 @@ def fpga_program(
         # 它不认相对路径; -args 的解析还会把反斜杠当转义吃掉, 必须给正斜杠的绝对路径
         sfc = bit.with_suffix('.sfc')
         name, args = ('program.tcl', [bit]) if once else ('flash.tcl', [bit, sfc, data['flash'], sfc, bit])
+        if not once:
+            sfc.unlink(missing_ok=True)  # 别让上次留下的旧 sfc 冒充这次生成的
         script = shutil.copy(ROOT / 'boards' / board / name, bit.parent)
+        (bit.parent / 'configuration_tcl.log').unlink(missing_ok=True)  # 只看这次运行的日志
         command = [
             *tool('cdt_cfg_shell'),
             '-file',
@@ -405,13 +414,22 @@ def fpga_program(
         command = [*tool('vivado'), '-mode', 'batch', '-nojournal', '-nolog', '-source']
         command += [str(ROOT / 'boards' / board / 'program.tcl'), '-tclargs', str(bit), data['part'], *flash]
     result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, errors='replace')
-    # 返回码不可靠: Vivado 没真正启动时是 0, 以 program.tcl 打印的 DONE 位为准; cdt_cfg_shell 出错也是 0, 看 E: 开头的行
+    # 返回码不可靠: Vivado 没真正启动时是 0, 以 program.tcl 打印的 DONE 位为准; cdt_cfg_shell 出错也是 0,
+    # 而且 cfg_gen_sfc 失败后脚本直接停下 (只有 W: 行, 没有 E: 行), 所以还要看它自己的日志和 sfc 是否真的生成
     if data['tool'] == 'vivado':
         failed = 'DONE PROGRAMMED: 1' not in result.stdout
     else:
-        failed = any(line.startswith('E:') for line in result.stdout.splitlines())
+        log = bit.parent / 'configuration_tcl.log'
+        log_failed = log.exists() and 'failed' in log.read_text(errors='replace')
+        failed = (
+            any(line.startswith('E:') for line in result.stdout.splitlines())
+            or log_failed
+            or (not once and (not sfc.exists() or sfc.stat().st_size == 0))
+        )
     if result.returncode or failed:
         print(result.stdout[-2000:] + result.stderr[-2000:])
+        if data['tool'] == 'pds' and ('CableList is Empty' in result.stdout or 'No devices detected' in result.stdout):
+            fail('烧写失败: cdt_cfg_shell 看不到下载线 — USB Cable II 是 FT2232H, 检查 ftdi_sio 是否占着它 (见 boards/mes2l100hp/README.md)')
         fail('烧写失败: 检查 USB 线、板子电源, 以及有没有别的程序占着下载器')
     if bit_file:
         typer.secho('✓ 已下载到 SRAM (断电即失)', fg='green')

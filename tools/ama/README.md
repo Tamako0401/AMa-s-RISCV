@@ -45,6 +45,8 @@ flowchart LR
   `app.toml` (`sources`、`include`、`cflags`; `prepare`: 编译前先跑的命令, 如生成素材;
   `params`: 程序要的板顶层参数, 如 `DISPLAY_NEW = 1`)。有 `params` 的程序要用自己的位流 (`fpga build --app <程序>`),
   参数算进硬件版本号, 下载到别的位流上会报不一致; `sim` 遇到它改用 mes2l100hp 的顶层并带上这些参数。
+  `fpga program --app <程序>` 不带 `--board` 时, 按 `build/fpga/` 下唯一的 `<板>-<程序>` 位流推断板子
+  (盘古的 USB Cable II 也是 FT2232, 插着时会被串口识别成 ego1)。
 - **手柄**: `run` / `monitor` 加 `--pad` 时开一个小窗口, 按键的按住 / 松开和鼠标经串口发给板子 (`pad.py`, 格式见 `game/board/pad.h`)。
 - **测试**: 每个测试目录一个 `tests.toml`, 一个 `[[test]]` 是一个测试台, 判定只看仿真退出码 (0 = PASS)。
   字段: `tb`、`rtl`、`extra`、`params` (每组编译一次)、`runs` (每项运行一次: `app` 或 `program`、`defines`、
