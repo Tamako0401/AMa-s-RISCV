@@ -9,3 +9,16 @@ tb = "input_tb.sv"
 rtl = "rtl/soc.f"
 extra = ["tests/soc/video_source.sv"]
 params = [{ W = 800, H = 600, HT = 1056, VT = 628 }, { W = 1280, H = 720, HT = 1650, VT = 750 }, { W = 640, H = 480, HT = 800, VT = 525 }]
+
+[[test]]
+tb = "ov7670_tb.sv"
+rtl = "rtl/soc.f"
+
+[[test]]
+tb = "ov7670_vga_tb.sv"
+rtl = "rtl/soc.f"
+
+[[test]]
+tb = "ov7670_sccb_tb.sv"
+rtl = "rtl/soc.f"
+params = [{ DIVIDER = 2, RESET_DELAY = 4 }]
