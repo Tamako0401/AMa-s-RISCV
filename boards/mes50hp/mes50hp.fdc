@@ -210,7 +210,9 @@ define_attribute {p:hdmi_d[23]} {PAP_IO_DRIVE} {8}
 define_attribute {p:hdmi_d[23]} {PAP_IO_SLEW} {FAST}
 # HDMI 输入 (MS7200): 硬件手册表 3-6; 像素时钟由电脑决定, 按 720p 的 74.25 MHz 约束, 和系统时钟不相关
 create_clock -name hdmi_rx_pclk -period 13.468 [get_ports {hdmi_rx_pclk}]
-set_clock_groups -asynchronous -group [get_clocks {sys_clk}] -group [get_clocks {hdmi_rx_pclk}]
+# OV7670: XCLK 为 25 MHz; 本工程相机配置下 PCLK 约 25 MHz.
+create_clock -name ov7670_pclk -period 40.000 [get_ports {io[22]}]
+set_clock_groups -asynchronous -group [get_clocks {sys_clk}] -group [get_clocks {hdmi_rx_pclk}] -group [get_clocks {ov7670_pclk}]
 define_attribute {p:hdmi_rx_pclk} {PAP_IO_DIRECTION} {INPUT}
 define_attribute {p:hdmi_rx_pclk} {PAP_IO_LOC} {AA12}
 define_attribute {p:hdmi_rx_pclk} {PAP_IO_VCCIO} {3.3}
