@@ -7,7 +7,7 @@
 ```
 MS7200 ──> hdmi_rx_adapter ──> crop ──> box4 ──┬──> window_store ──> 小窗 (video.v 读)
                                                └──> color_track ───> 寄存器 (CPU 读)
-(以后换相机: OV5640 ──> ov5640_adapter, 接在 crop 前面)
+(OV7670 RGB565 -> RGB888 适配器可接入视觉流水线; MES50HP 另有独立 VGA 监看路径)
 整条流水线在输入的像素时钟 vin_pclk 下; 小窗读口在输出扫描时钟下, CPU 寄存器在系统时钟下
 ```
 
@@ -31,6 +31,9 @@ MS7200 ──> hdmi_rx_adapter ──> crop ──> box4 ──┬──> window
 | 模块 | 做什么 | 资源 |
 | --- | --- | --- |
 | `hdmi_rx_adapter` | MS7200 的 de + RGB -> 像素流。de 断开超过 4096 拍算场消隐, 不管同步极性 | 几十 LUT |
+| `ov7670_rgb565_rx` | OV7670 的 VSYNC/HREF/8 位 RGB565 字节流 -> RGB888 像素流; 要求 RGB565、MSB 字节先输出 | 少量寄存器 |
+| `ov7670_sccb_init` | 软复位后设置 VGA RGB、RGB565 与字节顺序; 100 kHz 开漏 SCCB | 少量状态机 |
+| `ov7670_vga` | 4x4 抽样写单帧 RGB332 缓冲, 放大输出 VGA 640x480 | 约 9 个 DRM18K |
 | `crop` | 每帧测有效宽高, 稳定后自动居中裁 640x480, 验证整帧后提交 | 计数、比较和快照, 无 RAM |
 | `box4` | 4x4 均值 (步长 4 的均值卷积): 横向每 4 点累加, 纵向一行 W/4 个部分和存 RAM, 满 4 行输出 | 一块 RAM |
 | `window_store` | 160x120 RGB332 双缓冲; 只发布验证通过的整帧, 读口在输出像素时钟 | 20 个 2048x8 块 |
