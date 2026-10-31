@@ -61,3 +61,10 @@ runs = [
 tb = "soc_tb.sv"
 rtl = "rtl/soc.f"
 runs = [{ program = ["tests/cpu/start.S", "tests/soc/nn_check.c"], plusargs = ["+cycles=4000000"] }]
+
+# 流水线效率: 计时区间内 CPI 和每拍归因 (仿真里的 ILA), 结果见 [result] 行; 加 +trace=<文件> 导出波形 CSV
+[[test]]
+tb = "coremark_perf_tb.sv"
+params = [{ VIDEO_720P = 0 }]
+rtl = "rtl/soc.f"
+runs = [{ app = "coremark", defines = ["-DITERATIONS=3", "-DMIN_SCORE=650"] }]
