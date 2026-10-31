@@ -1,6 +1,6 @@
 """ama monitor --pad: 开一个小窗口当手柄, 60 帧/秒把真正的按键状态 (按住 / 松开) 和鼠标经串口发给板子,
 同时在终端显示串口输出。帧的格式见 game/board/link.h ('P' 帧) 和 pad.h; 键位同串口终端 (wasd / 方向键, Shift 慢速, j / 空格 = A ...)。
-M 切换鼠标: 打开后鼠标在窗口里的位置就是画面位置 (640x360), 左键 = 点击, 右键 = B。"""
+鼠标在窗口里时一直发它的位置 (就是画面位置, 640x360) 和左右键; 板上用不用鼠标看暂停菜单里的输入方式 (game/board/menu.h)。"""
 
 import sys
 import threading
@@ -26,7 +26,7 @@ KEYS = {
     'Shift_L': SLOW,
     'Shift_R': SLOW,
 }
-BUTTONS = {'r': 1, 'q': 2}  # btn 的 bit0 R, bit1 Q
+BUTTONS = {'r': 1, 'q': 2, 'm': 2, 'Escape': 2}  # btn 的 bit0 重开, bit1 MENU
 RELEASE_MS = 30  # X11 的自动连发是 "松开 + 按下" 成对来的: 松开后这么久没再按下才算真的松开
 
 
@@ -41,15 +41,16 @@ def run(ser):
     root.title('ama pad')
     canvas = tk.Canvas(root, width=W, height=H, bg='#101018', highlightthickness=0)
     canvas.pack()
-    info = canvas.create_text(
+    canvas.create_text(
         W // 2,
         H // 2,
         fill='#c0c0c0',
         justify='center',
         text='焦点在这个窗口时按键发给板子\n\nwasd / 方向键 移动, Shift 慢速\nj / 空格 / 回车 = A (bomb、出刀、确定)\n'
-        'r 重开, q 回标题\nm 切换鼠标 (现在: 关)\n\n串口输出在终端里',
+        'r 重开, m / q / Esc 暂停菜单 (在里面切换输入方式: 按键 / 指点)\n'
+        '鼠标在窗口里 = 画面位置, 左键 = A, 右键 = B (指点方式下才管用)\n\n串口输出在终端里',
     )
-    state = {'keys': 0, 'btn': 0, 'mouse': False, 'click': False, 'right': False, 'x': 0, 'y': 0}
+    state = {'keys': 0, 'btn': 0, 'inside': False, 'click': False, 'right': False, 'x': 0, 'y': 0}
     pending = {}  # 等着确认的松开
     down = set()  # 按着的键 (自动连发的 "按下" 不算新按)
 
@@ -60,13 +61,6 @@ def run(ser):
         k = name(e)
         if k in pending:
             root.after_cancel(pending.pop(k))
-        if k == 'm' and k not in down:
-            state['mouse'] = not state['mouse']
-            canvas.itemconfigure(
-                info,
-                text=canvas.itemcget(info, 'text').rsplit('(现在', 1)[0]
-                + f'(现在: {"开" if state["mouse"] else "关"})\n\n串口输出在终端里',
-            )
         down.add(k)
         state['keys'] |= KEYS.get(k, 0)
         state['btn'] |= BUTTONS.get(k, 0)
@@ -91,13 +85,15 @@ def run(ser):
     root.bind('<KeyPress>', press)
     root.bind('<KeyRelease>', release)
     canvas.bind('<Motion>', motion)
+    canvas.bind('<Enter>', lambda e: state.update(inside=True))
+    canvas.bind('<Leave>', lambda e: state.update(inside=False))
     canvas.bind('<ButtonPress-1>', lambda e: state.update(click=True))
     canvas.bind('<ButtonRelease-1>', lambda e: state.update(click=False))
     canvas.bind('<ButtonPress-3>', lambda e: state.update(right=True))
     canvas.bind('<ButtonRelease-3>', lambda e: state.update(right=False))
 
     def tick():
-        mouse = state['mouse']
+        mouse = state['inside']
         btn = (
             state['btn']
             | (4 if mouse else 0)

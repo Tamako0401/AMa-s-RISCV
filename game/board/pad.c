@@ -30,6 +30,7 @@ static uint32_t key_of(char c)
         return PAD_B;
     case 'r':
         return PAD_RESTART;
+    case 'm':
     case 'q':
         return PAD_MENU;
     default:
@@ -51,7 +52,7 @@ static void frame(pad_t *pad, const link_frame_t *f)
     if (f->type != 'P' || f->len != 6)
         return;
     const uint8_t *p = f->data;
-    pad->pad_keys = p[0] | (p[1] & 1u) << 7 | (p[1] >> 1 & 1u) << 8 | (p[1] >> 3 & 1u) << 9 | (p[1] >> 4 & 1u) << 5;
+    pad->pad_keys = p[0] | (p[1] & 1u) << 7 | (p[1] >> 1 & 1u) << 8 | (p[1] >> 3 & 1u) << 9 | (p[1] >> 4 & 1u) << 10;
     pad->mouse = p[1] >> 2 & 1;
     pad->mx = (int32_t)link_u14(p + 2);
     pad->my = (int32_t)link_u14(p + 4);
@@ -64,9 +65,13 @@ static void text(pad_t *pad, uint8_t c)
     if (pad->esc == 2) {
         pad->esc = 0;
         tap(pad, c == 'A' ? PAD_UP : c == 'B' ? PAD_DOWN : c == 'C' ? PAD_RIGHT : c == 'D' ? PAD_LEFT : 0);
-    } else if (pad->esc == 1)
-        pad->esc = c == '[' ? 2 : 0;
-    else if (c == 0x1B)
+    } else if (pad->esc == 1 && c == '[')
+        pad->esc = 2;
+    else if (pad->esc == 1) { /* ESC 后面跟的不是 '[': ESC 是单按的, 这个字照常处理 */
+        pad->esc = 0;
+        tap(pad, PAD_MENU);
+        text(pad, c);
+    } else if (c == 0x1B)
         pad->esc = 1;
     else
         tap(pad, key_of((char)c));
@@ -77,13 +82,20 @@ void pad_poll(pad_t *pad)
     for (uint32_t i = 0; i < sizeof pad->ttl; i++)
         if (pad->ttl[i])
             pad->ttl[i]--;
+    /* 单按 Esc: 上一帧收到 ESC 之后整整一帧没再来字节 (方向键的 ESC [ A 是连着来的) */
+    int lone_esc = pad->esc == 1;
     char c;
     while (uart_getc(CONSOLE_UART, &c)) {
         int got = link_byte(&pad->link, (uint8_t)c);
+        lone_esc = 0;
         if (got == LINK_TEXT)
             text(pad, (uint8_t)c);
         else if (got == LINK_FRAME)
             frame(pad, &pad->link.frame);
+    }
+    if (lone_esc) {
+        pad->esc = 0;
+        tap(pad, PAD_MENU);
     }
     uint32_t held = pad->pad_keys;
     for (uint32_t i = 0; i < sizeof pad->ttl; i++)
