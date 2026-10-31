@@ -4,6 +4,8 @@ sources = [
   "third_party/coremark/core_util.c",
 ]
 include = ["third_party/coremark"]
-cflags = ['-march=rv32im_zicsr', '-DFLAGS_STR="-O2 -march=rv32im_zicsr"']
+# 编译选项: 赛题只规定 riscv32-unknown-elf-gcc, 不限版本和选项; 这组是 SoC 仿真里扫出来最好的
+# (gcc 16.2 SoC 仿真: -O2 2.865, -O3 2.773, -O3 -funroll-all-loops 2.940, 这组 3.075)
+cflags = ['-march=rv32im_zicsr', '-O2', '-funroll-all-loops', '-mtune=sifive-7-series', '-msmall-data-limit=8', '-mrelax', '-flto', '-DFLAGS_STR="-O2 -funroll-all-loops -mtune=sifive-7-series -msmall-data-limit=8 -mrelax -flto -march=rv32im_zicsr"']
 # 跑分和游戏用同一份位流 (赛题要求): 参数和 game 相同, 硬件版本号就相同
 params = { DISPLAY_NEW = 1 }
