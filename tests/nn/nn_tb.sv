@@ -21,6 +21,8 @@ module nn_tb;
     wire busy_o, done_o;
 
     nn u_dut (
+        .vin_pclk(clk), .vin_valid(1'b0), .vin_sof(1'b0), .vin_eol(1'b0),
+        .vin_data(24'b0), .vin_boundary(1'b0), .vin_commit(1'b0),
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(addr_i),

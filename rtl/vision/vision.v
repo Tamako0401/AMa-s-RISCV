@@ -22,7 +22,11 @@ module vision (
 
     input wire win_rclk,
     input  wire [14:0] win_raddr,
-    output wire [ 7:0] win_rdata
+    output wire [ 7:0] win_rdata,
+
+    output wire nn_valid, nn_sof, nn_eol,
+    output wire [23:0] nn_data,
+    output wire nn_boundary, nn_commit
 );
     // 复位同步到输入时钟: 异步拉低, 同步放开
     reg [1:0] prst;
@@ -82,6 +86,13 @@ module vision (
         .out_eol(s_eol),
         .out_data(s_data)
     );
+
+    assign nn_valid = s_valid;
+    assign nn_sof = s_sof;
+    assign nn_eol = s_eol;
+    assign nn_data = s_data;
+    assign nn_boundary = a_valid && a_sof;
+    assign nn_commit = frame_commit;
 
     window_store #(
         .W(160),
