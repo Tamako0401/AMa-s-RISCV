@@ -5,3 +5,5 @@ sources = [
 ]
 include = ["third_party/coremark"]
 cflags = ['-march=rv32im_zicsr', '-DFLAGS_STR="-O2 -march=rv32im_zicsr"']
+# 跑分和游戏用同一份位流 (赛题要求): 参数和 game 相同, 硬件版本号就相同
+params = { DISPLAY_NEW = 1 }

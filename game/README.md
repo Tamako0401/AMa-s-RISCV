@@ -44,7 +44,7 @@ sw/app/game/     主程序: 标题画面选游戏、键盘 -> 两个游戏的输
 ```
 
 ```sh
-./ama fpga build -b mes2l100hp --app game   # 位流要 DISPLAY_NEW=1 (sw/app/game/app.toml 的 params), 和普通位流分开
+./ama fpga build -b mes2l100hp --app game   # 位流要 DISPLAY_NEW=1 (sw/app/game/app.toml 的 params); coremark 参数相同, 共用这份位流
 ./ama fpga program --app game
 ./ama run game -b mes2l100hp --pad          # 改了 C 以后: 下载并打开手柄窗口; 不加 --pad 就在终端里打字玩
 ./ama sim game                              # 没板子: Verilator 跑整个 SoC + 新显示, 很慢 (约 6 秒一帧), 只看画面对不对

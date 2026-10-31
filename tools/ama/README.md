@@ -44,7 +44,8 @@ flowchart LR
 - **程序**: `sw/app/<程序>/` 下的 .c 一起编译; `boards/<板>/` 子目录放该板的接线; 要额外源文件或选项时写
   `app.toml` (`sources`、`include`、`cflags`; `prepare`: 编译前先跑的命令, 如生成素材;
   `params`: 程序要的板顶层参数, 如 `DISPLAY_NEW = 1`)。有 `params` 的程序要用自己的位流 (`fpga build --app <程序>`),
-  参数算进硬件版本号, 下载到别的位流上会报不一致; `sim` 遇到它改用 mes2l100hp 的顶层并带上这些参数。
+  参数算进硬件版本号, 下载到别的位流上会报不一致; 参数相同的程序共用一份位流
+  (game、coremark 都是 `DISPLAY_NEW = 1`, 跑分和应用在同一位流上); `sim` 遇到它改用 mes2l100hp 的顶层并带上这些参数。
   `fpga program --app <程序>` 不带 `--board` 时, 按 `build/fpga/` 下唯一的 `<板>-<程序>` 位流推断板子
   (盘古的 USB Cable II 也是 FT2232, 插着时会被串口识别成 ego1)。
 - **手柄**: `run` / `monitor` 加 `--pad` 时开一个小窗口, 按键的按住 / 松开和鼠标经串口发给板子 (`pad.py`, 格式见 `game/board/pad.h`)。
