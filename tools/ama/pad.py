@@ -1,6 +1,6 @@
 """ama monitor --pad: 开一个小窗口当手柄, 60 帧/秒把真正的按键状态 (按住 / 松开) 和鼠标经串口发给板子,
-同时在终端显示串口输出。包的格式见 game/board/pad.h; 键位同串口终端 (wasd / 方向键, Shift 慢速, j / 空格 = A ...)。
-M 切换鼠标: 打开后鼠标在窗口里的位置就是画面位置 (640x360), 左键 = 点击。"""
+同时在终端显示串口输出。帧的格式见 game/board/link.h ('P' 帧) 和 pad.h; 键位同串口终端 (wasd / 方向键, Shift 慢速, j / 空格 = A ...)。
+M 切换鼠标: 打开后鼠标在窗口里的位置就是画面位置 (640x360), 左键 = 点击, 右键 = B。"""
 
 import sys
 import threading
@@ -30,6 +30,12 @@ BUTTONS = {'r': 1, 'q': 2}  # btn 的 bit0 R, bit1 Q
 RELEASE_MS = 30  # X11 的自动连发是 "松开 + 按下" 成对来的: 松开后这么久没再按下才算真的松开
 
 
+def frame(kind, data):
+    """game/board/link.h 的帧: [0xFF] [类型] [长度] [数据] [校验], 0xFF 之后每个字节都 < 0x80"""
+    body = [ord(kind), len(data), *data]
+    return bytes([0xFF, *body, sum(body) & 127])
+
+
 def run(ser):
     root = tk.Tk()
     root.title('ama pad')
@@ -43,7 +49,7 @@ def run(ser):
         text='焦点在这个窗口时按键发给板子\n\nwasd / 方向键 移动, Shift 慢速\nj / 空格 / 回车 = A (bomb、出刀、确定)\n'
         'r 重开, q 回标题\nm 切换鼠标 (现在: 关)\n\n串口输出在终端里',
     )
-    state = {'keys': 0, 'btn': 0, 'mouse': False, 'click': False, 'x': 0, 'y': 0}
+    state = {'keys': 0, 'btn': 0, 'mouse': False, 'click': False, 'right': False, 'x': 0, 'y': 0}
     pending = {}  # 等着确认的松开
     down = set()  # 按着的键 (自动连发的 "按下" 不算新按)
 
@@ -87,11 +93,19 @@ def run(ser):
     canvas.bind('<Motion>', motion)
     canvas.bind('<ButtonPress-1>', lambda e: state.update(click=True))
     canvas.bind('<ButtonRelease-1>', lambda e: state.update(click=False))
+    canvas.bind('<ButtonPress-3>', lambda e: state.update(right=True))
+    canvas.bind('<ButtonRelease-3>', lambda e: state.update(right=False))
 
     def tick():
-        btn = state['btn'] | (4 if state['mouse'] else 0) | (8 if state['mouse'] and state['click'] else 0)
+        mouse = state['mouse']
+        btn = (
+            state['btn']
+            | (4 if mouse else 0)
+            | (8 if mouse and state['click'] else 0)
+            | (16 if mouse and state['right'] else 0)
+        )
         x, y = state['x'], state['y']
-        ser.write(bytes([0x80 | state['keys'], btn, x >> 7, x & 127, y >> 7, y & 127]))
+        ser.write(frame('P', [state['keys'], btn, x >> 7, x & 127, y >> 7, y & 127]))
         root.after(16, tick)
 
     def reader():

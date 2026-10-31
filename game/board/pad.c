@@ -45,25 +45,21 @@ static void tap(pad_t *pad, uint32_t keys)
             pad->ttl[i] = PAD_HOLD;
 }
 
-static void byte(pad_t *pad, uint8_t c)
+/* pad.py 的 'P' 帧 */
+static void frame(pad_t *pad, const link_frame_t *f)
 {
-    if (c & 0x80) { /* pad.py 的包头 */
-        pad->packet[0] = c;
-        pad->packet_n = 1;
+    if (f->type != 'P' || f->len != 6)
         return;
-    }
-    if (pad->packet_n) {
-        pad->packet[pad->packet_n++] = c;
-        if (pad->packet_n == sizeof pad->packet) {
-            const uint8_t *p = pad->packet;
-            pad->pad_keys = (p[0] & 0x7Fu) | (p[1] & 1u) << 7 | (p[1] >> 1 & 1u) << 8 | (p[1] >> 3 & 1u) << 9;
-            pad->mouse = p[1] >> 2 & 1;
-            pad->mx = p[2] << 7 | p[3];
-            pad->my = p[4] << 7 | p[5];
-            pad->packet_n = 0;
-        }
-        return;
-    }
+    const uint8_t *p = f->data;
+    pad->pad_keys = p[0] | (p[1] & 1u) << 7 | (p[1] >> 1 & 1u) << 8 | (p[1] >> 3 & 1u) << 9 | (p[1] >> 4 & 1u) << 5;
+    pad->mouse = p[1] >> 2 & 1;
+    pad->mx = (int32_t)link_u14(p + 2);
+    pad->my = (int32_t)link_u14(p + 4);
+}
+
+/* 终端打的一个字 */
+static void text(pad_t *pad, uint8_t c)
+{
     /* 方向键: ESC [ A/B/C/D */
     if (pad->esc == 2) {
         pad->esc = 0;
@@ -82,8 +78,13 @@ void pad_poll(pad_t *pad)
         if (pad->ttl[i])
             pad->ttl[i]--;
     char c;
-    while (uart_getc(CONSOLE_UART, &c))
-        byte(pad, (uint8_t)c);
+    while (uart_getc(CONSOLE_UART, &c)) {
+        int got = link_byte(&pad->link, (uint8_t)c);
+        if (got == LINK_TEXT)
+            text(pad, (uint8_t)c);
+        else if (got == LINK_FRAME)
+            frame(pad, &pad->link.frame);
+    }
     uint32_t held = pad->pad_keys;
     for (uint32_t i = 0; i < sizeof pad->ttl; i++)
         if (pad->ttl[i])

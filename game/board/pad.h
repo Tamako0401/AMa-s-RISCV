@@ -3,15 +3,15 @@
  *      j / 空格 / 回车 = A, k = B, r = 重开, q = 回标题。
  *      终端只发 "按下" 和按住后的自动连发, 不发 "松开": 收到一个键就当它按住了 PAD_HOLD 帧, 连发会一直续上。
  *      所以刚按下的第一下只走一小段, 之后要等系统的连发延迟 (约半秒) 才连续走; 可以调短: xset r rate 150 40。
- *   2. ama monitor --pad (tools/ama/pad.py): 电脑上开个小窗口, 60 帧/秒发真正的按键状态和鼠标位置
- *      (6 字节一包, 第一字节最高位为 1):
- *      [0x80 | keys]  [btn]  [x 高 7 位] [x 低 7 位] [y 高 7 位] [y 低 7 位]
- *      keys = PAD_UP..PAD_SLOW (低 7 位); btn: bit0 R, bit1 Q, bit2 鼠标在窗口里, bit3 鼠标左键; x, y 是 640x360
- * 画面坐标。 */
+ *   2. ama monitor --pad (tools/ama/pad.py): 电脑上开个小窗口, 60 帧/秒发真正的按键状态和鼠标位置,
+ *      是 link.h 的 'P' 帧, 6 个数据字节: [keys] [btn] [x 高 7 位] [x 低 7 位] [y 高 7 位] [y 低 7 位]
+ *      keys = PAD_UP..PAD_SLOW; btn: bit0 R, bit1 Q, bit2 鼠标在窗口里, bit3 鼠标左键, bit4 鼠标右键 (= B);
+ *      x, y 是 640x360 画面坐标。 */
 #ifndef PAD_H
 #define PAD_H
 
 #include <stdint.h>
+#include "link.h"
 
 #define PAD_UP 0x01
 #define PAD_DOWN 0x02
@@ -34,7 +34,8 @@ typedef struct {
     /* 内部 */
     uint8_t ttl[10]; /* 终端来的键还算按住几帧 */
     uint32_t pad_keys, last;
-    uint8_t esc, packet[6], packet_n;
+    uint8_t esc;
+    link_t link;
 } pad_t;
 
 /* 每帧调一次: 读完串口里攒下的字节, 更新 held / pressed */
