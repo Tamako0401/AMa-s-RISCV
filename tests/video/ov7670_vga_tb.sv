@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 module ov7670_vga_tb;
     reg sys_clk = 0;
-    reg rst_n = 0;
+    reg rst_n = 1;
     reg cam_pclk = 0;
     reg cam_vsync = 1;
     reg cam_href = 0;
@@ -58,13 +58,45 @@ module ov7670_vga_tb;
 
     task automatic check_row(input integer row, input [23:0] color);
         integer x;
+        reg [23:0] expected;
         begin
             wait (dut.v == row && dut.h == 1);
             #1;
             for (x = 0; x < 8; x++) begin
-                if (!hdmi_de || hdmi_rgb !== color)
+                expected = x < 4 ? color : 24'b0;
+                if (!hdmi_de || hdmi_rgb !== expected)
                     $fatal(1, "output (%0d,%0d) de=%b rgb=%06h expected %06h",
-                        x, row, hdmi_de, hdmi_rgb, color);
+                        x, row, hdmi_de, hdmi_rgb, expected);
+                if (x != 7) begin
+                    @(posedge dut.pixel_clk);
+                    #1;
+                end
+            end
+        end
+    endtask
+
+    task automatic check_test_pattern_row;
+        integer x;
+        reg [23:0] color;
+        begin
+            wait (dut.v == 0 && dut.h == 1);
+            #1;
+            for (x = 0; x < 8; x++) begin
+                case (x)
+                    0: color = 24'hFFFFFF;
+                    1: color = 24'hFFFF00;
+                    2: color = 24'h00FFFF;
+                    3: color = 24'h00FF00;
+                    4: color = 24'hFF00FF;
+                    5: color = 24'hFF0000;
+                    6: color = 24'h0000FF;
+                    default: color = 24'h000000;
+                endcase
+                if (x >= 4)
+                    color = 24'h000000;
+                if (!hdmi_de || hdmi_rgb !== color)
+                    $fatal(1, "test pattern x=%0d de=%b rgb=%06h expected %06h",
+                        x, hdmi_de, hdmi_rgb, color);
                 if (x != 7) begin
                     @(posedge dut.pixel_clk);
                     #1;
@@ -74,8 +106,12 @@ module ov7670_vga_tb;
     endtask
 
     initial begin
+        #1 rst_n = 1'b0;
         repeat (6) @(negedge sys_clk);
         rst_n = 1;
+        wait (dut.pixel_rst_n);
+        check_test_pattern_row();
+        check_row(3, 24'h000000);
         repeat (6) @(negedge cam_pclk);
         cam_vsync = 1'b0;
         send_line(16'hF800);
@@ -85,17 +121,19 @@ module ov7670_vga_tb;
         wait (dut.frame_ready);
         repeat (4) @(negedge sys_clk);
 
-        if (dut.u_framebuffer.mem[0] !== 8'b111_000_00)
-            $fatal(1, "first framebuffer pixel wrong: %02h", dut.u_framebuffer.mem[0]);
-        if (dut.u_framebuffer.mem[4] !== 8'b000_000_11)
-            $fatal(1, "third source line was not sampled: %02h", dut.u_framebuffer.mem[4]);
+        if (dut.u_framebuffer.mem[0] !== 16'hF800)
+            $fatal(1, "first framebuffer pixel wrong: %04h", dut.u_framebuffer.mem[0]);
+        if (dut.u_framebuffer.mem[4] !== 16'h001F)
+            $fatal(1, "third source line was not sampled: %04h", dut.u_framebuffer.mem[4]);
 
         check_row(0, 24'hFF0000);
-        check_row(2, 24'h0000FF);
+        check_row(1, 24'h0000FF);
+        check_row(2, 24'h000000);
+        check_row(3, 24'h000000);
         if (hdmi_pclk !== ~dut.pixel_clk)
             $fatal(1, "HDMI pixel clock polarity mismatch");
 
-        $display("[result] OV7670 frame capture, 4x subsampling, RGB332 framebuffer and VGA scanout");
+        $display("[result] VGA color-bar fallback, OV7670 frame capture and live HDMI scanout");
         $finish;
     end
 
