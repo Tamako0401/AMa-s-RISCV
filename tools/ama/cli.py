@@ -214,8 +214,9 @@ def monitor(board: Optional[str] = BoardOpt, port: Optional[str] = PortOpt, pad:
 
 
 def sim_binary(out, vga=False, params=None):
-    """params: 程序要的板顶层参数 (app.toml); 有的话板子用 mes2l100hp (只有它的顶层有 DISPLAY_NEW 等), 否则 mes50hp。"""
-    board = 'mes2l100hp' if params else 'mes50hp'
+    """params: 程序要的板顶层参数 (app.toml); 有的话板子用 mes2l100hp (只有它的顶层有 DISPLAY_NEW 等), 否则 mes50hp。
+    相机参数 (OV7670_MONITOR) 只有 mes50hp 顶层有, 所以那类程序必须用 mes50hp。"""
+    board = 'mes50hp' if not params or 'OV7670_MONITOR' in params else 'mes2l100hp'
     tag = ''.join(f'-{k}{v}' for k, v in sorted((params or {}).items()))
     obj = out / (('obj-vga' if vga else 'obj-720p') + (f'-{board}{tag}' if params else ''))
     sources = [
