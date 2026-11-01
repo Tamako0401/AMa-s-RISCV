@@ -48,6 +48,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - [新显示 (720p 逐行渲染, 仿真中)](docs/display.md)
 - [视觉输入 (HDMI 输入, 缩小, 小窗)](docs/vision.md)
 - [OV7670 摄像头 → HDMI (接线、`./ama` 上板、实测结果)](docs/ov7670.md)
+- [OV7670 在线调参方案 (UART 实时改寄存器, 设计稿)](docs/ov7670-tuning.md)
 - [handnet 加速器 (RTL、寄存器、C 库、量化)](docs/nn.md)
 - [徒手手势模型 (数据、标注、训练)](docs/hand-model.md)
 - [参考项目: 手势控制游戏、FPGA 手势识别、sprite 引擎](docs/references.md)
