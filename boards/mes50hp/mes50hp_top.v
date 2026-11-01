@@ -6,6 +6,7 @@ module mes50hp_top #(
     parameter VIDEO_720P = 0,  // 1 要先在 video_clock.vh 补上 74.25 MHz PLL
     parameter OV7670_MONITOR = 0,
     parameter OV7670_VSYNC_ACTIVE_LEVEL = 1'b1,
+    parameter NN = 1,  // 传给 soc_top: 0 = 不综合 handnet 加速器 (PGL50H 块 RAM 不够时用)
     parameter IO_N = `IO_N,
     parameter MEM_FILE = "firmware.hex"
 ) (
@@ -174,6 +175,7 @@ module mes50hp_top #(
     wire [23:0] soc_hdmi_rgb;
     soc_top #(
         .VIDEO_720P(VIDEO_720P),
+        .NN(NN),
         .RESET_PC(32'hf800),
         .ROM_WRITABLE(1),
         .HW_ID(HW_ID),

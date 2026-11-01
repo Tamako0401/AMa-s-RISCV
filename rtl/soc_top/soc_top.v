@@ -30,6 +30,7 @@ module soc_top #(
     parameter CPU_CLOCK_HZ = 50000000,  // 供 UART 计算默认波特率分频
     parameter VIDEO_720P = 0,
     parameter DISPLAY_NEW = 0,  // 1 = s3 接新显示, 视频输出口和小窗读改由它驱动 (旧 video 留在 s2, 改回 0 退回); 要 video_clk (74.25 MHz)
+    parameter NN = 1,  // 0 = 不综合 handnet 加速器 (它占约 108/134 块 DRM18K); 用 PGL50H 这类小片子时关掉, 0x4000_6000 变成不握手
     parameter IO_N = 0,
     parameter UART_TX_PIN = 255,
     parameter UART_RX_PIN = 255
@@ -469,22 +470,30 @@ module soc_top #(
         .spi_miso_o(matrix_spi_miso)
     );
 
-    // handnet 加速器 (0x4000_6000)
-    nn u_nn (
-        .clk(clk),
-        .rst_n(rst_n),
-        .addr_i(p_addr[P_NN*32+:32]),
-        .data_i(p_wdata[P_NN*32+:32]),
-        .sel_i(p_sel[P_NN*4+:4]),
-        .we_i(p_we[P_NN]),
-        .data_o(p_rdata[P_NN*32+:32]),
-        .req_valid_i(p_req_valid[P_NN]),
-        .req_ready_o(p_req_ready[P_NN]),
-        .rsp_valid_o(p_rsp_valid[P_NN]),
-        .rsp_ready_i(p_rsp_ready[P_NN]),
-        .busy_o(),
-        .done_o()
-    );
+    // handnet 加速器 (0x4000_6000); NN=0 时整个加速器不综合, 这一口保留不握手 (同 DISPLAY_NEW=0 时 s3 的做法)
+    generate
+        if (NN) begin : g_nn
+            nn u_nn (
+                .clk(clk),
+                .rst_n(rst_n),
+                .addr_i(p_addr[P_NN*32+:32]),
+                .data_i(p_wdata[P_NN*32+:32]),
+                .sel_i(p_sel[P_NN*4+:4]),
+                .we_i(p_we[P_NN]),
+                .data_o(p_rdata[P_NN*32+:32]),
+                .req_valid_i(p_req_valid[P_NN]),
+                .req_ready_o(p_req_ready[P_NN]),
+                .rsp_valid_o(p_rsp_valid[P_NN]),
+                .rsp_ready_i(p_rsp_ready[P_NN]),
+                .busy_o(),
+                .done_o()
+            );
+        end else begin : g_no_nn
+            assign p_rdata[P_NN*32+:32] = 32'h0;
+            assign p_req_ready[P_NN] = 1'b0;
+            assign p_rsp_valid[P_NN] = 1'b0;
+        end
+    endgenerate
 
     sysctl #(
         .HW_ID(HW_ID)

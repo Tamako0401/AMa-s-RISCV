@@ -7,6 +7,7 @@ module mes2l100hp_top #(
     // 置 1 能综合、时序满足 (PDS 2022.2-SP6.4 的段错误已在 disp_blend 绕过, 资源和时序见 docs/display.md);
     // 默认还是 0: 新显示的 C 后端还没写, 现有 demo 都画在旧 video 上。
     parameter DISPLAY_NEW = 0,
+    parameter NN = 1,  // 传给 soc_top: 0 = 不综合 handnet 加速器
     parameter IO_N = `IO_N,
     parameter MEM_FILE = "firmware.hex"
 ) (
@@ -296,6 +297,7 @@ module mes2l100hp_top #(
     soc_top #(
         .VIDEO_720P(VIDEO_720P),
         .DISPLAY_NEW(DISPLAY_NEW),
+        .NN(NN),
         .RESET_PC(32'hf800),
         .ROM_WRITABLE(1),
         .HW_ID(HW_ID),
