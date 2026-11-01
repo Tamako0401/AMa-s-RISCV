@@ -6,6 +6,7 @@ module mes50hp_top #(
     parameter VIDEO_720P = 0,  // 1 要先在 video_clock.vh 补上 74.25 MHz PLL
     parameter OV7670_MONITOR = 0,
     parameter OV7670_VSYNC_ACTIVE_LEVEL = 1'b1,
+    parameter UART_BREAK_RESET = 1,  // camera 应用关掉它: 板上 CP2102 没接线时 UART_RX 悬空会被当成持续 break, 把设计压在复位里
     parameter NN = 1,  // 传给 soc_top: 0 = 不综合 handnet 加速器 (PGL50H 块 RAM 不够时用)
     parameter IO_N = `IO_N,
     parameter MEM_FILE = "firmware.hex"
@@ -34,7 +35,7 @@ module mes50hp_top #(
         else if (break_count < BREAK_CYCLES) break_count <= break_count + 1'b1;
         in_break <= !rx_sync[1] && break_count == BREAK_CYCLES;
     end
-    wire reset_n = (key1_n) && !in_break;
+    wire reset_n = key1_n && (!UART_BREAK_RESET || !in_break);
     reg [15:0] reset_pipe = 16'b0;
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) reset_pipe <= 16'b0;
@@ -48,6 +49,7 @@ module mes50hp_top #(
     wire camera_hdmi_pclk, camera_hdmi_hs, camera_hdmi_vs, camera_hdmi_de;
     wire [23:0] camera_hdmi_rgb;
     wire camera_scl_low, camera_sda_low, camera_config_done, camera_config_error;
+    wire camera_frame_ready;
     wire camera_vsync = io[`PIN_J8_23];
     wire camera_href = io[`PIN_J8_24];
     wire camera_pclk = io[`PIN_J8_25];
@@ -80,7 +82,8 @@ module mes50hp_top #(
             .hdmi_hs(camera_hdmi_hs),
             .hdmi_vs(camera_hdmi_vs),
             .hdmi_de(camera_hdmi_de),
-            .hdmi_rgb(camera_hdmi_rgb)
+            .hdmi_rgb(camera_hdmi_rgb),
+            .frame_ready_o(camera_frame_ready)
         );
     end else begin : g_no_ov7670
         assign camera_scl_low = 1'b0;
@@ -93,6 +96,7 @@ module mes50hp_top #(
         assign camera_hdmi_vs = 1'b1;
         assign camera_hdmi_de = 1'b0;
         assign camera_hdmi_rgb = 24'b0;
+        assign camera_frame_ready = 1'b0;
     end endgenerate
 
     genvar n;
@@ -146,6 +150,15 @@ module mes50hp_top #(
             end else if (OV7670_MONITOR && n == `PIN_J8_36) begin : g_camera_pwdn
                 assign io[n] = 1'b0;
                 assign io_i[n] = 1'b0;
+            end else if (OV7670_MONITOR && n == `PIN_LED1) begin : g_cam_sccb_done
+                assign io[n] = camera_config_done;
+                assign io_i[n] = io[n];
+            end else if (OV7670_MONITOR && n == `PIN_LED2) begin : g_cam_sccb_error
+                assign io[n] = camera_config_error;
+                assign io_i[n] = io[n];
+            end else if (OV7670_MONITOR && n == `PIN_LED3) begin : g_cam_frame_ready
+                assign io[n] = camera_frame_ready;
+                assign io_i[n] = io[n];
             end else if (INOUT_MASK[n]) begin : g_inout
                 assign io[n] = io_oe[n] ? io_o[n] : 1'bz;
                 assign io_i[n] = IN_N_MASK[n] ? ~io[n] : io[n];
