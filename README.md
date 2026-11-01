@@ -17,6 +17,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 | 平时改了 C | `./ama run snake` | 编译, 经串口 bootloader 下载到板子运行, 再显示串口输出 (Ctrl+] 退出)。几秒 |
 | 只编译 / 只下载 / 只看串口 | `./ama build snake` / `./ama upload snake` / `./ama monitor` | |
 | 改了 `rtl/`、`boards/`、`sw/boot/` | `./ama fpga build -b mes50hp` 然后 `./ama fpga program` | 出只带 bootloader 的位流, 写进板上 flash, 上电自动加载。几分钟; `--once` 只下载一次 (断电丢) |
+| 程序要特定位流参数 (如相机) | `./ama fpga build -b mes50hp --app camera` 然后 `./ama fpga program -b mes50hp --app camera` | `app.toml` 的 `params` 会改写顶层参数并算进 `hwid`, 不带 `--app` 编出来的位流不能用; 见 [OV7670](docs/ov7670.md) |
 | 没有板子 | `./ama sim snake` | sw/app 下的程序跑在 soc_top 上, 窗口显示屏幕和 HDMI 画面, 终端显示串口; 关窗口或 Ctrl+C 结束, 截图在 build/sim/<程序>-lcd.png、-hdmi.png |
 
 - 程序就是 `sw/app/<名字>/`, 目录下的 .c 一起编译。
@@ -46,6 +47,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - [显示扩展方案 (720p、多图层、软硬件分工, 草案)](docs/display-plan.md)
 - [新显示 (720p 逐行渲染, 仿真中)](docs/display.md)
 - [视觉输入 (HDMI 输入, 缩小, 小窗)](docs/vision.md)
+- [OV7670 摄像头 → HDMI (接线、`./ama` 上板、实测结果)](docs/ov7670.md)
 - [handnet 加速器 (RTL、寄存器、C 库、量化)](docs/nn.md)
 - [徒手手势模型 (数据、标注、训练)](docs/hand-model.md)
 - [参考项目: 手势控制游戏、FPGA 手势识别、sprite 引擎](docs/references.md)

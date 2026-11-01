@@ -24,9 +24,16 @@ I2C 和复位经 GPIO 矩阵 (`pins.csv` 的 HDMI_*; 两颗芯片共用复位脚
 | 3.3V / GND | 39,40 / 37,38 | — | 电源/地 |
 
 监看逻辑假设摄像头输出 640x480、RGB565、MSB 字节先行、HS 高有效；每个方向每 4 点抽样一次，
-用一份 160x120 RGB332 缓冲放大到 HDMI VGA。单缓冲会有帧更新撕裂的可能，新增 RAM 约 9 个 DRM18K，
-需 PDS 综合核对资源与时序。SCCB 需要摄像头模块上的 3.3V 上拉。按当前模块说明，RET 在正常工作时拉高。
-PCLK 的板级输入时序、实际资源和 HDMI 输出时序还需 PDS 报告及上板确认。
+用一份 **160x120 RGB565** 缓冲在左上角按原尺寸显示，其余像素输出黑；还没收到完整帧时同一区域
+显示 8 条彩条。SCCB 用 FPGA 内部上拉（`mes50hp.fdc` 的 `PAP_IO_PULLUP`），不依赖模块上的电阻。
+按当前模块说明，RET 在正常工作时拉高。
+
+`OV7670_MONITOR=1` 时 LED1~LED3 是相机状态灯：LED1 亮 = SCCB 初始化完成，LED2 亮 = SCCB 出错，
+LED3 亮 = 已经收到过完整一帧。完整用法、`./ama` 上板步骤、上板实测数据和已知问题见
+[OV7670 摄像头 → HDMI](../docs/ov7670.md)。
+
+> 注意：PCLK 走的是普通 IO（U8），必须有 `PAP_CLOCK_ASSIGN=GENERAL` +
+> `PAP_CLOCK_DEDICATED_ROUTE=FALSE`，否则 place 阶段直接报 `E:Place-0084`。
 
 ## 下载
 
