@@ -50,6 +50,9 @@ rtl/display/disp_scan.v
 rtl/display/disp_render.v
 rtl/display/display.v
 rtl/vision/hdmi_rx_adapter.v
+rtl/vision/ov7670_rgb565_rx.v
+rtl/vision/ov7670_sccb_init.v
+rtl/vision/ov7670_vga.v
 rtl/vision/crop.v
 rtl/vision/box4.v
 rtl/vision/window_store.v

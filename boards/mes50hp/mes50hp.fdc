@@ -210,7 +210,18 @@ define_attribute {p:hdmi_d[23]} {PAP_IO_DRIVE} {8}
 define_attribute {p:hdmi_d[23]} {PAP_IO_SLEW} {FAST}
 # HDMI 输入 (MS7200): 硬件手册表 3-6; 像素时钟由电脑决定, 按 720p 的 74.25 MHz 约束, 和系统时钟不相关
 create_clock -name hdmi_rx_pclk -period 13.468 [get_ports {hdmi_rx_pclk}]
-set_clock_groups -asynchronous -group [get_clocks {sys_clk}] -group [get_clocks {hdmi_rx_pclk}]
+# OV7670: XCLK 为 25 MHz; 本工程相机配置下 PCLK 约 25 MHz.
+create_clock -name ov7670_pclk -period 40.000 [get_ports {io[22]}]
+# PCLK 走的是普通 IO (J8_25/U8), 不是专用时钟脚, 默认 PDS 在 place 阶段报 E:Place-0084 直接停下。
+# 按 UCE 指南 2.3.4.9: 把时钟相关 net/驱动 pin 的 PAP_CLOCK_DEDICATED_ROUTE 设成 FALSE,
+# 允许走 SRB 之间的互连通道, 报错降级成 C:Place-2028 告警。2.3.4.2 的 PAP_CLOCK_ASSIGN=GENERAL
+# 表示这条时钟不走专用时钟走线 (25 MHz 像素时钟, 走普通布线够用)。
+# 注意: 这里只能用约束阶段就存在的对象 (port 和同名 net); 综合后才有的实例名 (io_tri[22])
+# 和它的输出 net (_N22) 在约束阶段找不到, 写成 t:/n: 会报 ConstraintEditor-0046。
+define_attribute {p:io[22]} {PAP_CLOCK_ASSIGN} {GENERAL}
+define_global_attribute {PAP_CLOCK_DEDICATED_ROUTE} {FALSE}
+define_attribute {n:io[22]} {PAP_CLOCK_DEDICATED_ROUTE} {FALSE}
+set_clock_groups -asynchronous -group [get_clocks {sys_clk}] -group [get_clocks {hdmi_rx_pclk}] -group [get_clocks {ov7670_pclk}]
 define_attribute {p:hdmi_rx_pclk} {PAP_IO_DIRECTION} {INPUT}
 define_attribute {p:hdmi_rx_pclk} {PAP_IO_LOC} {AA12}
 define_attribute {p:hdmi_rx_pclk} {PAP_IO_VCCIO} {3.3}
@@ -341,3 +352,9 @@ define_attribute {p:hdmi_rx_d[23]} {PAP_IO_LOC} {Y14}
 define_attribute {p:hdmi_rx_d[23]} {PAP_IO_VCCIO} {3.3}
 define_attribute {p:hdmi_rx_d[23]} {PAP_IO_STANDARD} {LVCMOS33}
 define_attribute {p:hdmi_rx_d[23]} {PAP_IO_NONE} {TRUE}
+
+# OV7670 SCCB (J8_21 SCL / J8_22 SDA) 是开漏总线, 要靠上拉才能收到 ACK。
+# 摄像头模块上不一定带上拉电阻; 打开 FPGA 内部上拉, 否则 SDA 悬空被读成 0,
+# ACK 检测会假通过 —— 看起来"配置成功", 其实一条寄存器都没写进去。
+define_attribute {p:io[18]} {PAP_IO_PULLUP} {TRUE}
+define_attribute {p:io[19]} {PAP_IO_PULLUP} {TRUE}

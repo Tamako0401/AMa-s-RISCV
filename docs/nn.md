@@ -197,6 +197,11 @@ model/nn_export.py --calib frames.raw    # 用真实画面标定量化范围 (�
   (和 `rom.v` 的 `ROM_INIT_FILE` 是同一类约束)。
 - `$readmemh` 初始化的存储能不能被综合工具推断成块 RAM 初值, 和 [rom.v](../rtl/perips/rom.v)
   的情况一样, 需要在 PDS 里确认一次。
+- 放不下的时候不用改 RTL: `soc_top` 有个参数 `NN` (默认 1), 板顶层 (`mes50hp_top` / `mes2l100hp_top`)
+  同名参数透传下去, 在 `sw/app/<程序>/app.toml` 里写 `params = { NN = 0 }` 就整个加速器不综合,
+  `0x4000_6000` 变成不握手 (和 `DISPLAY_NEW = 0` 时 s3 的做法一样)。PGL50H 的 134 块 DRM18K 里
+  加速器要占约 108 块, 不关掉连基础位流都过不了 device map; `sw/app/camera` 和
+  `sw/app/hdmi_colorbar` 就是这么编的 —— 相机监看由 HDMI 直出, 本来也没用到 NN。
 
 ## 下一步
 

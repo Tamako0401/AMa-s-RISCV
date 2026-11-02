@@ -49,6 +49,9 @@ CFLAGS = [
     '-mno-relax',
     # 不让 GNU ld 把 ELF 头放进加载段: 否则 bootloader 的段从 0xF000 开始, 拼 ROM 时会被丢掉
     '-Wl,--nmagic',
+    # 不生成 .note.gnu.build-id: 它是 alloc 段且落在地址 0, 会顶掉程序第一条指令,
+    # bootloader 跳到 0 就执行到 note 数据 (非法指令), 上电一片静默
+    '-Wl,--build-id=none',
 ]
 
 PT_LOAD = 1

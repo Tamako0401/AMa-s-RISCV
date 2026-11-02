@@ -1,0 +1,1 @@
+params = { OV7670_MONITOR = 1, NN = 0, UART_BREAK_RESET = 0 }
