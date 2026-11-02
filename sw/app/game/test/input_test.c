@@ -1,11 +1,28 @@
 /* game/board 输入部分的主机测试。
  *   link.c: 打的字和帧混在一起能拆开, 坏帧丢掉, 断了能在下一个 0xFF 重新对上;
- *   pad.c: 两个口 (控制台串口、第二个串口) 来的字和 'P' 帧一样处理, 各口解析器互不干扰, 按键合起来, 断了会松开。 */
+ *   pad.c: 两路串口 + 本机按键合并, 来源活跃计时, 断了会松开, 本机按键不改鼠标。 */
 #include <stdio.h>
 #include <string.h>
 #include "link.c"
 #define PAD_NO_UART /* 只编 pad_begin / pad_byte / pad_end, 不读串口 */
 #include "pad.c"
+#include "menu.c"
+
+/* 只记文字层, 检查来源状态的内容、颜色和菜单选项。 */
+static char screen[45][160];
+static uint32_t colors[45][160];
+
+void gfx_text(int32_t col, int32_t row, uint32_t color, const char *s)
+{
+    while (*s && col < 160 && row >= 0 && row < 45) {
+        if (col >= 0) {
+            screen[row][col] = *s;
+            colors[row][col] = color;
+        }
+        col++;
+        s++;
+    }
+}
 
 static int failures;
 
@@ -159,6 +176,115 @@ static void pad_tests(void)
     check(pad.held == (PAD_RIGHT | PAD_DOWN), "半帧下一帧接着收齐");
 }
 
+static void local_tests(void)
+{
+    pad_t pad = {0};
+    uint8_t buf[64] = {0};
+    pad_feed(&pad, 0, buf, 0);
+    check(pad.active == 0, "开机没有来源活跃");
+    int n = pad_frame(buf, PAD_LEFT | PAD_A, 0x0C, 123, 234);
+    pad_begin(&pad);
+    for (int i = 0; i < n; i++)
+        pad_byte(&pad, 0, buf[i]);
+    pad_local(&pad, PAD_A | PAD_MENU | PAD_RESTART | PAD_SLOW);
+    pad_end(&pad);
+    uint32_t held = PAD_LEFT | PAD_A | PAD_CLICK | PAD_MENU | PAD_RESTART | PAD_SLOW;
+    check(pad.held == held && pad.pressed == held, "本机四键和串口按键取或, 首次按下有边沿");
+    check(pad.active == (PAD_SRC_USB | PAD_SRC_KEYS), "串口和本机来源分别活跃");
+    check(pad.mouse && pad.mx == 123 && pad.my == 234, "本机按键不改鼠标坐标和点击");
+    pad_begin(&pad);
+    pad_local(&pad, PAD_A | PAD_MENU | PAD_RESTART | PAD_SLOW);
+    pad_end(&pad);
+    check(pad.held == held && pad.pressed == 0, "本机按住 MENU / RESTART 不重复触发");
+    pad_feed(&pad, 0, buf, 0);
+    check(pad.held == (PAD_LEFT | PAD_A | PAD_CLICK), "本机松开不影响串口同名键");
+    n = pad_frame(buf, 0, 0, 0, 0);
+    pad_begin(&pad);
+    for (int i = 0; i < n; i++)
+        pad_byte(&pad, 0, buf[i]);
+    pad_local(&pad, PAD_A);
+    pad_end(&pad);
+    check(pad.held == PAD_A && pad.pressed == 0, "串口松开不影响本机同名键, 不产生新边沿");
+    pad_feed(&pad, 0, buf, 0);
+    pad_begin(&pad);
+    pad_local(&pad, PAD_A);
+    pad_end(&pad);
+    check(pad.pressed == PAD_A, "本机松开再按下有新边沿");
+
+    /* 没有按键的 'P' 帧也表示在线; 两口和本机各自超时。 */
+    pad = (pad_t){0};
+    n = pad_frame(buf, 0, 0, 0, 0);
+    pad_feed(&pad, 1, buf, n);
+    check(pad.active == PAD_SRC_SLE && pad.held == 0, "第二个口空按键帧也活跃");
+    pad_begin(&pad);
+    pad_byte(&pad, 0, 'w');
+    pad_local(&pad, PAD_SLOW);
+    pad_end(&pad);
+    check(pad.active == (PAD_SRC_USB | PAD_SRC_SLE | PAD_SRC_KEYS), "三路来源同时活跃");
+    int still = 1;
+    for (int i = 2; i < PAD_STALE; i++) {
+        pad_feed(&pad, 0, buf, 0);
+        still &= pad.active == (PAD_SRC_USB | PAD_SRC_SLE | PAD_SRC_KEYS);
+    }
+    pad_feed(&pad, 0, buf, 0);
+    check(still && pad.active == (PAD_SRC_USB | PAD_SRC_KEYS), "第二个口恰好 PAD_STALE 帧后变灰");
+    pad_feed(&pad, 0, buf, 0);
+    check(pad.active == 0 && pad.held == 0, "终端和本机各自 PAD_STALE 帧后变灰");
+    for (int i = 0; i < 300; i++)
+        pad_feed(&pad, 0, buf, 0);
+    check(pad.active == 0, "长时间空闲不会回绕成活跃");
+    pad_begin(&pad);
+    pad_local(&pad, PAD_SLOW);
+    pad_end(&pad);
+    for (int i = 0; i < PAD_STALE * 2; i++) {
+        pad_begin(&pad);
+        pad_local(&pad, PAD_SLOW);
+        pad_end(&pad);
+    }
+    check(pad.active == PAD_SRC_KEYS && pad.held == PAD_SLOW, "本机长按持续活跃");
+
+    pad = (pad_t){0};
+    n = pad_frame(buf, PAD_A, 0, 0, 0);
+    buf[n - 1] ^= 1;
+    pad_feed(&pad, 0, buf, n);
+    check(pad.active == 0, "校验错的帧不激活来源");
+    static const uint8_t short_p[] = {0xFF, 'P', 0, 'P'};
+    pad_feed(&pad, 1, short_p, sizeof short_p);
+    pad_feed(&pad, 0, (const uint8_t *)"z", 1);
+    check(pad.active == 0, "长度错的 P 帧和无关键不激活来源");
+    pad_feed(&pad, 0, (const uint8_t *)"\x1b[A", 3);
+    check(pad.active == PAD_SRC_USB && pad.held == PAD_UP, "终端方向键激活对应来源");
+}
+
+static void status_tests(void)
+{
+    pad_t pad = {0};
+    menu_t menu;
+    menu_info_t info = {0};
+    uint8_t mode = INPUT_KEYS;
+    menu_open(&menu, 1);
+    check(menu_frame(&menu, &pad, &mode, &info) == MENU_STAY, "来源行不退出菜单");
+    check(memcmp(screen[25] + 56, "pad: usb  sle  keys", 19) == 0, "暂停菜单显示三路来源");
+    check(colors[25][61] == GFX_GRAY && colors[25][66] == GFX_GRAY && colors[25][71] == GFX_GRAY,
+          "无活跃来源时全灰");
+    pad.active = PAD_SRC_USB | PAD_SRC_KEYS;
+    menu_frame(&menu, &pad, &mode, &info);
+    check(colors[25][61] == GFX_LIGHT_GREEN && colors[25][66] == GFX_GRAY && colors[25][71] == GFX_LIGHT_GREEN,
+          "活跃来源亮绿, 不活跃来源灰色");
+    pad.active = PAD_SRC_SLE;
+    menu_pad_status(62, 28, &pad);
+    check(colors[28][67] == GFX_GRAY && colors[28][72] == GFX_LIGHT_GREEN && colors[28][77] == GFX_GRAY,
+          "标题同一行支持独立刷新");
+    pad.pressed = PAD_UP;
+    menu_frame(&menu, &pad, &mode, &info);
+    check(menu.item == 2 && mode == INPUT_KEYS, "状态行只读, 游戏内仍只有三个选项");
+    menu_close();
+    check(memcmp(screen[25] + 56, "                   ", 19) == 0, "关菜单擦掉来源行");
+    menu_open(&menu, 0);
+    menu_frame(&menu, &pad, &mode, &info);
+    check(menu.item == 1, "标题菜单仍只有两个选项");
+}
+
 int main(void)
 {
     link_t link = {0};
@@ -209,6 +335,8 @@ int main(void)
     check(feed(&link, (const uint8_t *)"\x80\xfe", 2, text, frames) == 0 && text[0] == 0, "帧外的高位字节不算字");
 
     pad_tests();
+    local_tests();
+    status_tests();
 
     printf("%d failure(s)\n", failures);
     return failures != 0;

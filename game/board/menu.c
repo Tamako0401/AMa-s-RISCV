@@ -9,6 +9,14 @@
 
 static const char *const input_names[INPUT_N] = {"keys", "point"};
 
+void menu_pad_status(int32_t col, int32_t row, const pad_t *pad)
+{
+    static const char *const names[] = {"usb  ", "sle  ", "keys"};
+    gfx_text(col, row, GFX_GRAY, "pad: ");
+    for (uint32_t i = 0; i < 3; i++)
+        gfx_text(col + 5 + 5 * i, row, pad->active & (1u << i) ? GFX_LIGHT_GREEN : GFX_GRAY, names[i]);
+}
+
 const char *menu_input_name(uint8_t mode)
 {
     return mode < INPUT_N ? input_names[mode] : "?";
@@ -143,5 +151,7 @@ int menu_frame(menu_t *m, const pad_t *pad, uint8_t *mode, const menu_info_t *in
     cat(buf, &n, " bad, heat ");
     cat_num(buf, &n, (int32_t)info->nn_heat);
     line(12, GFX_GRAY, buf);
+    line(13, GFX_GRAY, "");
+    menu_pad_status(COL + 4, ROW + 13, pad);
     return MENU_STAY;
 }

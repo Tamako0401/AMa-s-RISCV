@@ -1,6 +1,6 @@
 /* game: 板上玩两个手势游戏 (game/core/, 和电脑版同一份), 画面走新显示 (位流要 DISPLAY_NEW=1, 见 app.toml)。
  * 输入从串口来 (见 game/board/pad.h): ama monitor 打字, 或 ama monitor --pad (真正的按住 / 松开和鼠标);
- * 第二个串口 (bsp/aux_uart.h, 星闪) 来的同样认。
+ * 第二个串口 (bsp/aux_uart.h, 星闪) 来的同样认, 本机按键见 game/board/local_keys.h。
  * 输入方式 (按键 / 指点) 同一时间只有一种管用, 在暂停菜单里切换 (MENU = m / q / Esc, 见 game/board/menu.h)。
  * 开机是标题画面: 上下选游戏, A (j / 空格 / 回车) 开始; 游戏里 r 重开, 结束后 A (指点方式: 左键) 重开。
  *   东方式: 按键: 方向键移动 (大写 / Shift 慢速), A 放 bomb; 指点: 鼠标 / 手就是自机位置, 左键 / 张开手 bomb。
@@ -109,6 +109,7 @@ static void title_frame(uint32_t t)
         gfx_text(60, 18 + 3 * i, GFX_YELLOW, i == choice ? ">" : " ");
     }
     gfx_text(60, 26, GFX_GRAY, input_mode == INPUT_KEYS ? "  input: keys " : "  input: point");
+    menu_pad_status(62, 28, &pad);
     gfx_begin();
     /* 选中那一项旁边转几个光点 */
     for (uint32_t i = 0; i < 6; i++) {

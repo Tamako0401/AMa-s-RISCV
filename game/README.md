@@ -39,6 +39,7 @@ tools/       assets.py: 图案和字库 -> build/assets.c (占位图; game/asset
 board/gfx_hw.c   gfx.h 的板上版: 精灵记在内存里, 每帧写进显示的后台精灵表再提交; 背景、文字直接写
 board/pad.c      串口来的按键: 终端打字 (ama monitor) 或手柄窗口 (ama monitor --pad) 的包, 格式见 pad.h;
                  控制台串口和第二个串口 (bsp/aux_uart.h, 星闪, 手柄板的 'P' 帧) 都收, 处理方法一样
+board/local_keys.h  本机按键小表: 100HP KEY1 = A (bomb / 出刀 / 确认), KEY2 = MENU, KEY3 = RESTART, KEY4 = SLOW
 board/mem.c      memset / memcpy (-nostdlib 下 gcc 清大结构体要用)
 build/display_assets.c   开机写进显示的调色板和图案库 (refmodel.py firmware 生成, 和参考模型同一份 256 色量化)
 sw/app/game/     主程序: 标题画面选游戏、键盘 -> 两个游戏的输入、60 帧/秒的主循环 (等显示换帧)
@@ -54,6 +55,8 @@ sw/app/game/     主程序: 标题画面选游戏、键盘 -> 两个游戏的输
 键位: 标题画面上下选、j / 空格 / 回车开始; 游戏里 wasd 或方向键移动 (终端里大写 = Shift = 东方的慢速),
 j / 空格 = A (东方 bomb、水果出刀), r 重开, q 回标题, 结束后 A 重开。手柄窗口里按 m 切换成鼠标 (位置 = 画面位置)。
 水果用键盘: 方向键移动刀尖, A 沿最近移动的方向冲出去一刀 (5 帧 x 32 点, 够快才切得开)。
+板上按键去抖后和两路串口按键取或, 不改鼠标 / 指点方式; 标题和暂停菜单的只读 `pad: usb  sle  keys` 行,
+最近 PAD_STALE 帧 (0.5 秒) 收过有效帧 / 有过按键的来源亮绿, 其余灰色 (usb = 控制台串口, sle = 第二串口)。
 串口每局结束打印成绩, 每 5 秒打印 CPU 最忙一帧的拍数 (一帧 83 万拍) 和显示最忙一行的拍数。
 
 终端只发 "按下" 和自动连发, 不发 "松开", 所以终端里按住方向键会先走一小步、停约半秒再连续走; `--pad` 没有这个问题。
