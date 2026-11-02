@@ -134,5 +134,14 @@ int menu_frame(menu_t *m, const pad_t *pad, uint8_t *mode, const menu_info_t *in
     cat_num(buf, &n, (int32_t)info->cpu);
     cat(buf, &n, " cycles/frame (of 833k)");
     line(11, GFX_GRAY, buf);
+    n = 0;
+    buf[0] = 0;
+    cat(buf, &n, "    handnet: ");
+    cat_num(buf, &n, (int32_t)info->nn_results);
+    cat(buf, &n, " results, ");
+    cat_num(buf, &n, (int32_t)info->nn_errors);
+    cat(buf, &n, " bad, heat ");
+    cat_num(buf, &n, (int32_t)info->nn_heat);
+    line(12, GFX_GRAY, buf);
     return MENU_STAY;
 }

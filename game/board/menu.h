@@ -24,7 +24,9 @@ typedef struct {
 /* 调试信息: 菜单里显示 */
 typedef struct {
     const hand_t *hand;
-    uint32_t cpu; /* CPU 最近一帧用了多少拍 */
+    uint32_t cpu;                   /* CPU 最近一帧用了多少拍 */
+    uint32_t nn_results, nn_errors; /* handnet 出了几次结果、几次坏帧 */
+    uint32_t nn_heat;               /* 最近一次的置信度 0..255 */
 } menu_info_t;
 
 void menu_open(menu_t *m, int in_game);

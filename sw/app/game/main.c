@@ -12,6 +12,7 @@
 #include "fruit.h"
 #include "gfx.h"
 #include "gfx_hw.h"
+#include "handnet.h"
 #include "menu.h"
 #include "pad.h"
 #include "touhou.h"
@@ -31,7 +32,9 @@ static union { /* 两个游戏不会同时玩, 共用内存 */
     fruit_t fruit;
 } game;
 static pad_t pad;
-static hand_t hand; /* 还没接视觉: 一直是 "没有手" */
+static hand_t hand; /* 板上 handnet 认出来的手 (game/board/handnet.h), 指点方式下没鼠标时用它 */
+static handnet_t net;
+static hand_raw_t raw;
 static uint8_t input_mode = INPUT_KEYS;
 static menu_t menu;
 static uint32_t seed = 1;
@@ -229,9 +232,15 @@ int main(void)
         uint32_t start = bsp_cycles();
         pad_poll(&pad);
         seed = seed * 1664525 + 1013904223 + pad.held; /* 开局的随机数和按键时机有关 */
+        handnet_poll(&net, &raw); /* 有新结果就更新 raw; hand_update 每帧都要调 (平滑和防抖按帧算) */
+        if (state == TOUHOU)
+            hand_update(&hand, &raw, PLAY_W, PLAY_H);
+        else
+            hand_update(&hand, &raw, FRUIT_W, FRUIT_H);
         int32_t over = was_over;
         if (paused) { /* 暂停: 精灵表不动 (不调 gfx_begin), 画面变暗, 上面写菜单 */
-            menu_info_t info = {.hand = &hand, .cpu = work};
+            menu_info_t info = {
+                .hand = &hand, .cpu = work, .nn_results = net.results, .nn_errors = net.errors, .nn_heat = net.heat};
             int r = menu_frame(&menu, &pad, &input_mode, &info);
             gfx_fade(0x0000, 10);
             if (r != MENU_STAY) {
