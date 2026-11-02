@@ -58,6 +58,11 @@ EXT33,V24,inout
 EXT34,W24,inout
 EXP35,AA24,inout
 EXP36,AB25,inout
+SD_SCK,F19,inout
+SD_MOSI,H14,inout
+SD_MISO,F18,inout
+SD_CS,H15,inout
+SD_DET,G19,in
 HDMI_I2S_SCK,T23,out,hdmi_i2s_sck
 HDMI_I2S_WS,B25,out,hdmi_i2s_ws
 HDMI_I2S_SD,P26,out,hdmi_i2s_sd

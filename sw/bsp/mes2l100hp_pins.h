@@ -58,3 +58,8 @@
 #define PIN_EXT34 56
 #define PIN_EXP35 57
 #define PIN_EXP36 58
+#define PIN_SD_SCK 59
+#define PIN_SD_MOSI 60
+#define PIN_SD_MISO 61
+#define PIN_SD_CS 62
+#define PIN_SD_DET 63

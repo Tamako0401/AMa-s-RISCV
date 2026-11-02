@@ -1,5 +1,5 @@
 // 由 ama gen pins 生成, 不要手改
-`define IO_N 59
+`define IO_N 64
 `define UART_TX_PIN 20
 `define UART_RX_PIN 21
 `define PIN_LCD_SCK 0
@@ -61,6 +61,11 @@
 `define PIN_EXT34 56
 `define PIN_EXP35 57
 `define PIN_EXP36 58
-`define IO_INOUT_MASK 128'h000000000000000007ffffffff0000ff
+`define PIN_SD_SCK 59
+`define PIN_SD_MOSI 60
+`define PIN_SD_MISO 61
+`define PIN_SD_CS 62
+`define PIN_SD_DET 63
+`define IO_INOUT_MASK 128'h00000000000000007fffffffff0000ff
 `define IO_OUT_MASK 128'h00000000000000000000000000dff000
 `define IO_IN_N_MASK 128'h00000000000000000000000000000f00
