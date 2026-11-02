@@ -22,6 +22,7 @@ int handnet_poll(handnet_t *n, hand_raw_t *raw)
     }
     nn_hand_t h;
     nn_decode(&h);
+    n->cycles = NN->CYCLE;
     nn_capture(); /* 抓帧请求同时清掉 DONE */
     n->results++;
     raw->seq = n->results;

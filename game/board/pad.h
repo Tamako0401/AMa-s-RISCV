@@ -35,6 +35,10 @@ typedef struct {
     /* 内部 */
     uint8_t ttl[10]; /* 终端来的键还算按住几帧 */
     uint32_t pad_keys, last;
+    /* 'P' 以外的帧 (以后的设备另起一个字母, 见 link.h) 交给它; 不设就丢掉 */
+    void (*on_frame)(const link_frame_t *frame, void *ctx);
+    void *ctx;
+    /* 内部 */
     uint8_t esc; /* 收到 ESC 后: 1 等 '[', 2 等方向字母 */
     link_t link;
 } pad_t;

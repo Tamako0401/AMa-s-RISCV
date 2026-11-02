@@ -49,7 +49,12 @@ static void tap(pad_t *pad, uint32_t keys)
 /* pad.py 的 'P' 帧 */
 static void frame(pad_t *pad, const link_frame_t *f)
 {
-    if (f->type != 'P' || f->len != 6)
+    if (f->type != 'P') {
+        if (pad->on_frame)
+            pad->on_frame(f, pad->ctx);
+        return;
+    }
+    if (f->len != 6)
         return;
     const uint8_t *p = f->data;
     pad->pad_keys = p[0] | (p[1] & 1u) << 7 | (p[1] >> 1 & 1u) << 8 | (p[1] >> 3 & 1u) << 9 | (p[1] >> 4 & 1u) << 10;

@@ -1,6 +1,6 @@
 /* game/board/link.c 的主机测试: 打的字和帧混在一起能拆开, 坏帧丢掉, 断了能在下一个 0xFF 重新对上 */
 #include <stdio.h>
-#include "../../../../game/board/link.c"
+#include "link.c"
 
 static int failures;
 

@@ -15,7 +15,8 @@ typedef struct {
     uint32_t results; /* 出了几次结果 (hand_raw_t 的 seq) */
     uint32_t errors;  /* 坏帧几次 (尺寸变了、断了一半) */
     uint8_t started;
-    uint8_t heat; /* 最近一次的置信度 0..255 (> 127 算找到手), 调试用 */
+    uint8_t heat;    /* 最近一次的置信度 0..255 (> 127 算找到手), 调试用 */
+    uint32_t cycles; /* 最近一次推理用了多少拍 (NN 的 CYCLE 寄存器) */
 } handnet_t;
 
 /* 每个游戏帧调一次; 有新结果时写 *raw 并返回 1 */

@@ -12,7 +12,7 @@
 #include "fruit.h"
 #include "gfx.h"
 #include "gfx_hw.h"
-#include "handnet.h"
+#include "hand_source.h"
 #include "menu.h"
 #include "pad.h"
 #include "touhou.h"
@@ -33,8 +33,24 @@ static union { /* 两个游戏不会同时玩, 共用内存 */
 } game;
 static pad_t pad;
 static hand_t hand; /* 板上 handnet 认出来的手 (game/board/handnet.h), 指点方式下没鼠标时用它 */
-static handnet_t net;
 static hand_raw_t raw;
+static uint32_t nn_rate; /* handnet 上一秒出了几次结果 */
+
+/* 侧栏常驻: 板上 handnet 在跑 (每秒几次、一次推理几毫秒、置信度), 演示时不用开菜单就看得见 */
+static void draw_nn(int32_t col, int32_t row)
+{
+    uint32_t us = handnet.cycles / (SYSCLK_HZ / 1000000);
+    gfx_text(col, row, GFX_GRAY, "FPGA HANDNET");
+    gfx_number(col, row + 1, GFX_LIGHT_GREEN, nn_rate, 3);
+    gfx_text(col + 3, row + 1, GFX_GRAY, "/s");
+    gfx_number(col + 6, row + 1, GFX_LIGHT_GREEN, us / 1000, 2);
+    gfx_text(col + 8, row + 1, GFX_GRAY, ".");
+    gfx_number(col + 9, row + 1, GFX_LIGHT_GREEN, us / 100 % 10, 1);
+    gfx_text(col + 10, row + 1, GFX_GRAY, "ms");
+    gfx_text(col, row + 2, GFX_GRAY, "conf");
+    gfx_number(col + 5, row + 2, GFX_LIGHT_GREEN, handnet.heat * 100 / 255, 3);
+    gfx_text(col + 8, row + 2, GFX_GRAY, "%");
+}
 static uint8_t input_mode = INPUT_KEYS;
 static menu_t menu;
 static uint32_t seed = 1;
@@ -224,6 +240,7 @@ int main(void)
     uart_puts(CONSOLE_UART, hdmi & 1 ? "game: HDMI out no answer\r\n" : "game: HDMI out ok\r\n");
     gfx_hw_init();
     hand_init(&hand, 0, 0);
+    hand_source_init(&pad);
 
     int32_t state = TITLE, was_over = 0, paused = 0;
     uint32_t t = 0, work = 0, work_max = 0, report_at = 5 * FPS;
@@ -232,15 +249,18 @@ int main(void)
         uint32_t start = bsp_cycles();
         pad_poll(&pad);
         seed = seed * 1664525 + 1013904223 + pad.held; /* 开局的随机数和按键时机有关 */
-        handnet_poll(&net, &raw); /* 有新结果就更新 raw; hand_update 每帧都要调 (平滑和防抖按帧算) */
+        hand_source(&raw, t * 1000 / FPS); /* 有新结果就更新 raw; hand_update 每帧都要调 (平滑和防抖按帧算) */
         if (state == TOUHOU)
             hand_update(&hand, &raw, PLAY_W, PLAY_H);
         else
             hand_update(&hand, &raw, FRUIT_W, FRUIT_H);
         int32_t over = was_over;
         if (paused) { /* 暂停: 精灵表不动 (不调 gfx_begin), 画面变暗, 上面写菜单 */
-            menu_info_t info = {
-                .hand = &hand, .cpu = work, .nn_results = net.results, .nn_errors = net.errors, .nn_heat = net.heat};
+            menu_info_t info = {.hand = &hand,
+                                .cpu = work,
+                                .nn_results = handnet.results,
+                                .nn_errors = handnet.errors,
+                                .nn_heat = handnet.heat};
             int r = menu_frame(&menu, &pad, &input_mode, &info);
             gfx_fade(0x0000, 10);
             if (r != MENU_STAY) {
@@ -266,11 +286,13 @@ int main(void)
             over = 0;
         } else if (state == TOUHOU) {
             touhou_frame();
+            draw_nn(4, 21);
             over = game.touhou.over;
             if (over && !was_over)
                 touhou_report();
         } else {
             fruit_frame();
+            draw_nn(1, 10);
             over = game.fruit.over;
             if (over && !was_over)
                 fruit_report();
@@ -280,6 +302,11 @@ int main(void)
         if (work > work_max)
             work_max = work;
         gfx_hw_present();
+        static uint32_t nn_last;
+        if (t % FPS == 0) {
+            nn_rate = handnet.results - nn_last;
+            nn_last = handnet.results;
+        }
         if (++t == report_at) { /* 每 5 秒: CPU 最忙一帧用了多少拍 (一帧 833k 拍), 显示最忙一行 (共 2222 拍) */
             report_at += 5 * FPS;
             uart_puts(CONSOLE_UART, "cpu max ");

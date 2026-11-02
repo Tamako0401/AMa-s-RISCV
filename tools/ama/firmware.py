@@ -10,7 +10,7 @@ import zlib
 from pathlib import Path
 
 from .boards import ROOT
-from .local import tool
+from .local import app_local, tool
 
 SW_LIB = [
     'sw/startup.S',
@@ -168,13 +168,15 @@ def compile_app(app, board, defines, out, **kw):
     if config.get('prepare'):
         run(*config['prepare'], cwd=ROOT, **kw)
     sources = SW_LIB + sorted(str(p.relative_to(ROOT)) for d in [app_dir, board_dir] for p in d.glob('*.c'))
-    sources += config.get('sources', [])
-    include = SW_INC + [str(app_dir.relative_to(ROOT))] + config.get('include', [])
+    local = app_local(app)
+    sources += config.get('sources', []) + local.get('sources', [])
+    include = SW_INC + [str(app_dir.relative_to(ROOT))] + config.get('include', []) + local.get('include', [])
     if board_dir.is_dir():
         include.append(str(board_dir.relative_to(ROOT)))
     options = [
         *CFLAGS,
         *config.get('cflags', []),
+        *local.get('cflags', []),
         *[f'-I{d}' for d in include],
         f'-DBOARD_{board.upper()}',
         *defines,
