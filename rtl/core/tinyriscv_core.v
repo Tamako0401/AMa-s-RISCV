@@ -119,6 +119,7 @@ module tinyriscv_core #(
     wire ex_reg_we_o;
     wire [4:0] ex_reg_waddr_o;
     wire ex_hold_flag_o;
+    wire ex_mem_stall_o;
     wire ex_load_we;
     wire [4:0] ex_load_waddr;
     wire [31:0] ex_load_wdata;
@@ -373,6 +374,7 @@ module tinyriscv_core #(
         .load_ex_rd_o(ex_load_ex_rd),
         .load_wait_rd_o(ex_load_wait_rd),
         .hold_flag_o(ex_hold_flag_o),
+        .mem_stall_o(ex_mem_stall_o),
         .jump_flag_o(ex_jump_flag_o),
         .jump_addr_o(ex_jump_addr_o),
         .btb_upd_en_o(btb_upd_en),
@@ -425,5 +427,24 @@ module tinyriscv_core #(
         .int_addr_o(clint_int_addr_o),
         .int_assert_o(clint_int_assert_o)
     );
+
+    // 上板 ILA (PDS Fabric Debugger) 的探针: 综合会把下面这些信号改名或并掉, 打一拍寄存并加保留属性,
+    // 让 Inserter 里能按 ila_ 前缀找到。全部晚一拍, 彼此对齐; 和 tests/soc/coremark_perf_tb.sv 的探针一一对应。
+    /* verilator lint_off UNUSEDSIGNAL */
+    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_flush, ila_load_use, ila_hold, ila_mem_stall;
+    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_if_valid, ila_dreq, ila_drsp;
+    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg [15:0] ila_if_pc, ila_ex_pc;
+    /* verilator lint_on UNUSEDSIGNAL */
+    always @(posedge clk) begin
+        ila_flush <= ctrl_flush_o;
+        ila_load_use <= load_use_stall;
+        ila_hold <= ex_hold_flag_o;
+        ila_mem_stall <= ex_mem_stall_o;
+        ila_if_valid <= ifetch_inst_valid_o;
+        ila_dreq <= dbus_req_valid_o & dbus_req_ready_i;
+        ila_drsp <= dbus_rsp_valid_i;
+        ila_if_pc <= ifetch_pc_o[15:0];
+        ila_ex_pc <= ie_dec_pc_o[15:0];
+    end
 
 endmodule

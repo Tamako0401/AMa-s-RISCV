@@ -66,6 +66,7 @@ module exu (
 
     // to pipe_ctrl
     output wire        hold_flag_o,  // 是否暂停标志
+    output wire        mem_stall_o,  // 其中访存引起的部分 (只给 ILA 探针用)
     output wire        jump_flag_o,  // 是否重定向(预测错或必须冲刷)
     output wire [31:0] jump_addr_o,  // 重定向目标地址
 
@@ -291,7 +292,6 @@ module exu (
 
     wire mem_mem_we_o;
     wire [31:0] mem_wdata;
-    wire mem_stall_o;
 
     exu_mem u_exu_mem (
         .clk(clk),
