@@ -434,7 +434,6 @@ module tinyriscv_core #(
     (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_flush, ila_load_use, ila_hold, ila_mem_stall;
     (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_if_valid, ila_dreq, ila_drsp;
     (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg [15:0] ila_if_pc, ila_ex_pc;
-    /* verilator lint_on UNUSEDSIGNAL */
     always @(posedge clk) begin
         ila_flush <= ctrl_flush_o;
         ila_load_use <= load_use_stall;
@@ -446,5 +445,10 @@ module tinyriscv_core #(
         ila_if_pc <= ifetch_pc_o[15:0];
         ila_ex_pc <= ie_dec_pc_o[15:0];
     end
+    // Fabric Inserter 不列出没有负载的网: 全部异或进一个保留的汇点寄存器, 让每根探针都有负载
+    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_sink;
+    always @(posedge clk)
+        ila_sink <= ^{ila_flush, ila_load_use, ila_hold, ila_mem_stall, ila_if_valid, ila_dreq, ila_drsp, ila_if_pc, ila_ex_pc};
+    /* verilator lint_on UNUSEDSIGNAL */
 
 endmodule
