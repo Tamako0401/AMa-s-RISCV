@@ -8,6 +8,11 @@
 #include "pad.c"
 #include "menu.c"
 
+void sound_play(sfx_id id) /* 菜单的音效: 测试里不出声 */
+{
+    (void)id;
+}
+
 /* 只记文字层, 检查来源状态的内容、颜色和菜单选项。 */
 static char screen[45][160];
 static uint32_t colors[45][160];

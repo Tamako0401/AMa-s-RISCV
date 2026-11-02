@@ -2,9 +2,10 @@
 prepare = ["make", "-C", "game", "board"]
 sources = [
   "game/core/sound.c", "game/board/sound_hw.c", "game/core/touhou.c", "game/core/fruit.c", "game/core/hand.c", "game/core/fixed.c",
+  "game/core/portrait.c", "sw/components/sd/sd.c", "sw/components/sd/pak.c", "game/board/media.c",
   "game/board/gfx_hw.c", "game/board/pad.c", "game/board/link.c", "game/board/menu.c", "game/board/handnet.c", "game/board/hand_source.c", "game/board/mem.c", "game/build/display_assets.c",
 ]
-include = ["game/core", "game/board", "game/build"]
+include = ["game/core", "game/board", "game/build", "sw/components/sd"]
 cflags = ["-march=rv32im_zicsr"]
 # 画面走新显示: 位流要用这个参数构建 (ama fpga build --app game), 普通位流上 ama run game 会报版本不一致
 params = { DISPLAY_NEW = 1 }

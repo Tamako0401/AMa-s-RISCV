@@ -4,9 +4,12 @@
 #include "assets.h"
 #include "gfx_mem.h"
 #include "render.h"
+#include "media_pc.h"
 
 static SDL_Renderer *renderer;
 static SDL_Texture *images[IMG_COUNT];
+static SDL_Texture *portraits[3];
+static unsigned portrait_seen;
 static SDL_Texture *screen; /* 640x360 的画面 */
 static SDL_Texture *output; /* 1280x720 的输出 (放大后的画面 + 文字), 再贴到窗口上 */
 static SDL_Texture *font;   /* 128 个字排成一行, 白字透明底 */
@@ -15,9 +18,9 @@ static int camera_ready;
 
 /* 文字的 16 色 (CGA 调色板) */
 static const uint8_t text_rgb[16][3] = {
-    {0, 0, 0},       {0, 0, 170},     {0, 170, 0},     {0, 170, 170}, {170, 0, 0},     {170, 0, 170},
-    {170, 85, 0},    {170, 170, 170}, {85, 85, 85},    {85, 85, 255}, {85, 255, 85},   {85, 255, 255},
-    {255, 85, 85},   {255, 85, 255},  {255, 255, 85}, {255, 255, 255},
+    {0, 0, 0},     {0, 0, 170},     {0, 170, 0},    {0, 170, 170},   {170, 0, 0},   {170, 0, 170},
+    {170, 85, 0},  {170, 170, 170}, {85, 85, 85},   {85, 85, 255},   {85, 255, 85}, {85, 255, 255},
+    {255, 85, 85}, {255, 85, 255},  {255, 255, 85}, {255, 255, 255},
 };
 
 static uint32_t argb(uint16_t c)
@@ -52,8 +55,8 @@ void render_init(SDL_Renderer *r)
 
     screen = SDL_CreateTexture(r, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, GFX_W, GFX_H);
     output = SDL_CreateTexture(r, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, GFX_W * 2, GFX_H * 2);
-    /* 1280x720 贴到窗口: 窗口大小多半不是整数倍 (全屏、拖过), 最近邻会让 8x16 的字有的行重复、笔画粗细不一; 这一步用线性插值。
-     * 板上 HDMI 正好 1280x720, 没有这一步 */
+    /* 1280x720 贴到窗口: 窗口大小多半不是整数倍 (全屏、拖过), 最近邻会让 8x16 的字有的行重复、笔画粗细不一;
+     * 这一步用线性插值。 板上 HDMI 正好 1280x720, 没有这一步 */
     SDL_SetTextureScaleMode(output, SDL_ScaleModeLinear);
     camera = SDL_CreateTexture(r, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, GFX_WINDOW_W, GFX_WINDOW_H);
 }
@@ -86,10 +89,11 @@ static void draw_background(void)
 
 static void draw_sprite(const gfx_sprite_t *s)
 {
-    if (s->image >= IMG_COUNT)
+    int ps = portrait_size(s->image);
+    if (s->image >= IMG_COUNT && !ps)
         return;
-    SDL_Texture *t = images[s->image];
-    int size = assets_images[s->image].size;
+    SDL_Texture *t = ps ? portraits[s->image - 1000] : images[s->image];
+    int size = ps ? ps : assets_images[s->image].size;
     double angle = 0;
     if (s->flags & GFX_AFFINE) {
         size = size * s->scale / GFX_SCALE_1;
@@ -106,6 +110,19 @@ static void draw_sprite(const gfx_sprite_t *s)
 
 void render_frame(const char *shot)
 {
+    if (portrait_seen != portrait_revision) {
+        for (int i = 0; i < 3; i++) {
+            int size = i ? 32 : 64;
+            uint32_t pixels[4096];
+            for (int k = 0; k < size * size; k++)
+                pixels[k] = argb(portrait_pixels[i][k]);
+            if (!portraits[i])
+                portraits[i] =
+                    SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, size, size);
+            SDL_UpdateTexture(portraits[i], NULL, pixels, size * 4);
+        }
+        portrait_seen = portrait_revision;
+    }
     SDL_SetRenderTarget(renderer, screen);
     set_color565(gfx.backdrop);
     SDL_RenderClear(renderer);
@@ -125,7 +142,8 @@ void render_frame(const char *shot)
     if (gfx.fade_level) {
         uint16_t c = gfx.fade_color;
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, (c >> 11) << 3, ((c >> 5) & 63) << 2, (c & 31) << 3, gfx.fade_level * 255 / 16);
+        SDL_SetRenderDrawColor(renderer, (c >> 11) << 3, ((c >> 5) & 63) << 2, (c & 31) << 3,
+                               gfx.fade_level * 255 / 16);
         SDL_RenderFillRect(renderer, NULL);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }

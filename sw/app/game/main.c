@@ -9,6 +9,8 @@
 #include "assets.h"
 #include "sound.h"
 #include "board_audio.h"
+#include "media.h"
+#include "bgm.h"
 #include "aux_uart.h"
 #include "board_hdmi.h"
 #include "bsp.h"
@@ -225,6 +227,8 @@ static void fruit_report(void)
 
 static void enter(int32_t which)
 {
+    bgm_stop();
+    gfx_portrait_load(-1);
     if (which == TOUHOU) {
         touhou_screen();
         touhou_init(&game.touhou, seed);
@@ -249,6 +253,7 @@ int main(void)
     board_audio_init();
     sound_reset();
     gfx_hw_init();
+    uart_puts(CONSOLE_UART, media_init() ? "game: SD PAK ok\r\n" : "game: no SD assets\r\n");
     hand_init(&hand, 0, 0);
     hand_source_init(&pad);
 
@@ -312,6 +317,7 @@ int main(void)
                 fruit_report();
         }
         sound_frame();
+        bgm_frame();
         was_over = over;
         work = bsp_cycles() - start;
         if (work > work_max)

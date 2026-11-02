@@ -41,7 +41,7 @@ board/pad.c      串口来的按键: 终端打字 (ama monitor) 或手柄窗口 
                  控制台串口和第二个串口 (bsp/aux_uart.h, 星闪, 手柄板的 'P' 帧) 都收, 处理方法一样
 board/local_keys.h  本机按键小表: 100HP KEY1 = A (bomb / 出刀 / 确认), KEY2 = MENU, KEY3 = RESTART, KEY4 = SLOW
 board/mem.c      memset / memcpy (-nostdlib 下 gcc 清大结构体要用)
-build/display_assets.c   开机写进显示的调色板和图案库 (refmodel.py firmware 生成, 和参考模型同一份 256 色量化)
+build/display_assets.c   开机写进显示的调色板和图案库 (refmodel.py firmware 生成, 和参考模型同一份 256 色量化; 压缩存放, gfx_hw.c 开机解压)
 sw/app/game/     主程序: 标题画面选游戏、键盘 -> 两个游戏的输入、60 帧/秒的主循环 (等显示换帧)
 ```
 
@@ -254,3 +254,35 @@ PCM 字节顺序/保持/满队列/欠载饱和/混音限幅; 另外检查音效�
 `.data` 20 → 20, `.bss` 26984 → 27000 (+16) 字节。
 ROM 占用 `.text + .data = 62552 / 63488`, 剩余 936 字节, 未改为 `-Os`。
 未上板测每帧新增周期或实际试听。
+
+## SD 素材：立绘与背景音乐
+
+将自己的 PNG 放到 `game/assets/portraits/`，WAV/OGG/MP3 放到 `game/assets/bgm/`。
+不要放第三方游戏素材。工具需要 uv 和 ffmpeg；文件名去扩展名后使用23字节以内的 ASCII，每类唯一。
+
+```sh
+uv run game/tools/pack.py                         # 输出 game/build/AMA.PAK 和编号清单 AMA.json
+# 没有素材也可试：仅在 build 中生成原创几何人像/合成旋律，不覆盖用户素材
+uv run game/tools/pack.py --demo --assets game/build/demo-assets
+make -C game check-sd                            # FAT32镜像/读取/协议/PCM填充测试
+AMA_PAK=game/build/AMA.PAK game/build/touhou       # PC 显示同一份量化立绘，音乐暂静音
+```
+
+将 `AMA.PAK` 复制到 FAT32 卡的根目录，新格式化空卡上先拷这一个文件通常能保持连续。
+驱动会检查整条 FAT 链，碎片文件会拒绝；失败时备份后重新格式化再复制。
+不支持 exFAT、子目录和热插拔；没有卡/包/素材时照常游戏。卡槽/模块接线见 [sd.md](../docs/sd.md)。
+默认用 100HP 板载 MicroSD 卡槽 (J10); 外接 SPI 模块加 `-DSD_EXTERNAL`, 接线在 `sw/bsp/board_sd.h`。
+
+立绘每张单独量化到保留的128色，缩到64×96，以三精灵两倍显示128×192；一次一张，加载同id不重写。
+音乐是 signed PCM8 / 16 kHz / 单声道。音频旁可放 `名字.loop.json`，例如 `{"start":0,"end":32000}`
+(样本编号，4对齐)，不提供则播放一次；编号按每类文件名排序，查 `AMA.json`。
+东方式进关调用 `bgm_play(0)` / `gfx_portrait_load(0)`，前120帧画立绘，不改变玩法。
+
+游戏接口：`gfx_portrait_load(id)` → 每帧 `gfx_portrait(x,y,alpha)`，x/y为左上角，alpha=0~16；
+音乐 `bgm_play(id)` / `bgm_stop()` / 每帧 `bgm_frame()` (暂停菜单期间也调用)。
+板上启动时同步挂载SD；切换立绘会短暂阻塞，应放在换场景时。PCM硬件和PC声音分别待合任务A/B，
+合并点及格式详见 [sd.md](../docs/sd.md)。`AMA_PAK` 可覆盖PC包路径，默认查 `game/build/AMA.PAK` 或 `build/AMA.PAK`。
+
+游戏构建改为 `-Os` 以装入62 KiB app区。相同320弹幕CPU RTL测量，step/draw/精灵表提交平均拍数
+从 `-O2` 的141,543升到 `-Os` 的432,636；不含SD、HDMI轮询、手势网络或等显示换帧，
+不能代替整机实测。完整ROM大小与验证记录见 [sd.md](../docs/sd.md)。
