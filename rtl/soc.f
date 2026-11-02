@@ -34,6 +34,7 @@ rtl/perips/ram.v
 rtl/perips/spi.v
 rtl/perips/gpio_matrix.v
 rtl/perips/uart.v
+rtl/perips/audio.v
 rtl/perips/video_render.v
 rtl/perips/video.v
 // 新显示 (soc_top 的 DISPLAY_NEW=1 才例化; dpram/dpram2c 和 LUT RAM 版上面已有)

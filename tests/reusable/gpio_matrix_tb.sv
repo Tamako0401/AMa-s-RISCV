@@ -15,7 +15,7 @@ module gpio_matrix_case #(
     wire [ 31:0] rdata;
     reg  [127:0] pins = 0;
     wire [127:0] out_pins, oe;
-    reg tx = 0, sck = 0, mosi = 0, tx2 = 0;
+    reg tx = 0, sck = 0, mosi = 0, tx2 = 0, bclk = 0, lrck = 0, dout = 0;
     wire rx, miso, rx2;
     gpio_matrix #(
         .IO_N(IO_N),
@@ -42,7 +42,10 @@ module gpio_matrix_case #(
         .spi_mosi_i(mosi),
         .spi_miso_o(miso),
         .uart2_tx_i(tx2),
-        .uart2_rx_o(rx2)
+        .uart2_rx_o(rx2),
+        .i2s_bclk_i(bclk),
+        .i2s_lrck_i(lrck),
+        .i2s_dout_i(dout)
     );
 
     task static check(input bit ok, input string message);
@@ -156,19 +159,25 @@ module gpio_matrix_case #(
         for (n = 0; n < 128; n = n + 1) begin
             access (1, 'h10 + (n / 32) * 4, 32'd1 << (n % 32));
             access (1, 'h40 + (n / 32) * 4, 32'd1 << (n % 32));
-            for (sig = 1; sig <= 4; sig = sig + 1) begin
+            for (sig = 1; sig <= 7; sig = sig + 1) begin
                 access (1, 'h200 + 4 * n, sig);
                 read_check('h200 + 4 * n, n < IO_N ? sig : 0);
                 tx   = 0;
                 sck  = 0;
                 mosi = 0;
                 tx2  = 0;
+                bclk = 0;
+                lrck = 0;
+                dout = 0;
                 #1;
                 check(out_pins[n] === 1'b0 && oe[n] === (n < IO_N), "peripheral low/OE");
                 tx   = sig == 1;
                 sck  = sig == 2;
                 mosi = sig == 3;
                 tx2  = sig == 4;
+                bclk = sig == 5;
+                lrck = sig == 6;
+                dout = sig == 7;
                 #1;
                 check(out_pins[n] === (n < IO_N), "peripheral signal selection");
             end

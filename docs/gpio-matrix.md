@@ -56,6 +56,9 @@ UART_RX, N5,   in
 | 2 | SPI_SCK | UART2_RX |
 | 3 | SPI_MOSI | (保留) |
 | 4 | UART2_TX | |
+| 5 | I2S_BCLK | |
+| 6 | I2S_LRCK | |
+| 7 | I2S_DOUT | |
 
 - 以后加外设就往表里加编号, 寄存器布局不变。
 - 片选 CS、屏幕 DC/RST/背光 用普通 GPIO 由软件翻转, 不进表。
@@ -64,6 +67,8 @@ UART_RX, N5,   in
 - 没接任何引脚的输入信号给空闲电平: UART_RX = 1, SPI_MISO = 0, UART2_RX = 1。
 - 第二个串口 UART2 (`0x4000_7000`, 寄存器同控制台串口) 上电不接任何引脚。本板接在哪写在 `sw/bsp/aux_uart.h`,
   程序调 `aux_uart_init(115200)` 接好并打开; mes2l100hp 上接 GameShield 的 WS63 星闪模块 (WS_TX / WS_RX)。
+- I2S_BCLK / LRCK / DOUT 是声音外设 (`0x4000_8000`, 见 [audio.md](audio.md)) 的输出, 上电不接。
+  `sw/bsp/board_audio.h` 的 `board_audio_init()` 把它们接到功放 (mes2l100hp: GameShield 的 AMP_BCLK / AMP_LRCK / AMP_DIN)。
 
 ## 寄存器 (基址 0x4000_3000, 都是 32 位)
 

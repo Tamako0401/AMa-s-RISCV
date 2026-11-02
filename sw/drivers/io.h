@@ -10,6 +10,9 @@
 #define SIG_SPI_SCK 2
 #define SIG_SPI_MOSI 3
 #define SIG_UART2_TX 4
+#define SIG_I2S_BCLK 5
+#define SIG_I2S_LRCK 6
+#define SIG_I2S_DOUT 7
 #define SIG_UART_RX 0
 #define SIG_SPI_MISO 1
 #define SIG_UART2_RX 2

@@ -26,7 +26,10 @@ module gpio_matrix #(
     input wire spi_mosi_i,
     output wire spi_miso_o,
     input wire uart2_tx_i,
-    output wire uart2_rx_o
+    output wire uart2_rx_o,
+    input wire i2s_bclk_i,
+    input wire i2s_lrck_i,
+    input wire i2s_dout_i
 );
 
     reg [127:0] gpio_out, gpio_enable;
@@ -129,6 +132,18 @@ module gpio_matrix #(
                 end
                 4: begin
                     io_o[p]  = uart2_tx_i;
+                    io_oe[p] = 1;
+                end
+                5: begin
+                    io_o[p]  = i2s_bclk_i;
+                    io_oe[p] = 1;
+                end
+                6: begin
+                    io_o[p]  = i2s_lrck_i;
+                    io_oe[p] = 1;
+                end
+                7: begin
+                    io_o[p]  = i2s_dout_i;
                     io_oe[p] = 1;
                 end
                 default: begin

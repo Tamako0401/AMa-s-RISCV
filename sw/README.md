@@ -8,8 +8,8 @@ components/       外部器件, 不碰寄存器: lcd/ (ST7789 / ST7735 / ILI9341
                   hdmi/ (MS7210 HDMI 发送芯片、MS7200 HDMI 接收芯片)
 bsp/              板级: 主频、delay_ms、cycle 计数; <板>_pins.h (ama gen pins 生成); shield_lcd.h (屏插在哪);
                   board_hdmi.h (板上 HDMI 收发芯片: 复位和初始化, 主循环调 board_hdmi_poll);
-                  aux_uart.h (第二个串口 UART2 接在哪, aux_uart_init)
-drivers/          片上外设: io.h (GPIO 矩阵)、uart、spi、video.h (图块 + 精灵, 见 docs/video.md)、
+                  aux_uart.h (第二个串口 UART2 接在哪, aux_uart_init); board_audio.h (功放接在哪, board_audio_init)
+drivers/          片上外设: io.h (GPIO 矩阵)、uart、spi、video.h (图块 + 精灵, 见 docs/video.md)、audio.h (声音, 见 docs/audio.md)、
                   i2c (软件 I2C, 引脚经 GPIO 矩阵; 不依赖 bsp, 速度由调用方传入)
 device/           amarisc.h: 寄存器定义和基址
 startup.S         设栈, 把 .data 初值从 ROM 拷到 RAM, 清 BSS, 调 main
@@ -28,7 +28,7 @@ boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), �
 | game | 两个游戏 (东方式、水果忍者式) 的板上版, 新显示出图, 键盘经串口玩; 只在 mes2l100hp, 见 [game/README.md](../game/README.md) |
 
 **引脚功能只在 components / bsp 里选。** `io_connect_out` / `io_connect_in` (把引脚接到 SPI、UART) 只允许出现在
-components 和 bsp 里 (现在只有 `components/lcd/lcd_io.c` 和 `bsp/aux_uart.h`), 程序里只用 `io_dir` / `io_write` / `io_read`。
+components 和 bsp 里 (现在只有 `components/lcd/lcd_io.c`、`bsp/aux_uart.h` 和 `bsp/board_audio.h`), 程序里只用 `io_dir` / `io_write` / `io_read`。
 提交比赛前 GPIO 矩阵会换成固定接线, 守住这条, 到时只改这一处。
 
 ## 编译

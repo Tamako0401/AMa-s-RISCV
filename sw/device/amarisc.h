@@ -131,6 +131,26 @@ typedef struct {
 #define NN_STATUS_DONE (0x1UL << 1)
 #define NN_STATUS_LAYER_Pos 4U
 
+/* ---------------- 声音: 3 个方波声道 + 1 个噪声声道, I2S 输出, 见 docs/audio.md ---------------- */
+typedef struct {
+    __IO uint32_t FREQ; /* +0x0 [15:0] 每个采样相位加多少: 频率 = FREQ × 48000 / 65536 Hz; 0 = 不响 */
+    __IO uint32_t VOL;  /* +0x4 [7:0] 音量, 幅度 = VOL × 32; 0 = 不响 */
+    __IO uint32_t DUTY; /* +0x8 方波: [7:0] 占空比 DUTY / 256 (复位 128); 噪声: bit0 短周期 */
+    __IO uint32_t LEN;  /* +0xC [15:0] 再响几个采样就把 VOL 清 0; 0 = 一直响 */
+} AUDIO_CH_TypeDef;
+
+typedef struct {
+    __IO uint32_t CTRL;   /* 0x00 bit0 打开 (关着 BCLK 停), bit1 BCLK 整数分频 (采样率 48.828 kHz, 无抖动) */
+    __I uint32_t SAMPLES; /* 0x04 打开以来出了几个采样 */
+    __I uint32_t MIX;     /* 0x08 最近一个混好的样本 (有符号 16 位, 符号扩展) */
+    uint32_t reserved;
+    AUDIO_CH_TypeDef CH[4]; /* 0x10 起每个声道 16 字节: 0~2 方波, 3 噪声 */
+} AUDIO_TypeDef;
+
+#define AUDIO_CTRL_EN (0x1UL << 0)
+#define AUDIO_CTRL_EXACT (0x1UL << 1)
+#define AUDIO_DUTY_SHORT (0x1UL << 0)
+
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE 0x40002000UL
 #define UART1_BASE 0x40001000UL
@@ -138,6 +158,7 @@ typedef struct {
 #define VIDEO_BASE 0x20000000UL
 #define VISION_BASE 0x40005000UL
 #define NN_BASE 0x40006000UL
+#define AUDIO_BASE 0x40008000UL
 
 #define SPI1 ((SPI_TypeDef *)SPI1_BASE)
 #define UART1 ((UART_TypeDef *)UART1_BASE)
@@ -145,5 +166,6 @@ typedef struct {
 #define VIDEO ((VIDEO_TypeDef *)VIDEO_BASE)
 #define VISION ((VISION_TypeDef *)VISION_BASE)
 #define NN ((NN_TypeDef *)NN_BASE)
+#define AUDIO ((AUDIO_TypeDef *)AUDIO_BASE)
 
 #endif
