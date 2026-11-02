@@ -18,7 +18,10 @@ def boards():
 def gen_pins(board):
     vivado = read_board(board)['tool'] == 'vivado'
     path = ROOT / 'boards' / board
-    pins = list(csv.DictReader((path / 'pins.csv').open()))
+    all_pins = list(csv.DictReader((path / 'pins.csv').open()))
+    # port 非空是直连顶层的专用脚, 不分配 GPIO 编号, 旧表可省略此列。
+    pins = [pin for pin in all_pins if not pin.get('port')]
+    fixed = [pin for pin in all_pins if pin.get('port')]
     note = '由 ama gen pins 生成, 不要手改'
     vh = [f'// {note}', f'`define IO_N {len(pins)}']
     for name in ['UART_TX', 'UART_RX']:
@@ -33,8 +36,7 @@ def gen_pins(board):
     header += [f'#define PIN_{pin["name"]} {i}' for i, pin in enumerate(pins)]
     (ROOT / 'sw/bsp' / f'{board}_pins.h').write_text('\n'.join(header) + '\n')
     lines = [f'# {note}']
-    for i, pin in enumerate(pins):
-        port = f'io[{i}]'
+    for pin, port in [(pin, f'io[{i}]') for i, pin in enumerate(pins)] + [(pin, pin['port']) for pin in fixed]:
         output = pin['dir'] in ['inout', 'out']
         if vivado:
             lines += [

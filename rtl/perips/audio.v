@@ -1,4 +1,4 @@
-// 声音 (外设子总线 0x4000_8000): 3 个方波声道 + 1 个噪声声道, 混成 16 位, 标准 I2S 输出 (48 kHz, 64 BCLK 一帧)。
+// 声音 (外设子总线 0x4000_8000): 3 个方波声道 + 1 个噪声声道 + PCM, 饱和混成 16 位, 标准 I2S 输出 (48 kHz, 64 BCLK 一帧)。
 // 寄存器和用法见 docs/audio.md。三根线 BCLK / LRCK / DOUT 是 GPIO 矩阵的输出信号 5 / 6 / 7, 由 C 接到功放的脚上。
 //
 // I2S: LRCK 低 = 左声道, 左右各 32 位槽; 数据 MSB 先发, LRCK 变后晚一个 BCLK 才发最高位 (一位延迟);
@@ -9,9 +9,9 @@
 // 采样率 48.828 kHz, 没有抖动, 音高高 1.7%), 留给挑时钟的功放。只适用 50 MHz 的 clk。
 //
 // 每帧 (一个采样) 更新一次声道: 相位 += FREQ; 方波相位高 8 位 < DUTY 输出 +幅度, 否则 -幅度;
-// 噪声声道相位溢出一次 LFSR 走一步, 最低位定正负。幅度 = VOL × 32, 四个声道最大 4 × 255 × 32 = 32640, 相加不会溢出。
+// 噪声声道相位溢出一次 LFSR 走一步, 最低位定正负。幅度 = VOL × 32, 四个声道最大 4 × 255 × 32 = 32640, 再加 PCM 后饱和到 16 位。
 // FREQ 或 VOL 为 0 的声道输出 0。LEN 不为 0 时每帧减 1, 减到 0 那帧把 VOL 清 0 (音效放完自己停)。
-// 混音只是 4 个数相加, 打一拍; 下一帧开头装进移位寄存器, 所以输出比寄存器晚 1~2 帧。没有块 RAM。
+// 混音将波形与 PCM 相加并饱和, 打一拍; 下一帧开头装进移位寄存器, 所以输出比寄存器晚 1~2 帧。PCM 用一块 512 x 32 RAM。
 module audio (
     input wire clk,
     input wire rst_n,
@@ -57,6 +57,79 @@ module audio (
     reg [15:0] phase[0:3];
     reg [14:0] lfsr;
     wire frame_tick;  // 一帧开始 (一拍)
+
+    // PCM: 512 x 32 位同步简单双口 RAM, CPU 一次写四样本, 读端在取样前预读。
+    // 指针/计数只在 50 MHz 域更新, RAM 不复位, 禁用只清指针。
+    reg pcm_en;
+    reg [3:0] pcm_div, pcm_hold;
+    reg [7:0] pcm_vol;
+    reg signed [7:0] pcm_sample;
+    reg [8:0] pcm_wp;
+    reg [10:0] pcm_rp;
+    reg [11:0] pcm_level;
+    reg [15:0] pcm_under;
+    (* ram_style = "block", syn_ramstyle = "block_ram" *) reg [31:0] pcm_ram[0:511];
+    reg [31:0] pcm_word;
+    wire pcm_ctrl_wr = wen && addr_i[11:2] == 10'h014 && sel_i[0];
+    wire pcm_clear = !pcm_en || (pcm_ctrl_wr && !data_i[0]);
+    wire pcm_push = wen && addr_i[11:2] == 10'h015 && (&sel_i) &&
+                    !pcm_clear && pcm_level <= 12'd2044;
+    wire pcm_take = frame_tick && !pcm_clear && pcm_hold == 0;
+    wire pcm_pop = pcm_take && pcm_level != 0;
+    always @(posedge clk) begin
+        if (pcm_push) pcm_ram[pcm_wp] <= data_i;
+        pcm_word <= pcm_ram[pcm_rp[10:2]];
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            pcm_en <= 0;
+            pcm_div <= 3;
+            pcm_vol <= 0;
+            pcm_wp <= 0;
+            pcm_rp <= 0;
+            pcm_level <= 0;
+            pcm_under <= 0;
+            pcm_hold <= 0;
+            pcm_sample <= 0;
+        end else begin
+            if (pcm_ctrl_wr) begin
+                pcm_en  <= data_i[0];
+                pcm_div <= data_i[7:4];
+            end
+            if (wen && addr_i[11:2] == 10'h017 && sel_i[0]) pcm_vol <= data_i[7:0];
+            if (pcm_clear) begin
+                pcm_wp <= 0;
+                pcm_rp <= 0;
+                pcm_level <= 0;
+                pcm_hold <= 0;
+                pcm_sample <= 0;
+            end else begin
+                case ({
+                    pcm_push, pcm_pop
+                })
+                    2'b10:   pcm_level <= pcm_level + 12'd4;
+                    2'b01:   pcm_level <= pcm_level - 1'b1;
+                    2'b11:   pcm_level <= pcm_level + 12'd3;
+                    default: ;
+                endcase
+                if (pcm_push) pcm_wp <= pcm_wp + 1'b1;
+                if (frame_tick) begin
+                    if (pcm_hold != 0) pcm_hold <= pcm_hold - 1'b1;
+                    else begin
+                        pcm_hold <= pcm_div == 0 ? 4'd0 : pcm_div - 1'b1;
+                        if (pcm_pop) begin
+                            pcm_sample <= pcm_word[pcm_rp[1:0]*8+:8];
+                            pcm_rp <= pcm_rp + 1'b1;
+                        end else begin
+                            pcm_sample <= 0;
+                            if (pcm_under != 16'hffff) pcm_under <= pcm_under + 1'b1;
+                        end
+                    end
+                end
+            end
+        end
+    end
+    wire signed [16:0] pcm_out = pcm_en ? pcm_sample * $signed({1'b0, pcm_vol}) : 17'sd0;
 
     genvar g;
     generate
@@ -111,6 +184,12 @@ module audio (
         end
     endgenerate
 
+    wire signed [17:0] mix0 = {{2{outs[15]}}, outs[15:0]};
+    wire signed [17:0] mix1 = {{2{outs[31]}}, outs[31:16]};
+    wire signed [17:0] mix2 = {{2{outs[47]}}, outs[47:32]};
+    wire signed [17:0] mix3 = {{2{outs[63]}}, outs[63:48]};
+    wire signed [17:0] mix_pcm = {pcm_out[16], pcm_out};
+    wire signed [17:0] mix_sum = mix0 + mix1 + mix2 + mix3 + mix_pcm;
     reg mix_tick;  // frame_tick 的下一拍: 声道刚更新完
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -120,7 +199,8 @@ module audio (
         end else begin
             mix_tick <= frame_tick;
             if (mix_tick) begin
-                mix <= outs[15:0] + outs[31:16] + outs[47:32] + outs[63:48];
+                mix <= mix_sum > 18'sd32767 ? 16'h7fff :
+                       mix_sum < -18'sd32768 ? 16'h8000 : mix_sum[15:0];
                 samples <= samples + 1'b1;
             end
         end
@@ -144,11 +224,18 @@ module audio (
                 data_r <= 0;
             end
             if (ren) begin
-                if (block == 0)
+                if (addr_i[11:4] == 0)
                     case (field)
                         0: data_r <= {30'b0, exact, en};
                         1: data_r <= samples;
                         2: data_r <= {{16{mix[15]}}, mix};
+                        default: data_r <= 0;
+                    endcase
+                else if (addr_i[11:4] == 8'h05)
+                    case (field)
+                        0: data_r <= {24'b0, pcm_div, 3'b0, pcm_en};
+                        2: data_r <= {pcm_under, 4'b0, pcm_level};
+                        3: data_r <= {24'b0, pcm_vol};
                         default: data_r <= 0;
                     endcase
                 else if (addr_i[11:7] == 0 && block <= 4)

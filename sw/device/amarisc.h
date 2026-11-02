@@ -146,6 +146,10 @@ typedef struct {
     __I uint32_t MIX;     /* 0x08 最近一个混好的样本 (有符号 16 位, 符号扩展) */
     uint32_t reserved;
     AUDIO_CH_TypeDef CH[4]; /* 0x10 起每个声道 16 字节: 0~2 方波, 3 噪声 */
+    __IO uint32_t PCM_CTRL; /* 0x50 bit0 EN; [7:4] DIV, 0 当 1; 复位 DIV=3 */
+    __O uint32_t PCM_DATA;  /* 0x54 四个 int8 样本, 低字节先播, 只支持整字写 */
+    __I uint32_t PCM_LEVEL; /* 0x58 [15:0] 样本数; [31:16] 饱和欠载计数 */
+    __IO uint32_t PCM_VOL;  /* 0x5C [7:0] 样本乘数 */
 } AUDIO_TypeDef;
 
 #define AUDIO_CTRL_EN (0x1UL << 0)

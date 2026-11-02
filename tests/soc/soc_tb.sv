@@ -61,17 +61,30 @@ module soc_tb;
         io_o[`PIN_LED2],
         io_o[`PIN_LED1]
     };
+    wire audio_bclk, audio_lrck, audio_dout;
+    // 固定输出口与矩阵信号必须始终是同一个源, 不只看内部连线。
+    always @(negedge clk) begin
+        if (rst_n && u_soc.u_audio.en && $test$plusargs("+check_audio")) begin
+            if ({audio_bclk, audio_lrck, audio_dout} !==
+                {io_o[`PIN_J8_4], io_o[`PIN_J8_5], io_o[`PIN_J8_6]})
+                $fatal(1, "audio top ports differ from GPIO matrix");
+        end
+    end
     soc_top #(
-        .VIDEO_720P(VIDEO_720P),        .IO_N(`IO_N),
+        .VIDEO_720P(VIDEO_720P),
+        .IO_N(`IO_N),
         .UART_TX_PIN(`UART_TX_PIN),
         .UART_RX_PIN(`UART_RX_PIN)
     ) u_soc (
+        .i2s_bclk(audio_bclk),
+        .i2s_lrck(audio_lrck),
+        .i2s_dout(audio_dout),
         .video_clk(pixel_clk),
-        .clk  (clk),
+        .clk(clk),
         .rst_n(rst_n),
-        .io_o (io_o),
+        .io_o(io_o),
         .io_oe(io_oe),
-        .io_i (io_i)
+        .io_i(io_i)
     );
 
     // UART: 从 uart_tx 引脚解码字节(不看内部寄存器), 收到两个字节后从 uart_rx 发 0x3C。

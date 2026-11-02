@@ -11,7 +11,7 @@
 #define AUDIO_SQUARE1 1
 #define AUDIO_SQUARE2 2
 #define AUDIO_NOISE 3
-#define AUDIO_VOL_MAX 255 /* 四个声道都开满也不会溢出 */
+#define AUDIO_VOL_MAX 255 /* 混音超限时硬件饱和 */
 
 /* 频率 (Hz) 换成 FREQ 寄存器的值, 分辨率约 0.73 Hz, 最高 24 kHz。噪声声道: LFSR 每秒走 hz 步 */
 #define AUDIO_HZ(hz) ((uint32_t)(((uint32_t)(hz) * 65536UL + AUDIO_RATE / 2) / AUDIO_RATE))
@@ -66,6 +66,37 @@ static inline void audio_off(uint32_t ch)
 static inline int audio_busy(uint32_t ch)
 {
     return AUDIO->CH[ch].VOL != 0;
+}
+
+/* PCM: EN=0 清空 FIFO; div 0 当 1, 默认/推荐 3 (16 kHz)。先 enable 再预填, 最后开总 CTRL。 */
+static inline void audio_pcm_enable(int en, int div)
+{
+    AUDIO->PCM_CTRL = ((uint32_t)div & 15u) << 4 | (en ? 1u : 0u);
+}
+
+static inline int audio_pcm_space(void)
+{
+    return 2048 - (int)(AUDIO->PCM_LEVEL & 0xffffu);
+}
+
+/* 单一生产者; 不足四个的尾样本不写, 不要求 s 的地址对齐。返回实际写入样本数。 */
+static inline int audio_pcm_write(const int8_t *s, int n)
+{
+    int space = audio_pcm_space();
+    if (n <= 0)
+        return 0;
+    if (n > space)
+        n = space;
+    n &= ~3;
+    for (int i = 0; i < n; i += 4)
+        AUDIO->PCM_DATA = (uint32_t)(uint8_t)s[i] | (uint32_t)(uint8_t)s[i + 1] << 8 |
+                          (uint32_t)(uint8_t)s[i + 2] << 16 | (uint32_t)(uint8_t)s[i + 3] << 24;
+    return n;
+}
+
+static inline void audio_pcm_volume(uint32_t v)
+{
+    AUDIO->PCM_VOL = v;
 }
 
 #endif

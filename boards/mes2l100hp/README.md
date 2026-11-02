@@ -104,3 +104,10 @@ clkout_i = VCO / RATIO_i                    (RATIO 支持 0.5 步进)
 刻意避开：J3-3/5（J25/J26，VS1/VS0 疑似配置采样脚）、J3-4/11/12（G25/G24/F24 已被复位和 PCIe 占）、
 J1/J4 的 R5/R6 bank（1.5V）和 L6/L7 bank（电压由 VADJ 跳线 J20/J24 决定，不是固定 3.3V）。
 屏幕排线从上到下 GND VCC SCK/MOSI 等对应 `sw/bsp/shield_lcd.h`（ST7789 240x320）。
+
+## HDMI 音频引脚生成
+
+`pins.csv` 可带 `port` 列: 留空是 GPIO 矩阵脚, 非空是固定顶层端口, 不计入 `IO_N`。
+MS7210 音频 SCK=T23 / WS=B25 / SD=P26 由 audio 外设直连, 与功放矩阵输出并行。
+运行 `./ama gen pins mes2l100hp` 生成 `pins.fdc` / `pins_top.vh` / `sw/bsp/mes2l100hp_pins.h`,
+已有 GPIO 编号不变。时钟模式、寄存器和初始化见 [声音](../../docs/audio.md)。

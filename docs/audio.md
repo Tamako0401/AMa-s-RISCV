@@ -1,12 +1,12 @@
 # 声音
 
-`rtl/perips/audio.v`, 映射到 `0x4000_8000`: 3 个方波声道 + 1 个噪声声道, 混成 16 位, 标准 I2S 输出。
-像老游戏机的声音芯片: CPU 只写频率、音量, 波形由硬件每个采样算一次, 不用 CPU 喂样本, 不用块 RAM。
+`rtl/perips/audio.v`, 映射到 `0x4000_8000`: 3 个方波声道 + 1 个噪声声道 + 1 个 PCM 流声道, 饱和混成 16 位, 标准 I2S 输出。
+像老游戏机的声音芯片: CPU 只写频率、音量, 波形由硬件每个采样算一次, 波形声道不用 CPU 喂样本; PCM 由 CPU 喂入, 用一块 512×32 位 RAM。
 
 ```
-声道 0~2 (方波: FREQ / VOL / DUTY / LEN) ─┐
-声道 3   (噪声: FREQ / VOL / 短周期 / LEN) ─┼─> 相加 (16 位) ─> I2S 移位 ─> BCLK / LRCK / DOUT ─> GPIO 矩阵 ─> 功放
-                                           ┘   每个采样一次          48 kHz, 64 BCLK 一帧        信号 5 / 6 / 7
+3 方波 + 1 噪声 ─┐
+                 ├─> 相加并饱和到 int16 ─> I2S ─┬─> GPIO 矩阵信号 5/6/7 ─> 功放
+PCM FIFO × VOL ──┘                            └─> 板级固定引脚 ─> MS7210 HDMI
 ```
 
 ## I2S 输出
@@ -17,7 +17,7 @@
 - BCLK 由 50 MHz 系统时钟相位累加得到 (每 3125 拍 384 个边沿): 平均频率精确, 每个边沿最多抖一个系统时钟 (20 ns),
   半周期是 8 或 9 拍。方法同 HDMI 音频 spike (`i2s_beep.v`)。
 - CTRL.EXACT = 1: 改成系统时钟 16 分频 (BCLK 3.125 MHz, 采样率 48.828 kHz), 没有抖动, 音高都高 1.7%。
-  给对 BCLK 抖动挑剔的功放用; 默认不开。
+  给对 BCLK 抖动挑剔的接收端排查用; 默认不开 (见下方 HDMI 说明)。
 - CTRL.EN = 0 时 BCLK / LRCK / DOUT 停在 0 / 1 / 0; MAX98357A 没有 BCLK 会自己静音。
 
 ## 声道
@@ -28,7 +28,7 @@
 - 方波 (声道 0~2): 相位高 8 位 < DUTY 时输出 +幅度, 否则 −幅度。DUTY = 128 是 50%, 32 是 12.5% (尖)。
 - 噪声 (声道 3): 相位每溢出一次, 15 位 LFSR 走一步 (同 NES: 反馈 = bit0 ⊕ bit1, 短周期时 bit0 ⊕ bit6), 最低位定正负。
   FREQ 越大越 "嘶"; 短周期 (DUTY bit0 = 1) 是 93 步一轮, 有音高的金属声。
-- 幅度 = VOL × 32。四个声道最大 4 × 255 × 32 = 32640, 相加不会溢出, 不用限幅。FREQ 或 VOL 为 0 的声道输出 0。
+- 幅度 = VOL × 32。四个声道最大 4 × 255 × 32 = 32640, 加上 PCM 项后用 18 位有符号数求和, 超过 32767 或低于 −32768 时饱和, 不回绕。FREQ 或 VOL 为 0 的声道输出 0。
 - LEN 不为 0 时每个采样减 1, 减到 0 的那个采样把 VOL 清 0: 音效写一次就放完自己停, 不用 CPU 计时。
   LEN 最大 65535 (1.365 秒)。C 用 `AUDIO_MS(100)` 换算。
 - 寄存器改了以后 1~2 个采样 (约 40 µs) 才到输出。
@@ -44,6 +44,10 @@
 | 0x14 + 0x10·n | VOL[n] | [7:0] 音量; 0 = 不响 |
 | 0x18 + 0x10·n | DUTY[n] | 方波 [7:0] 占空比 / 256, 复位 128; 噪声 (n = 3) bit0 短周期 |
 | 0x1C + 0x10·n | LEN[n] | [15:0] 再响几个采样就把 VOL 清 0; 0 = 一直响 |
+| 0x50 | PCM_CTRL | bit0 EN (复位 0); [7:4] DIV (复位 3), 0 当 1; EN=0 清空 FIFO |
+| 0x54 | PCM_DATA | 只写, 一次推入 4 个有符号 8 位样本, 低字节先播; 只接受整字写 |
+| 0x58 | PCM_LEVEL | 只读, [15:0] 剩余样本数 (0~2048); [31:16] 累计欠载次数 (65535 饱和) |
+| 0x5C | PCM_VOL | [7:0] 音量 (复位 0), PCM 项 = 有符号样本 × 无符号音量 |
 
 n = 0~2 方波, 3 噪声。其他地址读 0, 写丢弃。
 
@@ -64,17 +68,68 @@ mes2l100hp 上 `board_audio_init` 把 BCLK / LRCK / DOUT 接到 GameShield 的 A
 AMP_SD 当普通 GPIO 拉高开机 (SD 直接拉到 3.3 V 时 MAX98357A 只放左声道; 两个声道样本一样, 没关系)。
 其他板没有功放, 只打开外设。参数是常量时 `AUDIO_HZ` / `AUDIO_MS` 编译期算好 (rv32i 没有乘除法)。
 
+## PCM 怎么喂
+
+PCM 与四个波形声道并行。每隔 DIV 个输出帧取一个 int8 样本, 其间保持样本;
+DIV=3 时输入 16 kHz, 0/1 都是 48 kHz。播放最后一个样本仍保持满 DIV 帧,
+下一次该取样本却没有数据才输出 0, 欠载加 1 (不是每个 48 kHz 帧都加)。
+重新有数据后在下一次取样时恢复。修改 DIV 在下一次取样时生效, 修改音量在下一次混音时生效。
+
+FIFO 是同一个 50 MHz 域的 512×32 同步 RAM, 写一字四样本, 读低字节开始逐个取。
+LEVEL 是未取出的样本数, 不包括正在保持的当前样本。剩余空间不足 4 时整字丢弃,
+即使同拍取样释放空间也按写前 LEVEL 判断; 禁用 PCM 时写 DATA 丢弃。
+同拍读写计数净增加 3。欠载计数只在硬件复位时清零, PCM.EN=0 只清 FIFO、当前样本和 DIV 进度。
+总 CTRL.EN=0 停输出时钟和取样, 可以保留 PCM.EN=1 预填。
+
+```c
+/* 假定 samples 是自己合成/提供的 16 kHz signed int8 数据, 数量为 4 的倍数。 */
+audio_enable(0);
+audio_pcm_enable(0, 3);
+audio_pcm_enable(1, 3);
+audio_pcm_volume(128);
+int written = audio_pcm_write(samples, count); /* 最多写 2048, 地址可不对齐 */
+board_audio_init(); /* 同时送功放和 HDMI; HDMI 还需 board_hdmi_init 配芯片 */
+/* 主循环补数据: 用返回值推进游标, 没写下的留到下一帧, 不要忙等。 */
+written = audio_pcm_write(samples + cursor, remaining);
+cursor += written;
+```
+
+`audio_pcm_space()` 返回还能放几个样本; `audio_pcm_write` 自动按空间少写, 向下取 4 的倍数,
+返回实际写入数 (n<=0 返回 0)。驱动按单一生产者设计, 不要同时从中断和主循环喂。
+60 Hz 每帧约喂 267 个样本, 可交替用 264/268 个等凑齐; 2048 样本可缓冲 128 ms。
+
+## HDMI 和功放同时出声
+
+mes2l100hp 把 `soc_top.i2s_bclk / i2s_lrck / i2s_dout` 直接引到 MS7210 的
+SCK=T23 / WS=B25 / SD=P26 (顶层 `hdmi_i2s_sck/ws/sd`, LVCMOS33、慢沿)。
+同一组信号继续送 GPIO 矩阵 5/6/7, 功放和 HDMI 得到相同的左右声道, 不实例化测试音源。
+
+引脚来源是 `boards/mes2l100hp/pins.csv` 的 `port` 列: 非空表示固定顶层端口,
+不占 GPIO 编号。修改后运行 `./ama gen pins mes2l100hp`, 重生成 `pins.fdc`、
+`pins_top.vh` 和 `sw/bsp/mes2l100hp_pins.h`; 后两者的矩阵编号保持不变。
+
+`ms7210_init` 在发送部分释放复位之前配置 I2S0、两声道、16 位、48 kHz,
+再写 LPCM Audio InfoFrame (类型 0x84、版本 1、长度 10, PB1=0x11、PB2=0x0D,
+校验和 0x53)。其他位用读改写保留。音频配置失败仍执行视频释放表,
+返回 -1 供调用方报告; 画面初始化流程继续。
+
+寄存器顺序来自提交 `a0176c6`, 位含义参考
+[公开 MS7210 Linux 驱动](https://github.com/avmwww/ms7210-linux-driver/blob/main/ms7210.c)
+的 `ms7210_misc_audio_pad_in_spdif`、`ms7210_hdmi_tx_shell_set_audio_bits` 等函数;
+16 位对应 0x0535[5:4]=01, 与 spike 的 24 位接收设置不同。未取得官方寄存器手册。
+
+默认仍用相位累加: 平均 48 kHz 与芯片 48 kHz 档和音乐数据吻合, 边沿有 20 ns 抖动。
+公开驱动选择音频时钟来自管脚, 没有给出允许抖动范围, 因此不能保证板上兼容。
+EXACT=1 得到无抖动 BCLK, 但实际输出 48.828125 kHz, PCM DIV=3 变成 16.276 kHz,
+音高/播放速度高约 1.7%, 也偏离 HDMI 声明的 48 kHz; 仅作为上板排查选项。
+最终需要验证显示器锁音和功放同时播放; 若必须同时无抖动且准确 48 kHz, 需另做音频时钟方案。
+
 ## 测试
 
-- `tests/audio/audio_tb.sv`: 测试台当 I2S 接收端解码, 核对槽格式、采样率 (4800 帧正好 0.1 s)、BCLK 周期、
-  方波频率 / 音量 / 占空比、两个声道相加、噪声 (长周期不重复, 短周期 186 帧一轮)、LEN 自停、EXACT 和关掉后时钟停。
-- `tests/soc/audio_check.c` (soc_tb): 寄存器在总线上、三根线经矩阵出得了引脚。
-
-## 以后: HDMI 音频
-
-同一个 I2S 也能送 HDMI 发送芯片 MS7210 (板载, 显示器出声), 这次没接。要接需要:
-
-1. 板级顶层加三个输出口接 MS7210 的 I2S 输入 (spike 用的管脚 SCK = T23, WS = B25, SD = P26, LVCMOS33),
-   fdc 加约束; soc_top 把 `i2s_bclk / i2s_lrck / i2s_dout` 引出成端口 (这三根是 MS7210 专用管脚, 不在引脚表里, 不走矩阵)。
-2. `ms7210.c` 配音频寄存器 (I2S、48 kHz、16 位) 和 Audio InfoFrame, spike 分支上有现成的。
-3. 上板确认 MS7210 吃这个有抖动的 BCLK (spike 是同样做法); 不行就开 EXACT, InfoFrame 照写 48 kHz。
+- `./ama test tests/audio`: 既有波形测试, 加 PCM I2S 字节序、符号、DIV=0/1/3/15、音量、
+  欠载补零和计数饱和、2048 深度、满时丢弃、指针绕回、非整字写忽略、EN=0 清空、正负混音饱和。
+- `./ama test tests/soc/soc_tb.sv`: `audio_check.c` 检查 PCM 寄存器/C 接口,
+  `+check_audio` 比对 SoC 顶层 I2S 端口与 GPIO 矩阵输出。
+- `python tests/audio/ms7210_check.py`: 主机模拟 I2C, 核对 48 kHz / 2 声道 / 16 位配置、
+  Audio InfoFrame 校验和、AVI 保留, 32 个音频读写故障位置逐次注错后仍释放视频复位。
+- 不构建位流; RAM 实际推断块数、MS7210 锁音和功放同时出声仍需综合/上板确认。

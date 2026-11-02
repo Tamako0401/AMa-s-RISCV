@@ -16,6 +16,9 @@ module mes2l100hp_top #(
     inout wire [IO_N-1:0] io,
     // HDMI 发送芯片 MS7210 的视频口 (配置口在 io 里, 见 sw/bsp/board_hdmi.h;
     // 本板 MS7210 和 MS7200 共用一条 I2C 和一个复位脚)
+    output wire hdmi_i2s_sck,
+    output wire hdmi_i2s_ws,
+    output wire hdmi_i2s_sd,
     output wire hdmi_pclk,
     output wire hdmi_hs,
     output wire hdmi_vs,
@@ -312,6 +315,9 @@ module mes2l100hp_top #(
         .io_o(io_o),
         .io_oe(io_oe),
         .io_i(io_i),
+        .i2s_bclk(hdmi_i2s_sck),
+        .i2s_lrck(hdmi_i2s_ws),
+        .i2s_dout(hdmi_i2s_sd),
         .video_pclk(hdmi_pclk),
         .video_hsync_n(hdmi_hs),
         .video_vsync_n(hdmi_vs),
