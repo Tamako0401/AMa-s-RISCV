@@ -1,11 +1,13 @@
 /* game: 板上玩两个手势游戏 (game/core/, 和电脑版同一份), 画面走新显示 (位流要 DISPLAY_NEW=1, 见 app.toml)。
- * 输入从串口来 (见 game/board/pad.h): ama monitor 打字, 或 ama monitor --pad (真正的按住 / 松开和鼠标)。
+ * 输入从串口来 (见 game/board/pad.h): ama monitor 打字, 或 ama monitor --pad (真正的按住 / 松开和鼠标);
+ * 第二个串口 (bsp/aux_uart.h, 星闪) 来的同样认。
  * 输入方式 (按键 / 指点) 同一时间只有一种管用, 在暂停菜单里切换 (MENU = m / q / Esc, 见 game/board/menu.h)。
  * 开机是标题画面: 上下选游戏, A (j / 空格 / 回车) 开始; 游戏里 r 重开, 结束后 A (指点方式: 左键) 重开。
  *   东方式: 按键: 方向键移动 (大写 / Shift 慢速), A 放 bomb; 指点: 鼠标 / 手就是自机位置, 左键 / 张开手 bomb。
  *   水果忍者式: 按键: 方向键移动刀尖, A 沿最近移动的方向砍一刀 (冲出一段, 够快才切得开); 指点: 鼠标 / 手直接划。
  * 串口每局结束打印成绩, 每 5 秒打印一次 CPU 每帧用了多少拍和显示最忙一行的拍数。 */
 #include "assets.h"
+#include "aux_uart.h"
 #include "board_hdmi.h"
 #include "bsp.h"
 #include "fixed.h"
@@ -236,6 +238,7 @@ static void enter(int32_t which)
 int main(void)
 {
     uart_init(CONSOLE_UART, SYSCLK_HZ, 115200);
+    aux_uart_init(115200); /* 第二个串口也收手柄的 'P' 帧 (mes2l100hp: WS63 星闪) */
     int hdmi = board_hdmi_init();
     uart_puts(CONSOLE_UART, hdmi & 1 ? "game: HDMI out no answer\r\n" : "game: HDMI out ok\r\n");
     gfx_hw_init();

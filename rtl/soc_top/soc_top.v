@@ -18,7 +18,9 @@
 //          0x4000_4000  SYSCTL -- HW_ID / ROM_WE
 //          0x4000_5000  视觉输入 -- 颜色跟踪, 见 docs/vision.md (u_vision)
 //          0x4000_6000  handnet 加速器, 见 docs/nn.md (u_nn)
-//          0x4000_7000 以后: 空, 读返回 0, 写被丢弃
+//          0x4000_7000  UART2 -- 同 UART, 收发脚由 GPIO 矩阵选 (上电不接)
+//          0x4000_8000  声音 -- 方波 + 噪声声道, I2S 输出经 GPIO 矩阵, 见 docs/audio.md
+//          0x4000_9000 以后: 空, 读返回 0, 写被丢弃
 //
 // 未命中任何 rib 从设备的地址不会握手(RIB 没有错误响应通道), 访问会一直等待。
 module soc_top #(
@@ -96,14 +98,15 @@ module soc_top #(
     wire s4_we, s4_req_valid, s4_req_ready, s4_rsp_valid, s4_rsp_ready;
 
     // 子总线各口从 UART 开始; 第 k 口占 [k*32 +: 32] / [k*4 +: 4] / [k]
-    localparam PERIPH_N = 6;
-    localparam P_UART   = 0, P_SPI = 1, P_MATRIX = 2, P_SYSCTL = 3, P_VISION = 4, P_NN = 5;
+    localparam PERIPH_N = 8;
+    localparam P_UART   = 0, P_SPI = 1, P_MATRIX = 2, P_SYSCTL = 3, P_VISION = 4, P_NN = 5, P_UART2 = 6, P_AUDIO = 7;
     wire [PERIPH_N*32-1:0] p_addr, p_wdata, p_rdata;
     wire [PERIPH_N*4-1:0] p_sel;
     wire [PERIPH_N-1:0] p_we, p_req_valid, p_req_ready, p_rsp_valid, p_rsp_ready;
 
-    wire uart_tx, spi_mosi, spi_clk;
-    wire matrix_uart_rx, matrix_spi_miso;
+    wire uart_tx, spi_mosi, spi_clk, uart2_tx;
+    wire matrix_uart_rx, matrix_spi_miso, matrix_uart2_rx;
+    wire i2s_bclk, i2s_lrck, i2s_dout;
     wire rom_we;
 
 
@@ -447,6 +450,25 @@ module soc_top #(
         .rx_pin(matrix_uart_rx)
     );
 
+    // UART2 (0x4000_7000): 第二个串口, 和控制台串口同一个模块; 以后接 WS63 星闪
+    uart #(
+        .CPU_CLOCK_HZ(CPU_CLOCK_HZ)
+    ) u_uart2 (
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(p_addr[P_UART2*32+:32]),
+        .data_i(p_wdata[P_UART2*32+:32]),
+        .sel_i(p_sel[P_UART2*4+:4]),
+        .we_i(p_we[P_UART2]),
+        .data_o(p_rdata[P_UART2*32+:32]),
+        .req_valid_i(p_req_valid[P_UART2]),
+        .req_ready_o(p_req_ready[P_UART2]),
+        .rsp_valid_o(p_rsp_valid[P_UART2]),
+        .rsp_ready_i(p_rsp_ready[P_UART2]),
+        .tx_pin(uart2_tx),
+        .rx_pin(matrix_uart2_rx)
+    );
+
     gpio_matrix #(
         .IO_N(IO_N),
         .UART_TX_PIN(UART_TX_PIN),
@@ -470,7 +492,30 @@ module soc_top #(
         .uart_rx_o(matrix_uart_rx),
         .spi_sck_i(spi_clk),
         .spi_mosi_i(spi_mosi),
-        .spi_miso_o(matrix_spi_miso)
+        .spi_miso_o(matrix_spi_miso),
+        .uart2_tx_i(uart2_tx),
+        .uart2_rx_o(matrix_uart2_rx),
+        .i2s_bclk_i(i2s_bclk),
+        .i2s_lrck_i(i2s_lrck),
+        .i2s_dout_i(i2s_dout)
+    );
+
+    // 声音 (0x4000_8000): I2S 三根线经 GPIO 矩阵接到功放
+    audio u_audio (
+        .clk(clk),
+        .rst_n(rst_n),
+        .addr_i(p_addr[P_AUDIO*32+:32]),
+        .data_i(p_wdata[P_AUDIO*32+:32]),
+        .sel_i(p_sel[P_AUDIO*4+:4]),
+        .we_i(p_we[P_AUDIO]),
+        .data_o(p_rdata[P_AUDIO*32+:32]),
+        .req_valid_i(p_req_valid[P_AUDIO]),
+        .req_ready_o(p_req_ready[P_AUDIO]),
+        .rsp_valid_o(p_rsp_valid[P_AUDIO]),
+        .rsp_ready_i(p_rsp_ready[P_AUDIO]),
+        .bclk(i2s_bclk),
+        .lrck(i2s_lrck),
+        .dout(i2s_dout)
     );
 
     // handnet 加速器 (0x4000_6000)

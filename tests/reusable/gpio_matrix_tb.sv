@@ -15,8 +15,8 @@ module gpio_matrix_case #(
     wire [ 31:0] rdata;
     reg  [127:0] pins = 0;
     wire [127:0] out_pins, oe;
-    reg tx = 0, sck = 0, mosi = 0;
-    wire rx, miso;
+    reg tx = 0, sck = 0, mosi = 0, tx2 = 0, bclk = 0, lrck = 0, dout = 0;
+    wire rx, miso, rx2;
     gpio_matrix #(
         .IO_N(IO_N),
         .UART_TX_PIN(TX),
@@ -40,7 +40,12 @@ module gpio_matrix_case #(
         .uart_rx_o(rx),
         .spi_sck_i(sck),
         .spi_mosi_i(mosi),
-        .spi_miso_o(miso)
+        .spi_miso_o(miso),
+        .uart2_tx_i(tx2),
+        .uart2_rx_o(rx2),
+        .i2s_bclk_i(bclk),
+        .i2s_lrck_i(lrck),
+        .i2s_dout_i(dout)
     );
 
     task static check(input bit ok, input string message);
@@ -87,12 +92,15 @@ module gpio_matrix_case #(
         if (TX < IO_N) expected_oe[TX] = 1;
         #1;
         check(oe === expected_oe && out_pins === 128'b0, "reset outputs");
-        check(rx === (RX < IO_N ? 1'b0 : 1'b1) && miso === 1'b0, "reset inputs");
+        check(rx === (RX < IO_N ? 1'b0 : 1'b1) && miso === 1'b0 && rx2 === 1'b1, "reset inputs");
         tx = 1;
         #1;
         check(out_pins === expected_oe, "reset UART TX routing");
         read_check('h400, RX);
         read_check('h404, 'hff);
+        read_check('h408, 'hff);
+        access (1, 'h40c, 5);  // 3 号输入信号保留: 写丢弃, 读 0
+        read_check('h40c, 0);
         for (n = 0; n < 128; n = n + 1) read_check('h200 + 4 * n, n < IO_N && n == TX ? 1 : 0);
         if (TX < IO_N) access (1, 'h200 + TX * 4, 0);
 
@@ -151,17 +159,25 @@ module gpio_matrix_case #(
         for (n = 0; n < 128; n = n + 1) begin
             access (1, 'h10 + (n / 32) * 4, 32'd1 << (n % 32));
             access (1, 'h40 + (n / 32) * 4, 32'd1 << (n % 32));
-            for (sig = 1; sig <= 3; sig = sig + 1) begin
+            for (sig = 1; sig <= 7; sig = sig + 1) begin
                 access (1, 'h200 + 4 * n, sig);
                 read_check('h200 + 4 * n, n < IO_N ? sig : 0);
                 tx   = 0;
                 sck  = 0;
                 mosi = 0;
+                tx2  = 0;
+                bclk = 0;
+                lrck = 0;
+                dout = 0;
                 #1;
                 check(out_pins[n] === 1'b0 && oe[n] === (n < IO_N), "peripheral low/OE");
                 tx   = sig == 1;
                 sck  = sig == 2;
                 mosi = sig == 3;
+                tx2  = sig == 4;
+                bclk = sig == 5;
+                lrck = sig == 6;
+                dout = sig == 7;
                 #1;
                 check(out_pins[n] === (n < IO_N), "peripheral signal selection");
             end
@@ -171,12 +187,15 @@ module gpio_matrix_case #(
             access (1, 'h50 + (n / 32) * 4, 32'd1 << (n % 32));
             access (1, 'h400, n);
             access (1, 'h404, n);
+            access (1, 'h408, n);
             check(rx === (n < IO_N ? pins[n] : 1'b1), "UART input selection");
             check(miso === (n < IO_N ? pins[n] : 1'b0), "SPI input selection");
+            check(rx2 === (n < IO_N ? pins[n] : 1'b1), "UART2 input selection");
         end
         access (1, 'h400, 'hff);
         access (1, 'h404, 'hff);
-        check(rx === 1'b1 && miso === 1'b0, "disconnected idle levels");
+        access (1, 'h408, 'hff);
+        check(rx === 1'b1 && miso === 1'b0 && rx2 === 1'b1, "disconnected idle levels");
 
         // 背压期间持续发新写请求，检查它不会提前改变寄存器。
         access (1, 0, 0);

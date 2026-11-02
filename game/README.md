@@ -37,7 +37,8 @@ tools/       assets.py: 图案和字库 -> build/assets.c (占位图; game/asset
 
 ```
 board/gfx_hw.c   gfx.h 的板上版: 精灵记在内存里, 每帧写进显示的后台精灵表再提交; 背景、文字直接写
-board/pad.c      串口来的按键: 终端打字 (ama monitor) 或手柄窗口 (ama monitor --pad) 的包, 格式见 pad.h
+board/pad.c      串口来的按键: 终端打字 (ama monitor) 或手柄窗口 (ama monitor --pad) 的包, 格式见 pad.h;
+                 控制台串口和第二个串口 (bsp/aux_uart.h, 星闪, 手柄板的 'P' 帧) 都收, 处理方法一样
 board/mem.c      memset / memcpy (-nostdlib 下 gcc 清大结构体要用)
 build/display_assets.c   开机写进显示的调色板和图案库 (refmodel.py firmware 生成, 和参考模型同一份 256 色量化)
 sw/app/game/     主程序: 标题画面选游戏、键盘 -> 两个游戏的输入、60 帧/秒的主循环 (等显示换帧)

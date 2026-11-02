@@ -24,13 +24,20 @@ module gpio_matrix #(
     output wire uart_rx_o,
     input wire spi_sck_i,
     input wire spi_mosi_i,
-    output wire spi_miso_o
+    output wire spi_miso_o,
+    input wire uart2_tx_i,
+    output wire uart2_rx_o,
+    input wire i2s_bclk_i,
+    input wire i2s_lrck_i,
+    input wire i2s_dout_i
 );
 
     reg [127:0] gpio_out, gpio_enable;
     reg [127:0] io_q0, io_q1;  // 引脚是异步输入, 打两拍
     reg [7:0] func_out_sel[0:127];
-    reg [7:0] func_in_sel[0:1];  // 0 = UART_RX, 1 = SPI_MISO; 0xFF = 不接
+    // 输入信号: 0 = UART_RX, 1 = SPI_MISO, 2 = UART2_RX; 0xFF = 不接。地址留了 4 个 (0x400~0x40C), 3 号保留: 写丢弃, 读 0
+    localparam IN_N = 3;
+    reg [7:0] func_in_sel[0:IN_N-1];
     reg response_valid;
     reg [31:0] data_r;
     wire wen = we_i & req_valid_i & req_ready_o;
@@ -41,6 +48,7 @@ module gpio_matrix #(
     assign data_o = data_r;
     assign uart_rx_o = func_in_sel[0] < IO_N ? io_q1[func_in_sel[0][6:0]] : 1'b1;
     assign spi_miso_o = func_in_sel[1] < IO_N ? io_q1[func_in_sel[1][6:0]] : 1'b0;
+    assign uart2_rx_o = func_in_sel[2] < IO_N ? io_q1[func_in_sel[2][6:0]] : 1'b1;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -58,7 +66,8 @@ module gpio_matrix #(
     wire [6:0] pin = addr_i[8:2];  // 0x200~0x3FC: FUNC_OUT_SEL[pin]
     wire       is_word = addr_i[11:8] == 4'h0;
     wire       is_out_sel = addr_i[11:9] == 3'b001;
-    wire       is_in_sel = addr_i[11:3] == 9'h080;
+    wire [1:0] in_sig = addr_i[3:2];  // 0x400~0x40C: FUNC_IN_SEL[in_sig]
+    wire       is_in_sel = addr_i[11:4] == 8'h40 && in_sig < IN_N;
     localparam [127:0] VALID = ~(~128'h0 << IO_N);  // 只有 0~IO_N-1 存在
     wire [31:0] valid_w = VALID[{word, 5'b0}+:32];
     wire [31:0] out_w = gpio_out[{word, 5'b0}+:32];
@@ -70,6 +79,7 @@ module gpio_matrix #(
             gpio_enable <= 0;
             func_in_sel[0] <= UART_RX_PIN[7:0];
             func_in_sel[1] <= 8'hff;
+            func_in_sel[2] <= 8'hff;
         end else if (wen) begin
             if (is_word)
                 case (group)
@@ -82,7 +92,7 @@ module gpio_matrix #(
                     default: begin
                     end
                 endcase
-            if (is_in_sel) func_in_sel[addr_i[2]] <= data_i[7:0];
+            if (is_in_sel) func_in_sel[in_sig] <= data_i[7:0];
         end
     end
 
@@ -118,6 +128,22 @@ module gpio_matrix #(
                 end
                 3: begin
                     io_o[p]  = spi_mosi_i;
+                    io_oe[p] = 1;
+                end
+                4: begin
+                    io_o[p]  = uart2_tx_i;
+                    io_oe[p] = 1;
+                end
+                5: begin
+                    io_o[p]  = i2s_bclk_i;
+                    io_oe[p] = 1;
+                end
+                6: begin
+                    io_o[p]  = i2s_lrck_i;
+                    io_oe[p] = 1;
+                end
+                7: begin
+                    io_o[p]  = i2s_dout_i;
                     io_oe[p] = 1;
                 end
                 default: begin
@@ -157,7 +183,7 @@ module gpio_matrix #(
                         end
                     endcase
                 if (is_out_sel && pin < IO_N) data_r <= {24'h0, func_out_sel[pin]};
-                if (is_in_sel) data_r <= {24'h0, func_in_sel[addr_i[2]]};
+                if (is_in_sel) data_r <= {24'h0, func_in_sel[in_sig]};
             end
         end
     end

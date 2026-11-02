@@ -43,8 +43,10 @@ module soc_tb;
 
     `include "boards/mes50hp/pins_top.vh"
     reg uart_rx_line = 1;
-    wire [127:0] io_o;
-    wire [127:0] io_i = {127'b0, uart_rx_line} << `UART_RX_PIN;
+    // +loopback: 正在输出的脚把电平送回自己的输入 (实机 IO 缓冲读回管脚), 给 uart2_check 的回环用
+    reg loopback = 0;
+    wire [127:0] io_o, io_oe;
+    wire [127:0] io_i = ({127'b0, uart_rx_line} << `UART_RX_PIN) | (loopback ? io_o & io_oe : 128'b0);
     wire uart_tx = io_o[`UART_TX_PIN];
     wire spi_clk = io_o[`PIN_J8_27];
     wire spi_mosi = io_o[`PIN_J8_28];
@@ -68,7 +70,7 @@ module soc_tb;
         .clk  (clk),
         .rst_n(rst_n),
         .io_o (io_o),
-        .io_oe(),
+        .io_oe(io_oe),
         .io_i (io_i)
     );
 
@@ -152,6 +154,7 @@ module soc_tb;
         void'($value$plusargs("cycles=%d", max_cycles));
         check_spi = $test$plusargs("check_spi");
         check_uart = $test$plusargs("check_uart");
+        loopback = $test$plusargs("loopback");
         $readmemh(rom_path, u_soc.u_rom.mem);
         // RAM 初值是可选的: 用到已初始化 .data 的程序必须给 +ram=。
         // 这里直接写进存储数组, 相当于实机由 ram.v 的 RAM_INIT_FILE 完成。

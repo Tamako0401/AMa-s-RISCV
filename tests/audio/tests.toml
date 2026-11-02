@@ -1,0 +1,3 @@
+[[test]]
+tb = "audio_tb.sv"
+rtl = "rtl/perips/audio.v"
