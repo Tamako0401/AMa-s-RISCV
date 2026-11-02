@@ -20,6 +20,8 @@
 //   0x18 CYCLE    只读: 上一次推理用了多少拍
 //   0x1C VERSION  只读: 0x4e4e_0001
 //   0x20 IN_PIX   只读: 输入像素个数 (19200)
+//   0x24 IN_READ  只读: IN_ADDR 处的输入像素 {8'b0, R, G, B} (和写进去的格式一样; 地址不自增), 只在空闲时有效。
+//                 用来把抓到的画面读出来看 (板上的输入和训练数据差多少)
 //
 // OUT 走的是特征缓冲的读口, 只在空闲 (STATUS.bit0 = 0) 时有效。
 module nn (
@@ -168,7 +170,7 @@ module nn (
     wire [12:0] f_raddr_eng = f_addr_x[12:0];
     wire [17:0] out_addr_x = {5'd0, dst_base} + ({5'd0, out_pix} << cshift_out) + {16'd0, cg};
     wire [12:0] out_addr = out_addr_x[12:0];
-    wire [IAW-1:0] in_raddr = addr_pix[IAW-1:0];
+    wire [IAW-1:0] in_raddr = (state == S_IDLE) ? in_addr : addr_pix[IAW-1:0];  // 空闲时给 CPU 读 (IN_READ)
 
     wire [127:0] act_raw = cfg_src_in ? {96'd0, in_rdata} : f_rdata;
     wire [127:0] act_q = in_range_r ? act_raw : {16{cfg_pad_q}};
@@ -259,16 +261,18 @@ module nn (
 
     // ---------------- 总线 ----------------
     reg response_valid;
-    reg rd_from_out;
+    reg rd_from_out, rd_from_in;
     reg [31:0] data_r;
 
     wire [11:0] reg_off = addr_i[11:0];
     wire fire = req_valid_i && req_ready_o;
     wire is_out = (reg_off == 12'h014);
+    wire is_in_read = (reg_off == 12'h024);
 
     assign req_ready_o = rst_n && (!response_valid || rsp_ready_i);
     assign rsp_valid_o = response_valid;
-    assign data_o = rd_from_out ? f_rdata[31:0] : data_r;
+    // 存的是 pixel ^ 0x80 (见 IN), 读出来还原
+    assign data_o = rd_from_out ? f_rdata[31:0] : rd_from_in ? (in_rdata ^ 32'h0080_8080) : data_r;
     assign busy_o = busy_r;
     assign done_o = done_r;
     assign f_raddr_cpu = `NN_OUT_BASE + out_addr_reg[FAW-1:0];
@@ -277,6 +281,7 @@ module nn (
         if (!rst_n) begin
             response_valid <= 1'b0;
             rd_from_out <= 1'b0;
+            rd_from_in <= 1'b0;
             data_r <= 32'h0;
             in_we <= 1'b0;
             in_waddr <= {IAW{1'b0}};
@@ -343,10 +348,12 @@ module nn (
             if (response_valid && rsp_ready_i) begin
                 response_valid <= 1'b0;
                 rd_from_out <= 1'b0;
+                rd_from_in <= 1'b0;
             end
             if (fire) begin
                 response_valid <= 1'b1;
                 rd_from_out <= !we_i && is_out;
+                rd_from_in <= !we_i && is_in_read;
                 if (we_i) begin
                     case (reg_off)
                         12'h000: begin  // CTRL

@@ -63,6 +63,7 @@ dw3、dw4 原来是 3x3 (6.44 M 乘加, 13.0k 参数)。2026-10-27 改成 5x5: �
 | 0x18 | CYCLE | 上一次推理用了多少拍 |
 | 0x1C | VERSION | `0x4e4e_0001` |
 | 0x20 | IN_PIX | 输入像素个数 (19200) |
+| 0x24 | IN_READ | 只读: IN_ADDR 处的输入像素 `{8'b0, R, G, B}` (和 IN 写入的格式一样), 不自增, 只在空闲时有效。抓帧后用它把板子实际看到的 160x120 读出来 (`nn_get`) |
 
 - 接受 START 或 CAPTURE 时清 DONE; 接受 CAPTURE 时同时清抓帧失败位。失败位保持到下次 CAPTURE 或复位。
   抓帧期间 START、CAPTURE 和 IN 写入均忽略, 推理期间也不接受 IN 写入; IN_ADDR 仍是 CPU 的写指针,

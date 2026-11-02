@@ -123,6 +123,7 @@ typedef struct {
     __I uint32_t CYCLE;     /* 0x18 上一次推理用了多少拍 */
     __I uint32_t VERSION;   /* 0x1C 0x4e4e_0001 */
     __I uint32_t IN_PIX;    /* 0x20 输入像素个数 */
+    __I uint32_t IN_READ;   /* 0x24 IN_ADDR 处的输入像素 {8'b0, R, G, B}, 不自增, 空闲时有效 */
 } NN_TypeDef;
 
 #define NN_CTRL_START (0x1UL << 0)

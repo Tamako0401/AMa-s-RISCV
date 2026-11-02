@@ -43,6 +43,13 @@ static inline void nn_put(uint32_t r, uint32_t g, uint32_t b)
     NN->IN = (r & 255) << 16 | (g & 255) << 8 | (b & 255);
 }
 
+/* 读回输入 RAM 里第 i 个像素 {8'b0, R, G, B} (抓到的画面也在这里); 只在不忙时调。会改 IN_ADDR。 */
+static inline uint32_t nn_get(uint32_t i)
+{
+    NN->IN_ADDR = i;
+    return NN->IN_READ;
+}
+
 static inline void nn_start(void)
 {
     NN->CTRL = NN_CTRL_START;

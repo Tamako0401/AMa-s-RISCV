@@ -45,6 +45,8 @@ module nn_tb;
     localparam [11:0] R_OUT = 12'h014;
     localparam [11:0] R_CYCLE = 12'h018;
     localparam [11:0] R_IN_PIX = 12'h020;
+    localparam [11:0] R_IN_ADDR = 12'h00c;
+    localparam [11:0] R_IN_READ = 12'h024;
 
     task automatic bus_write(input [31:0] a, input [31:0] d);
         begin
@@ -126,6 +128,16 @@ module nn_tb;
                 bus_write({20'h0, R_IN}, {8'h0, img[n], img[n + 1], img[n + 2]});
             end
         end
+        // IN_READ: 抽查一些像素读回来, 要和写进去的一样
+        for (i = 0; i < 19200; i = i + 97) begin
+            n = i * 3;
+            bus_write({20'h0, R_IN_ADDR}, i[31:0]);
+            bus_read({20'h0, R_IN_READ}, v);
+            if (v !== {8'h0, img[n], img[n + 1], img[n + 2]})
+                $fatal(1, "IN_READ 像素 %0d: 得到 %h, 期望 %h", i, v, {8'h0, img[n], img[n + 1], img[n + 2]});
+        end
+        bus_write({20'h0, R_IN_ADDR}, 32'd0);
+        $display("[result] IN_READ 抽查 198 个像素一致");
         bus_write({20'h0, R_CTRL}, 32'd1);
 
         // 轮询到完成
