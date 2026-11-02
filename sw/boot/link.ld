@@ -7,7 +7,7 @@ MEMORY {
 }
 _stack_top = ORIGIN(RAM) + LENGTH(RAM);
 SECTIONS {
-    .text : { *(.text.init) *(.text .text.*) *(.rodata .rodata.*) } > ROM
+    .text : { KEEP(*(.text.init)) *(.text .text.*) *(.rodata .rodata.*) } > ROM
     .data : { *(.data .data.*) *(.sdata .sdata.*) } > RAM AT > ROM
     .bss (NOLOAD) : { *(.bss .bss.*) *(.sbss .sbss.*) } > RAM
 }

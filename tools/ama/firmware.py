@@ -47,6 +47,10 @@ CFLAGS = [
     '-Wextra',
     '-msmall-data-limit=0',
     '-mno-relax',
+    # 每个函数/数据单独一段, 链接时丢掉没人用的 (game 链了整套 LCD 驱动却不用, 省 3 KB 多)
+    '-ffunction-sections',
+    '-fdata-sections',
+    '-Wl,--gc-sections',
     # 不让 GNU ld 把 ELF 头放进加载段: 否则 bootloader 的段从 0xF000 开始, 拼 ROM 时会被丢掉
     '-Wl,--nmagic',
     # 不生成 .note.gnu.build-id: 它是 alloc 段且落在地址 0, 会顶掉程序第一条指令,

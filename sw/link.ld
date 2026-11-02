@@ -28,7 +28,7 @@ SECTIONS
         *(.tohost)           /* 现在在0x10000000了 */
     } > RAM
     .text : {
-        *(.text.init)
+        KEEP(*(.text.init))
         *(.text .text.*)     /* 其余所有的函数代码(编译器生成的指令) */
         *(.rodata .rodata.*) /* 只读数据也放在.text 段*/
         . = ALIGN(4);        /* 当前地址对齐到4字节边界: 锐克五指令固定4字节宽. 如果不对齐会读错位 */
