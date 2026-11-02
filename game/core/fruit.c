@@ -1,18 +1,19 @@
 #include "fruit.h"
+#include "sound.h"
 #include "assets.h"
 #include "fixed.h"
 #include "gfx.h"
 
 #define FPS 60
 #define LIVES 3
-#define RESTART_HOLD FPS  /* 游戏结束后张开手几帧重开 */
-#define GRAVITY 40        /* Q8 像素 / 帧^2 (约 560 像素 / 秒^2) */
-#define BLADE_MIN Q8(5)   /* 刀每帧至少移动这么多 (300 像素 / 秒) 才切得开 */
-#define STROKE_STEP 12    /* 刀光每隔几个点放一笔 (一笔 16 点长, 两头 4 点淡出, 叠起来接上) */
-#define STAIN_FRAMES 180  /* 果汁印留几帧 */
-#define COMBO_MIN 3       /* 一刀切开几个算连击 */
+#define RESTART_HOLD FPS /* 游戏结束后张开手几帧重开 */
+#define GRAVITY 40       /* Q8 像素 / 帧^2 (约 560 像素 / 秒^2) */
+#define BLADE_MIN Q8(5)  /* 刀每帧至少移动这么多 (300 像素 / 秒) 才切得开 */
+#define STROKE_STEP 12   /* 刀光每隔几个点放一笔 (一笔 16 点长, 两头 4 点淡出, 叠起来接上) */
+#define STAIN_FRAMES 180 /* 果汁印留几帧 */
+#define COMBO_MIN 3      /* 一刀切开几个算连击 */
 #define FLASH_FRAMES 30
-#define WINDOW_X 0        /* 摄像头小窗在左上角 */
+#define WINDOW_X 0 /* 摄像头小窗在左上角 */
 #define WINDOW_Y 0
 
 enum { APPLE, ORANGE, MELON, BOMB }; /* 水果的种类 */
@@ -25,6 +26,8 @@ static const uint16_t stain_image[] = {IMG_STAIN_CREAM, IMG_STAIN_ORANGE, IMG_ST
 
 void fruit_init(fruit_t *g, uint32_t seed)
 {
+    sound_reset();
+    sound_play(SFX_START);
     *g = (fruit_t){0};
     g->lives = LIVES;
     g->rng = seed ? seed : 1;
@@ -131,7 +134,8 @@ static int touches(fruit_t *g, const int32_t *a, const int32_t *b, int32_t px, i
 static void splash(fruit_t *g, const fruit_obj_t *f, uint32_t dir)
 {
     /* 两半: 刀口顺着刀的方向, 往刀的两侧分开 */
-    int32_t nx = fx_cos(dir + ANGLE_TURN / 4) * 3 >> 7, ny = fx_sin(dir + ANGLE_TURN / 4) * 3 >> 7; /* 1.5 像素 / 帧, Q8 */
+    int32_t nx = fx_cos(dir + ANGLE_TURN / 4) * 3 >> 7,
+            ny = fx_sin(dir + ANGLE_TURN / 4) * 3 >> 7; /* 1.5 像素 / 帧, Q8 */
     for (int32_t side = 0; side < 2 && g->piece_n < FRUIT_PIECES; side++) {
         fruit_obj_t *p = &g->pieces[g->piece_n++];
         *p = *f;
@@ -161,8 +165,8 @@ static void splash(fruit_t *g, const fruit_obj_t *f, uint32_t dir)
             g->stains[i - 1] = g->stains[i];
         g->stain_n--;
     }
-    g->stains[g->stain_n++] = (fruit_obj_t){.x = f->x, .y = f->y, .kind = f->kind, .life = STAIN_FRAMES,
-                                            .angle = (uint16_t)fx_rand(&g->rng)};
+    g->stains[g->stain_n++] =
+        (fruit_obj_t){.x = f->x, .y = f->y, .kind = f->kind, .life = STAIN_FRAMES, .angle = (uint16_t)fx_rand(&g->rng)};
 }
 
 static void lose(fruit_t *g)
@@ -172,6 +176,8 @@ static void lose(fruit_t *g)
     if (g->lives)
         g->lives--;
     g->over = g->lives == 0;
+    if (g->over)
+        sound_play(SFX_END);
 }
 
 static void cut(fruit_t *g)
@@ -200,11 +206,13 @@ static void cut(fruit_t *g)
         }
         splash(g, &f, dir);
         if (f.kind == BOMB) {
+            sound_play(SFX_FRUIT_BOMB);
             g->bombs_hit++;
             g->flash = FLASH_FRAMES;
             lose(g);
             continue;
         }
+        sound_play(SFX_CUT);
         g->cut++;
         g->score += f.kind == MELON ? 2 : 1;
         g->combo++;
@@ -259,9 +267,13 @@ void fruit_step(fruit_t *g, const fruit_control_t *in)
     }
     g->t++;
     wave(g);
+    int was_blade = g->blade;
     blade(g, in);
+    if (g->blade && !was_blade)
+        sound_play(SFX_SLASH);
     cut(g);
     for (int32_t m = fall(g->fruits, &g->fruit_n, GRAVITY, 1); m > 0; m--) {
+        sound_play(SFX_MISS);
         g->missed++;
         lose(g);
     }
@@ -376,8 +388,8 @@ void fruit_draw(const fruit_t *g, const hand_t *hand)
         const fruit_obj_t *f = &g->fruits[i];
         obj_sprite(f, whole_image[f->kind]);
         if (f->kind == BOMB && g->t / 3 % 2) { /* 引信的火花, 闪 */
-            gfx_sprite_t *s = gfx_sprite((f->x >> 8) + (fx_sin(f->angle) * 13 >> 14), (f->y >> 8) - (fx_cos(f->angle) * 13 >> 14),
-                                         IMG_SPARK);
+            gfx_sprite_t *s = gfx_sprite((f->x >> 8) + (fx_sin(f->angle) * 13 >> 14),
+                                         (f->y >> 8) - (fx_cos(f->angle) * 13 >> 14), IMG_SPARK);
             s->flags = GFX_ADD;
         }
     }

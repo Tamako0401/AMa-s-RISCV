@@ -1,4 +1,5 @@
 #include "touhou.h"
+#include "sound.h"
 #include "assets.h"
 #include "fixed.h"
 #include "gfx.h"
@@ -9,14 +10,14 @@
 #define DEG(rad) ((uint32_t)((rad) * 10430.378)) /* 弧度 -> angle16 (编译时算好) */
 
 #define LIVES 3
-#define BOMBS 3            /* 每条命几个 bomb */
+#define BOMBS 3              /* 每条命几个 bomb */
 #define INVINCIBLE (2 * FPS) /* 被击中或放 bomb 后无敌几帧 */
-#define RESTART_HOLD FPS   /* 游戏结束后张开手几帧重开 */
-#define PLAYER_R 3         /* 自机判定点半径 (东方式: 判定点比画出来的飞机小得多) */
-#define MARGIN 16          /* 弹飞出游戏区多远删掉 */
+#define RESTART_HOLD FPS     /* 游戏结束后张开手几帧重开 */
+#define PLAYER_R 3           /* 自机判定点半径 (东方式: 判定点比画出来的飞机小得多) */
+#define MARGIN 16            /* 弹飞出游戏区多远删掉 */
 #define BOSS_Y 60
-#define BOMB_FRAMES 30     /* bomb 光环放多久 */
-#define WINDOW_X 0         /* 摄像头小窗放在左侧栏上部 */
+#define BOMB_FRAMES 30 /* bomb 光环放多久 */
+#define WINDOW_X 0     /* 摄像头小窗放在左侧栏上部 */
 #define WINDOW_Y 16
 
 enum { SMALL, ORB, RICE }; /* 弹的种类 */
@@ -25,6 +26,8 @@ static const uint16_t bullet_image[] = {IMG_BULLET, IMG_ORB, IMG_RICE};
 
 void touhou_init(touhou_t *g, uint32_t seed)
 {
+    sound_reset();
+    sound_play(SFX_START);
     *g = (touhou_t){0};
     g->px = Q8(PLAY_W / 2);
     g->py = Q8(PLAY_H * 4 / 5);
@@ -107,6 +110,7 @@ static void bomb(touhou_t *g)
 {
     if (g->bombs == 0 || g->over)
         return;
+    sound_play(SFX_BOMB);
     g->bombs--;
     g->bombs_used++;
     g->bullet_n = 0;
@@ -121,6 +125,7 @@ static void shoot(touhou_t *g)
     if (g->t >= g->next_shot && g->shot_n < TOUHOU_SHOTS) {
         g->shots[g->shot_n][0] = g->px;
         g->shots[g->shot_n][1] = g->py - Q8(8);
+        sound_play(SFX_SHOT);
         g->shot_n++;
         g->next_shot = g->t + 5;
     }
@@ -131,6 +136,7 @@ static void shoot(touhou_t *g)
         int32_t *s = g->shots[i];
         s[1] -= SPEED(450);
         if (fx_abs(s[0] - bx) < Q8(24) && fx_abs(s[1] - by) < Q8(18)) {
+            sound_play(SFX_ENEMY_HIT);
             g->score += 10;
             if (g->spark_n < TOUHOU_SPARKS) {
                 int32_t *k = g->sparks[g->spark_n++];
@@ -174,6 +180,9 @@ static int move_bullets(touhou_t *g)
         /* 先用方框粗筛, 近了才算距离 (板上乘法慢) */
         int32_t r = Q8(PLAYER_R + bullet_r[b.kind]);
         int32_t dx = b.x - g->px, dy = b.y - g->py;
+        if (!g->invincible && (g->t & 7) == 0 && fx_abs(dx) < r + Q8(10) && fx_abs(dy) < r + Q8(10) &&
+            (fx_abs(dx) >= r || fx_abs(dy) >= r))
+            sound_play(SFX_GRAZE);
         if (fx_abs(dx) < r && fx_abs(dy) < r) {
             g->work.hit_tests++;
             dx >>= 4; /* Q4, 平方不溢出 */
@@ -220,12 +229,15 @@ void touhou_step(touhou_t *g, const control_t *in)
     shoot(g);
     pattern(g);
     if (move_bullets(g) && !g->invincible) {
+        sound_play(SFX_PLAYER_HIT);
         g->hits++;
         g->lives--;
         g->bombs = BOMBS;
         g->bullet_n = 0;
         g->invincible = INVINCIBLE;
         g->over = g->lives == 0;
+        if (g->over)
+            sound_play(SFX_END);
     }
 }
 

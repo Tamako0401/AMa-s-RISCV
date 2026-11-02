@@ -204,3 +204,50 @@ game/tools/refmodel.py cost touhou.jsonl fruit.jsonl -o cost.png              # 
 图案库同样的块数能放两倍的点: 64 KB 的块放 6.5 万点 (`memory --pattern-bits 8 --patterns-kb 128`: 32 块 + 调色板 4 块)。
 代价是一拍画 8 点就要一拍查 8 次调色板: 调色板存 4 份 (每份真双口查 2 个), 只多 4 块。
 等有了正式素材, 用它再跑一次 `colors`, 确认 256 色够。
+
+## 声音
+
+电脑版默认打开 SDL2 音频, `--mute` 静音; 没有声卡或 SDL 打不开设备时也可以继续玩。
+`pc/audio_sdl.c` 以 48 kHz、单声道有符号 16 位逐样本模拟外设, 左右声道内容相同。
+`audio_sdl.h` 的 `audio_tone / audio_noise / audio_off / audio_beep / audio_pcm_*` 与
+`sw/drivers/audio.h` 同名同单位。寄存器写入和批量驱动调用都用 `SDL_LockAudioDevice` 保护,
+可以用 `audio_reg_write / audio_reg_read` 直接访问相对偏移。
+
+模型按 [audio.md](../docs/audio.md) 的顺序计算: 相位先加 FREQ, LEN 减到零时音量立即清零,
+再按新相位和 LFSR 混音, 下一输出采样才播这个 mix (保留 I2S 的一帧延迟)。噪声种子为 1,
+长周期反馈 bit0 XOR bit1, 短周期 bit0 XOR bit6, 幅度 VOL × 32。
+CTRL.EXACT 可以读写, 电脑版仍固定 48 kHz, 不模拟 BCLK 抖动和整数分频后的实际采样率。
+
+PCM 使用共同约定的 `0x50 CTRL / 0x54 DATA / 0x58 LEVEL / 0x5C VOL`:
+2048 个有符号 8 位样本, DATA 每次低字节先入队四个, 不足四个空位则整字丢弃。
+CTRL bit0 开启, [7:4] DIV (0 当 1, 复位 3); 开启后的第一帧取样, 每个样本保持 DIV 帧。
+关闭 PCM 清 FIFO、当前样本及分频计数, 保留欠载累计数; 欠载时当前样本为零,
+每次应取样却为空就加一次 (65535 饱和)。LEVEL 低 16 位是排队样本数, 高 16 位是欠载数。
+PCM 项为样本 × VOL, 和四路合成声道相加后饱和到 [-32768,32767]。
+`audio_pcm_write(s,n)` 按四个样本成组写入并返回实际数量, 尾部不足四个不写。
+这些是任务 B 的模型行为; PCM 硬件由任务 A 合入后还需用同一序列核对。
+
+`core/sound.c` 是两边共用的音效表和播放器, 只用整数和静态数组:
+
+- `sound_play(SFX_...)` 申请声道, `sound_frame()` 每个 60 Hz 游戏帧调用一次, 开始或重开时 `sound_reset()`。
+- 方波在 0~2 里先找空闲声道, 满时只有更高优先级能抢占最低优先级; 相同优先级满时丢弃。
+  噪声固定用声道 3, 按同样优先级规则抢占。PCM 专留背景音乐, 这层不写 PCM 寄存器。
+- 表里每个音效一行, `type` 为 0 方波 / 1 噪声, 然后是优先级和最多两步参数。
+  每步 `{起始Hz, 结束Hz, 起始音量, 结束音量, 帧数, duty, vibratoHz}`;
+  频率、音量按帧线性插值, 包含两个端点, 颤音每两帧变号。噪声的 duty 是短周期开关。
+  帧数为零表示没有这一步; 有效步的帧数必须大于零, 频率加减颤音应在 0~23999 Hz 内。
+- 新增音效时在 `sound.h` 加枚举, 在 `effects` 加一行, 在事件发生处 `sound_play`。
+  已接射击、擦弹、敌机受击、自机受击、bomb、开始/结束、水果出刀/切中/炸弹/漏掉、标题与暂停菜单。
+  当前玩法没有敌机死亡和道具拾取事件, `SFX_ENEMY_EXPLODE / SFX_ITEM` 已留音色, 等对应事件再接。
+- 平台只实现 `sound_hw_tone / sound_hw_noise / sound_hw_off`:
+  电脑由 `pc/audio_sdl.c` 实现; 板上由 `board/sound_hw.c` 转调驱动,
+  `sw/app/game/main.c` 开机先 `board_audio_init()` 接好 GameShield 功放, 主循环推进音效。
+
+`make -C game check-audio` 不需要声卡: 手算序列检查相位、DUTY 边界、LEN、长短 LFSR、
+PCM 字节顺序/保持/满队列/欠载饱和/混音限幅; 另外检查音效包络、两步切换、优先级和全表自停。
+`make -C game check-core` 继续检查共用层不依赖电脑库。
+
+本次 mes2l100hp 同一工具链、同一素材的 `-O2` 构建: `.text` 60496 → 62532 (+2036),
+`.data` 20 → 20, `.bss` 26984 → 27000 (+16) 字节。
+ROM 占用 `.text + .data = 62552 / 63488`, 剩余 936 字节, 未改为 `-Os`。
+未上板测每帧新增周期或实际试听。
