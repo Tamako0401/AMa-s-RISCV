@@ -36,7 +36,7 @@ module nn_layers (
                 cin = 7'd16; cout = 7'd16;
                 in_w = 8'd80; in_h = 8'd60; out_w = 8'd40; out_h = 8'd30;
                 relu = 1'b1; src_in = 1'b0; dst_b = 1'b1;
-                w_base = 11'd27; bm_base = 10'd16; sh = 6'd38;
+                w_base = 11'd27; bm_base = 10'd16; sh = 6'd36;
                 zout = 8'sh80; pad_q = 8'sh80;
             end
             // 2: pw1 conv k1 s1 16->32 40x30->40x30
@@ -54,7 +54,7 @@ module nn_layers (
                 cin = 7'd32; cout = 7'd32;
                 in_w = 8'd40; in_h = 8'd30; out_w = 8'd20; out_h = 8'd15;
                 relu = 1'b1; src_in = 1'b0; dst_b = 1'b1;
-                w_base = 11'd68; bm_base = 10'd64; sh = 6'd37;
+                w_base = 11'd68; bm_base = 10'd64; sh = 6'd34;
                 zout = 8'sh80; pad_q = 8'sh80;
             end
             // 4: pw2 conv k1 s1 32->64 20x15->20x15
@@ -63,7 +63,7 @@ module nn_layers (
                 cin = 7'd32; cout = 7'd64;
                 in_w = 8'd20; in_h = 8'd15; out_w = 8'd20; out_h = 8'd15;
                 relu = 1'b1; src_in = 1'b0; dst_b = 1'b0;
-                w_base = 11'd86; bm_base = 10'd96; sh = 6'd38;
+                w_base = 11'd86; bm_base = 10'd96; sh = 6'd36;
                 zout = 8'sh80; pad_q = 8'sh80;
             end
             // 5: dw3 dw k5 s1 64->64 20x15->20x15
@@ -72,7 +72,7 @@ module nn_layers (
                 cin = 7'd64; cout = 7'd64;
                 in_w = 8'd20; in_h = 8'd15; out_w = 8'd20; out_h = 8'd15;
                 relu = 1'b1; src_in = 1'b0; dst_b = 1'b1;
-                w_base = 11'd214; bm_base = 10'd160; sh = 6'd37;
+                w_base = 11'd214; bm_base = 10'd160; sh = 6'd36;
                 zout = 8'sh80; pad_q = 8'sh80;
             end
             // 6: pw3 conv k1 s1 64->64 20x15->20x15
@@ -90,7 +90,7 @@ module nn_layers (
                 cin = 7'd64; cout = 7'd64;
                 in_w = 8'd20; in_h = 8'd15; out_w = 8'd20; out_h = 8'd15;
                 relu = 1'b1; src_in = 1'b0; dst_b = 1'b1;
-                w_base = 11'd570; bm_base = 10'd288; sh = 6'd38;
+                w_base = 11'd570; bm_base = 10'd288; sh = 6'd35;
                 zout = 8'sh80; pad_q = 8'sh80;
             end
             // 8: pw4 conv k1 s1 64->64 20x15->20x15
@@ -99,7 +99,7 @@ module nn_layers (
                 cin = 7'd64; cout = 7'd64;
                 in_w = 8'd20; in_h = 8'd15; out_w = 8'd20; out_h = 8'd15;
                 relu = 1'b1; src_in = 1'b0; dst_b = 1'b0;
-                w_base = 11'd670; bm_base = 10'd352; sh = 6'd37;
+                w_base = 11'd670; bm_base = 10'd352; sh = 6'd38;
                 zout = 8'sh80; pad_q = 8'sh80;
             end
             // 9: head conv k1 s1 64->4 20x15->20x15
@@ -109,7 +109,7 @@ module nn_layers (
                 in_w = 8'd20; in_h = 8'd15; out_w = 8'd20; out_h = 8'd15;
                 relu = 1'b0; src_in = 1'b0; dst_b = 1'b1;
                 w_base = 11'd926; bm_base = 10'd416; sh = 6'd38;
-                zout = 8'sh06; pad_q = 8'sh80;
+                zout = 8'she1; pad_q = 8'sh80;
             end
             default: begin
                 mode = 1'b0; k = 3'd1; stride2 = 1'b0; cin = 7'd1; cout = 7'd16;
