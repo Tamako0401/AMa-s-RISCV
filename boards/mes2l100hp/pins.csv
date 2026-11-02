@@ -1,4 +1,4 @@
-name,pad,dir
+name,pad,dir,port
 LCD_SCK,E26,inout
 LCD_MOSI,H26,inout
 LCD_CS,D26,inout
@@ -58,3 +58,6 @@ EXT33,V24,inout
 EXT34,W24,inout
 EXP35,AA24,inout
 EXP36,AB25,inout
+HDMI_I2S_SCK,T23,out,hdmi_i2s_sck
+HDMI_I2S_WS,B25,out,hdmi_i2s_ws
+HDMI_I2S_SD,P26,out,hdmi_i2s_sd

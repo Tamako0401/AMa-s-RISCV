@@ -45,6 +45,11 @@ module soc_top #(
     output wire [127:0] io_oe,
     input  wire [127:0] io_i,
 
+    // 同一个 I2S 同时去 GPIO 矩阵和板载 HDMI, 板子不用可留空。
+    output wire i2s_bclk,
+    output wire i2s_lrck,
+    output wire i2s_dout,
+
     input wire video_clk,  // 720p 像素时钟; VGA 模式不用; DISPLAY_NEW 时兼作新显示的 pclk
 
     // 视频输出 (VGA / 720p), 板子不接就留空
@@ -107,7 +112,6 @@ module soc_top #(
 
     wire uart_tx, spi_mosi, spi_clk, uart2_tx;
     wire matrix_uart_rx, matrix_spi_miso, matrix_uart2_rx;
-    wire i2s_bclk, i2s_lrck, i2s_dout;
     wire rom_we;
 
 

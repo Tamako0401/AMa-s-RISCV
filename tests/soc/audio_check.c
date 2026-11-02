@@ -38,5 +38,17 @@ int main(void)
     uint32_t pins = 1u << PIN_J8_4 | 1u << PIN_J8_6;
     if ((seen1 & pins) != pins || (seen0 & pins) != pins || lr != 3)
         return 0x23;
+    audio_enable(0);
+    audio_off(AUDIO_SQUARE0);
+    static const int8_t pcm[4] = {1, -2, 127, -128};
+    if (AUDIO->PCM_CTRL != 0x30 || audio_pcm_space() != 2048)
+        return 0x24;
+    audio_pcm_enable(1, 3);
+    audio_pcm_volume(255);
+    if (audio_pcm_write(pcm, 4) != 4 || audio_pcm_space() != 2044)
+        return 0x24;
+    audio_pcm_enable(0, 3);
+    if (audio_pcm_space() != 2048)
+        return 0x25;
     return 1;
 }

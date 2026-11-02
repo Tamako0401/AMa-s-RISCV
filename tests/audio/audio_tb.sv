@@ -70,7 +70,7 @@ module audio_tb;
 
     // ---------------- I2S 接收端 ----------------
     // 每个 BCLK 上升沿采一位; LRCK 在某个上升沿看到变了, 这一位还是上一个槽的最后一位 (一位延迟)。
-    localparam MAXF = 40000;
+    localparam MAXF = 50000;
     integer nframes = 0, nbits = 0, slots = 0;
     reg started = 0, prev_lrck = 1;
     reg [31:0] word = 0;
@@ -132,6 +132,60 @@ module audio_tb;
             if (s[i] > 0) highs = highs + 1;
             if (i > first && (s[i] > 0) != (s[i-1] > 0)) flips = flips + 1;
         end
+    endtask
+
+    // 启停总时钟时同步复位接收端状态, 保留已收样本。
+    task static stop_audio;
+        wr(0, 0);
+        started = 0;
+        prev_lrck = 1;
+        nbits = 0;
+        word = 0;
+        last_rise = 0;
+    endtask
+
+    // 预填后启动, 不丢启动流水线: 第一帧静音, 后面逐样本核对。
+    task static pcm_sequence(input integer div_value, input integer volume);
+        integer start, d, k, expected, value;
+        stop_audio();
+        wr('h50, 0);
+        wr('h50, (div_value << 4) | 1);
+        wr('h5c, volume);
+        wr('h54, 'h807ffe01);  // +1, -2, +127, -128
+        read_check('h58, 4);
+        start = nframes;
+        wr(0, 1);
+        d = div_value == 0 ? 1 : div_value;
+        wait (nframes >= start + 1 + 4 * d + d);
+        check(s[start] == 0, "PCM startup pipeline");
+        for (k = 0; k < 4 * d; k = k + 1) begin
+            case (k / d)
+                0: value = 1;
+                1: value = -2;
+                2: value = 127;
+                default: value = -128;
+            endcase
+            expected = value * volume;
+            check(s[start+1+k] == expected, $sformatf(
+                  "PCM DIV=%0d vol=%0d sample %0d got %0d expected %0d",
+                  div_value,
+                  volume,
+                  k,
+                  s[start+1+k],
+                  expected
+                  ));
+        end
+        check(s[start+1+4*d] == 0, "PCM underrun silence");
+        stop_audio();
+        wr('h50, 0);
+        // 欠载计数独立累计, 每组检查前复位整个外设。
+    endtask
+
+    task static reset_audio;
+        stop_audio();
+        rst_n = 0;
+        repeat (3) @(negedge clk);
+        rst_n = 1;
     endtask
 
     integer i, n, flips1, nonzero;
@@ -239,7 +293,95 @@ module audio_tb;
         repeat (5000) @(posedge clk);
         check(slots == n && bclk === 1'b0, "disabled: no more slots");
 
-        $display("PASS audio: I2S slots, 48 kHz, square freq/volume/duty, mix, noise, LEN, EXACT");
+        // 8. PCM 字节序、符号、DIV=0/1/3/15、音量和欠载补零 (真实 I2S 解码)
+        reset_audio();
+        read_check('h50, 'h30);
+        read_check('h5c, 0);
+        pcm_sequence(0, 255);
+        reset_audio();
+        pcm_sequence(1, 17);
+        reset_audio();
+        pcm_sequence(3, 255);
+        reset_audio();
+        pcm_sequence(15, 0);
+
+        // 9. 深度、满时整字丢弃、非整字写忽略、读写指针绕回, 启动前无欠载
+        reset_audio();
+        wr('h50, 'h11);
+        wr('h5c, 1);
+        sel = 1;
+        wr('h54, 'hffffffff);
+        sel = 15;
+        read_check('h58, 0);
+        for (i = 0; i < 512; i = i + 1) wr('h54, 'h04030201);
+        read_check('h58, 2048);
+        wr('h54, 'hffffffff);
+        read_check('h58, 2048);
+        n = nframes;
+        wr(0, 1);
+        wait (nframes >= n + 5);
+        for (i = 0; i < 4; i = i + 1) check(s[n+1+i] == i + 1, "FIFO full preserves oldest");
+        // 连续边播边补 128 个字, 跨过写指针的 512 字边界
+        for (i = 0; i < 128; i = i + 1) begin
+            wait (dut.pcm_level <= 2044);
+            wr('h54, 'h04030201);
+        end
+        wait (nframes >= n + 2565);
+        for (i = 0; i < 2560; i = i + 1)
+        check(s[n+1+i] == (i % 4) + 1, $sformatf("FIFO wrap sample %0d", i));
+        stop_audio();
+        access (0, 'h58, 0);
+        check(result[15:0] == 0 && result[31:16] != 0, "FIFO drained and underrun counted");
+
+        // 10. 欠载按 DIV 取样节奏计数, 禁用 PCM 清 FIFO/当前样本但保留诊断计数
+        reset_audio();
+        wr('h50, 'h31);
+        wr(0, 1);
+        wait (dut.samples == 10);
+        stop_audio();
+        read_check('h58, 4 << 16);  // 帧 1/4/7/10 各欠载一次
+        wr('h54, 'h04030201);
+        wr('h50, 'h30);
+        read_check('h58, 4 << 16);
+        wr('h54, 'hffffffff);
+        read_check('h58, 4 << 16);
+        // 诊断计数边界, 避免仿真 65536 次欠载
+        dut.pcm_under = 16'hfffe;
+        wr('h50, 'h11);
+        n = nframes;
+        wr(0, 1);
+        wait (nframes >= n + 4);
+        stop_audio();
+        read_check('h58, 'hffff0000);
+
+        // 11. PCM 与波形相加的正/负饱和, 同时检查不超限时正常相加
+        reset_audio();
+        wr(ch(0, 0), 1);
+        wr(ch(0, 1), 255);
+        wr(ch(0, 2), 255);
+        wr('h50, 'hf1);
+        wr('h5c, 255);
+        wr('h54, 'h7f7f7f7f);
+        n = nframes;
+        wr(0, 1);
+        wait (nframes >= n + 6);
+        check(s[n+2] == 32767, "positive saturation");
+        stop_audio();
+        wr(ch(0, 2), 0);
+        wr('h50, 0);
+        wr('h50, 'hf1);
+        wr('h54, 'h80808080);
+        n = nframes;
+        wr(0, 1);
+        wait (nframes >= n + 6);
+        check(s[n+2] == -32768, "negative saturation");
+        wr('h5c, 1);
+        capture(4);
+        check(s[first] == -8288, "PCM plus square within range");
+        stop_audio();
+
+        $display(
+            "PASS audio: I2S slots, 48 kHz, square freq/volume/duty, mix, noise, LEN, EXACT, PCM FIFO/DIV/volume/underrun/saturation");
         $finish;
     end
     initial begin

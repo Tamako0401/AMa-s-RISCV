@@ -32,9 +32,9 @@ def fdc_locs(board):
 
 
 def pin_names(board):
-    """pins.csv 的名字按行序 = io 下标, io[12] 能反查出 LED1 这样的功能名。"""
+    """矩阵脚按行序 = io 下标; port 非空的固定端口不占 GPIO 编号。"""
     path = ROOT / 'boards' / board / 'pins.csv'
-    return [row['name'] for row in csv.DictReader(path.open())] if path.exists() else []
+    return [row['name'] for row in csv.DictReader(path.open()) if not row.get('port')] if path.exists() else []
 
 
 def load_padrefs(board):
