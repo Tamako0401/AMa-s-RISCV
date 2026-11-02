@@ -262,8 +262,10 @@ def sim_binary(out, vga=False, params=None):
 
 
 @cli.command()
-def sim(app: str = App, vga: bool = False, frames: int = 0):
-    """在仿真里运行 sw/app/ 下的程序, 窗口显示屏幕和 HDMI, 终端显示串口。"""
+def sim(app: str = App, vga: bool = False, frames: int = 0, vin: str = ''):
+    """在仿真里运行 sw/app/ 下的程序, 窗口显示屏幕和 HDMI, 终端显示串口。
+
+    --vin <文件>: HDMI 输入改用这张图 (800x600 RGB888 原始字节, 每像素 R G B), 不给就是测试图。"""
     from sim.view import SCREENS, show, save_png
 
     if frames < 0:
@@ -285,7 +287,8 @@ def sim(app: str = App, vga: bool = False, frames: int = 0):
     step(f'仿真 {app}: 在窗口里打字 = 串口输入; 关窗口或 Ctrl+C 结束')
     process = subprocess.Popen(
         [str(binary), f'+rom={rom}', f'+frame={frames["lcd"]}', f'+video={frames["hdmi"]}', f'+keys={keys}']
-        + ([f'+frames={frame_limit}'] if frame_limit else []),
+        + ([f'+frames={frame_limit}'] if frame_limit else [])
+        + ([f'+vin={Path(vin).resolve()}'] if vin else []),
         cwd=ROOT,
         start_new_session=True,
     )

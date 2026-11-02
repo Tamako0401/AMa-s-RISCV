@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .boards import ROOT
 from .local import tool
-from .firmware import SW_INC, build_firmware, CFLAGS, compiler, elf_to_rom, write_hex
+from .firmware import SW_INC, CFLAGS, app_config, build_firmware, compiler, elf_to_rom, write_hex
 
 OUT = ROOT / 'build/test'
 
@@ -166,7 +166,8 @@ def host(directory):
     start = time.monotonic()
     with path.open('w') as log:
         sources = sorted(directory.glob('*.c')) + sorted(p for p in app.glob('*.c') if p.name != 'main.c')
-        ok = command([*tool('cc'), f'-I{app}', *sources, '-o', out / 'test'], log) == 0
+        include = [f'-I{ROOT / d}' for d in app_config(app.name).get('include', [])]  # app.toml 的 include, 同固件
+        ok = command([*tool('cc'), f'-I{app}', *include, *sources, '-o', out / 'test'], log) == 0
         if ok:
             ok = command([out / 'test'], log) == 0
     return report(str(directory.relative_to(ROOT)), ok, start, path)

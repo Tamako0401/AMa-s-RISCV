@@ -19,3 +19,10 @@
 # 运行工具前加的环境变量
 # [env]
 # NAME = "value"
+
+# 本机给某个程序附加的编译项 (调试、实验用, 不进仓库), 加在 sw/app/<程序>/app.toml 的同名项后面;
+# 路径相对仓库根, 也可以是绝对路径
+# [app.game]
+# sources = ["/path/to/extra.c"]
+# include = ["/path/to/dir"]
+# cflags = ["-DSOMETHING"]

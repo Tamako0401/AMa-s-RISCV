@@ -358,7 +358,11 @@ module soc_top #(
     endgenerate
     wire win_rclk = DISPLAY_NEW ? clk : scan_clk;  // vision 的小窗读口跟着被选中的引擎走
 
+    wire nn_valid, nn_sof, nn_eol, nn_boundary, nn_commit;
+    wire [23:0] nn_data;
     vision u_vision (
+        .nn_valid(nn_valid), .nn_sof(nn_sof), .nn_eol(nn_eol), .nn_data(nn_data),
+        .nn_boundary(nn_boundary), .nn_commit(nn_commit),
         .win_rclk(win_rclk),
         .clk(clk),
         .rst_n(rst_n),
@@ -471,6 +475,8 @@ module soc_top #(
 
     // handnet 加速器 (0x4000_6000)
     nn u_nn (
+        .vin_pclk(vin_pclk), .vin_valid(nn_valid), .vin_sof(nn_sof), .vin_eol(nn_eol),
+        .vin_data(nn_data), .vin_boundary(nn_boundary), .vin_commit(nn_commit),
         .clk(clk),
         .rst_n(rst_n),
         .addr_i(p_addr[P_NN*32+:32]),

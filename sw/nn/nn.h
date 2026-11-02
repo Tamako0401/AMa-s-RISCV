@@ -23,6 +23,10 @@
 #define NN_IN_H 120
 #define NN_IN_BYTES (NN_IN_W * NN_IN_H * 3)
 
+#define NN_CTRL_CAPTURE (1u << 2)
+#define NN_STATUS_CAPTURE (1u << 2)
+#define NN_STATUS_CAPTURE_ERROR (1u << 3)
+
 /* 把整张图送进输入 RAM。硬件负责 BGR 排序和 q = pixel - 128 的定点化。 */
 static inline void nn_load(const uint8_t *rgb)
 {
@@ -42,6 +46,30 @@ static inline void nn_put(uint32_t r, uint32_t g, uint32_t b)
 static inline void nn_start(void)
 {
     NN->CTRL = NN_CTRL_START;
+}
+
+/* 抓下一个完整输入帧, 验证通过后自动推理。忙时忽略。 */
+static inline void nn_capture(void)
+{
+    NN->CTRL = NN_CTRL_CAPTURE;
+}
+
+static inline int nn_capturing(void)
+{
+    return (NN->STATUS & NN_STATUS_CAPTURE) != 0;
+}
+
+/* 等抓帧及推理; -2 表示坏帧, -1 表示超时。 */
+static inline int nn_capture_wait(uint32_t limit)
+{
+    while (limit--) {
+        uint32_t status = NN->STATUS;
+        if (status & NN_STATUS_CAPTURE_ERROR)
+            return -2;
+        if (status & NN_STATUS_DONE)
+            return 0;
+    }
+    return -1;
 }
 
 /* 等一次推理结束。limit 是轮询次数; 返回 0 完成, -1 超时 */

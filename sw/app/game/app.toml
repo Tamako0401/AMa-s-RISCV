@@ -2,7 +2,7 @@
 prepare = ["make", "-C", "game", "board"]
 sources = [
   "game/core/touhou.c", "game/core/fruit.c", "game/core/hand.c", "game/core/fixed.c",
-  "game/board/gfx_hw.c", "game/board/pad.c", "game/board/mem.c", "game/build/display_assets.c",
+  "game/board/gfx_hw.c", "game/board/pad.c", "game/board/link.c", "game/board/menu.c", "game/board/handnet.c", "game/board/hand_source.c", "game/board/mem.c", "game/build/display_assets.c",
 ]
 include = ["game/core", "game/board", "game/build"]
 cflags = ["-march=rv32im_zicsr"]
