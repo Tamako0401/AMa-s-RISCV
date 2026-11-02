@@ -11,8 +11,8 @@
 //       整网约 75 万拍 (50 MHz 下 15 ms)。
 //
 // 寄存器 (偏移, 见 docs/nn.md):
-//   0x00 CTRL     bit0 写 1 开始一次推理 (忙时忽略); bit1 写 1 清除 DONE
-//   0x04 STATUS   bit0 忙, bit1 完成, [7:4] 当前层号
+//   0x00 CTRL     bit0 写 1 开始一次推理 (忙时忽略); bit1 写 1 清除 DONE; bit2 抓帧后自动推理
+//   0x04 STATUS   bit0 忙 (含抓帧), bit1 完成, bit2 抓帧, bit3 抓帧失败, [7:4] 当前层号
 //   0x08 IN       写: 一个像素 {8'b0, R, G, B}, 写完像素地址自增
 //   0x0C IN_ADDR  读写: 下一个要写的像素 (0 .. 19199)
 //   0x10 OUT_ADDR 读写: 要读的输出字 (0 .. 299)
@@ -35,6 +35,10 @@ module nn (
     output wire req_ready_o,
     output wire rsp_valid_o,
     input wire rsp_ready_i,
+
+    input wire vin_pclk, vin_valid, vin_sof, vin_eol,
+    input wire [23:0] vin_data,
+    input wire vin_boundary, vin_commit,
 
     output wire busy_o,
     output wire done_o
@@ -89,6 +93,17 @@ module nn (
     reg busy_r, done_r;
     reg [31:0] cyc;
     reg start_req;
+    reg capture_r, capture_error, capture_req;
+    wire capture_we, capture_done, capture_ok;
+    wire [23:0] capture_data;
+    reg [IAW-1:0] capture_addr;
+    nn_capture u_capture (
+        .clk(clk), .rst_n(rst_n), .request(capture_req),
+        .pixel_valid(capture_we), .pixel_data(capture_data),
+        .done(capture_done), .ok(capture_ok),
+        .pclk(vin_pclk), .in_valid(vin_valid), .in_sof(vin_sof), .in_eol(vin_eol),
+        .in_data(vin_data), .boundary(vin_boundary), .commit(vin_commit)
+    );
 
     reg [7:0] py, px;
     reg [1:0] cg;
@@ -269,6 +284,7 @@ module nn (
             in_addr <= {IAW{1'b0}};
             out_addr_reg <= 13'd0;
             start_req <= 1'b0;
+            capture_r <= 0; capture_error <= 0; capture_req <= 0; capture_addr <= 0;
             done_r <= 1'b0;
             busy_r <= 1'b0;
             cyc <= 32'd0;
@@ -311,6 +327,18 @@ module nn (
             in_we <= 1'b0;
             f_we <= 1'b0;
 
+            if (capture_r && capture_we) begin
+                in_we <= 1;
+                in_waddr <= capture_addr;
+                in_wdata <= {8'b0, capture_data ^ 24'h808080};
+                capture_addr <= capture_addr + 1'b1;
+            end
+            if (capture_r && capture_done) begin
+                capture_r <= 0;
+                capture_error <= !capture_ok;
+                if (capture_ok) start_req <= 1;
+            end
+
             // ---- 总线读响应 ----
             if (response_valid && rsp_ready_i) begin
                 response_valid <= 1'b0;
@@ -322,13 +350,17 @@ module nn (
                 if (we_i) begin
                     case (reg_off)
                         12'h000: begin  // CTRL
-                            if (data_i[0] && !busy_r) begin
+                            if (data_i[2] && !busy_r && !start_req && !capture_r) begin
+                                capture_req <= ~capture_req;
+                                capture_r <= 1; capture_error <= 0; capture_addr <= 0;
+                                done_r <= 0;
+                            end else if (data_i[0] && !busy_r && !start_req && !capture_r) begin
                                 start_req <= 1'b1;
                                 done_r <= 1'b0;
                             end
                             if (data_i[1]) done_r <= 1'b0;
                         end
-                        12'h008: begin  // IN
+                        12'h008: if (!busy_r && !start_req && !capture_r) begin  // IN
                             in_we <= 1'b1;
                             in_waddr <= in_addr;
                             // 存成模型要的定点数: q = pixel - 128 (XOR 0x80), 通道顺序 B,
@@ -343,7 +375,7 @@ module nn (
                     endcase
                 end else begin
                     case (reg_off)
-                        12'h004: data_r <= {24'd0, layer, 2'b0, done_r, busy_r};  // STATUS
+                        12'h004: data_r <= {24'd0, layer, capture_error, capture_r, done_r, (busy_r || start_req || capture_r)};  // STATUS
                         12'h00c: data_r <= {{32 - IAW{1'b0}}, in_addr};
                         12'h010: data_r <= {{19{1'b0}}, out_addr_reg};
                         12'h018: data_r <= cyc;
@@ -486,6 +518,95 @@ module nn (
                 end
                 default: state <= S_IDLE;
             endcase
+        end
+    end
+endmodule
+
+// FIFO 只搬像素, 帧结果保持到下一次请求; 不为未验证的图另存一份整帧。
+module nn_capture (
+    input wire clk, rst_n, request,
+    output wire pixel_valid,
+    output wire [23:0] pixel_data,
+    output wire done, ok,
+    input wire pclk, in_valid, in_sof, in_eol,
+    input wire [23:0] in_data,
+    input wire boundary, commit
+);
+    reg [1:0] prst;
+    always @(posedge pclk or negedge rst_n) begin
+        if (!rst_n) prst <= 0;
+        else prst <= {prst[0], 1'b1};
+    end
+    wire prst_n = prst[1];
+    (* syn_ramstyle = "select_ram" *) reg [23:0] fifo[0:7];
+    reg [3:0] wp, wg, rp, rg;
+    reg [3:0] rg_s1, rg_s2, wg_s1, wg_s2;
+    reg [1:0] req_s;
+    reg ack, result, taken;
+    reg [2:0] ack_s;
+    reg ack_seen;
+    reg [1:0] state;
+    reg [14:0] count;
+    reg [7:0] x;
+    reg bad;
+    wire full = wg == {~rg_s2[3:2], rg_s2[1:0]};
+    wire empty = rg == wg_s2;
+    wire push = state == 2 && in_valid && count < 19200 && !bad && !full;
+    wire [3:0] wp_next = wp + 1'b1;
+    wire [3:0] rp_next = rp + 1'b1;
+    assign pixel_valid = !empty;
+    assign pixel_data = fifo[rp[2:0]];
+    // 结果事件晚于写指针同步, 排空后才能允许引擎读输入 RAM。
+    assign done = ack_s[2] != ack_seen && empty;
+    assign ok = result;
+
+    always @(posedge pclk or negedge prst_n) begin
+        if (!prst_n) begin
+            wp <= 0; wg <= 0; rg_s1 <= 0; rg_s2 <= 0; req_s <= 0;
+            ack <= 0; result <= 0; taken <= 0;
+            state <= 0; count <= 0; x <= 0; bad <= 0;
+        end else begin
+            req_s <= {req_s[0], request};
+            rg_s1 <= rg; rg_s2 <= rg_s1;
+            if (push) begin
+                wp <= wp_next;
+                wg <= (wp_next >> 1) ^ wp_next;
+            end
+            case (state)
+                0: if (req_s[1] != taken) begin taken <= req_s[1]; state <= 1; end
+                1: if (boundary) begin state <= 2; count <= 0; x <= 0; bad <= 0; end
+                2: begin
+                    if (in_valid) begin
+                        if (count == 19200 || full || (in_sof != (count == 0)) || (in_eol != (x == 159)))
+                            bad <= 1;
+                        if (count < 19200) count <= count + 1'b1;
+                        x <= in_eol ? 0 : x + 1'b1;
+                    end
+                    if (boundary) begin
+                        result <= commit && count == 19200 && !bad;
+                        ack <= taken;
+                        state <= 0;
+                    end
+                end
+                default: state <= 0;
+            endcase
+        end
+    end
+    always @(posedge pclk) begin
+        if (push) fifo[wp[2:0]] <= in_data;
+    end
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            rp <= 0; rg <= 0; wg_s1 <= 0; wg_s2 <= 0;
+            ack_s <= 0; ack_seen <= 0;
+        end else begin
+            wg_s1 <= wg; wg_s2 <= wg_s1;
+            ack_s <= {ack_s[1:0], ack};
+            if (done) ack_seen <= ack_s[2];
+            if (!empty) begin
+                rp <= rp_next;
+                rg <= (rp_next >> 1) ^ rp_next;
+            end
         end
     end
 endmodule

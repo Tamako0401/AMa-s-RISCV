@@ -19,7 +19,8 @@ module input_tb;
     vision dut (.clk(clk), .rst_n(rst_n), .addr_i(addr), .data_i(32'hff8080), .sel_i(4'hf),
         .we_i(addr == 0), .data_o(rdata), .req_valid_i(valid), .req_ready_o(ready),
         .rsp_valid_o(rsp), .rsp_ready_i(1'b1), .vin_pclk(pclk), .vin_de(de), .vin_rgb(rgb),
-        .win_rclk(rclk), .win_raddr(raddr), .win_rdata(q));
+        .win_rclk(rclk), .win_raddr(raddr), .win_rdata(q),
+        .nn_valid(), .nn_sof(), .nn_eol(), .nn_data(), .nn_boundary(), .nn_commit());
     task automatic access(input integer a);
         @(negedge clk); addr = a; valid = 1;
         do @(posedge clk); while (!ready);

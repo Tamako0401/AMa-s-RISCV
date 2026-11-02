@@ -2,3 +2,13 @@
 tb = "nn_tb.sv"
 rtl = "rtl/nn/nn.f"
 runs = [{ plusargs = ["+in=tests/nn/in.raw", "+exp=tests/nn/expect.raw"] }]
+
+[[test]]
+tb = "capture_tb.sv"
+rtl = "rtl/soc.f"
+extra = ["tests/soc/video_source.sv"]
+params = [{ W = 640, H = 480, HT = 800, VT = 525 }, { W = 800, H = 600, HT = 1056, VT = 628 }, { W = 1280, H = 720, HT = 1650, VT = 750 }]
+
+[[test]]
+tb = "capture_cdc_tb.sv"
+rtl = "rtl/nn/nn.f"
