@@ -101,7 +101,7 @@ class Assets:
         self.images = [assets.rgb565(img).astype(np.int32) for _, img in loaded]
         self.font = assets.font()
         if colors == 256:  # 硬件的格式: palette[0] 是透明, indices 是每张图案的色号
-            self.palette, self.indices = palettize(self.images, 255)
+            self.palette, self.indices = palettize(self.images, 127)  # 128~255 留给 SD 立绘
             self.images = [np.where(idx == 0, TRANSPARENT, self.palette[idx]) for idx in self.indices]
         elif colors == 16:
             self.images = [quantize([img], 15)[0] for img in self.images]
@@ -681,6 +681,7 @@ def cmd_firmware(args):
     art = Assets()
     writes = [(PAL + 4 * i, int(c) & 0xFFFF) for i, c in enumerate(art.palette)]
     table, words = image_table(art)
+    assert len(words) * 8 <= 57344 and len(table) < 1000, "基础图案侵入立绘保留区"
     writes += [(IMG + 4 * i, code << 13 | base) for i, (code, base) in enumerate(table)]
     for i, w in enumerate(words):
         writes += [(PAT + 8 * i, w & 0xFFFFFFFF), (PAT + 8 * i + 4, w >> 32)]

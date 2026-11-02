@@ -1,0 +1,3 @@
+sources = ["sw/components/sd/sd.c", "sw/components/sd/pak.c"]
+include = ["sw/components/sd"]
+cflags = ["-march=rv32im_zicsr", "-Os"]

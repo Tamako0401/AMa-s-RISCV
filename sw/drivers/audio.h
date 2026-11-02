@@ -68,4 +68,31 @@ static inline int audio_busy(uint32_t ch)
     return AUDIO->CH[ch].VOL != 0;
 }
 
+/* PCM 共同约定的最小软件实现。硬件来自任务 A; 合并时保留一份同名接口。 */
+#define AUDIO_PCM_REG(off) (*(volatile uint32_t *)(AUDIO_BASE + (off)))
+static inline void audio_pcm_enable(int en, int div)
+{
+    AUDIO_PCM_REG(0x50) = (en ? 1u : 0u) | ((uint32_t)(div & 15) << 4);
+}
+static inline int audio_pcm_space(void)
+{
+    uint32_t level = AUDIO_PCM_REG(0x58) & 65535;
+    return level < 2048 ? (int)(2048 - level) : 0;
+}
+static inline int audio_pcm_write(const int8_t *s, int n)
+{
+    int space = audio_pcm_space();
+    if (n > space)
+        n = space;
+    n &= ~3;
+    for (int i = 0; i < n; i += 4)
+        AUDIO_PCM_REG(0x54) = (uint8_t)s[i] | (uint32_t)(uint8_t)s[i + 1] << 8 | (uint32_t)(uint8_t)s[i + 2] << 16 |
+                              (uint32_t)(uint8_t)s[i + 3] << 24;
+    return n;
+}
+static inline void audio_pcm_volume(uint32_t v)
+{
+    AUDIO_PCM_REG(0x5c) = v & 255;
+}
+
 #endif

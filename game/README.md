@@ -204,3 +204,35 @@ game/tools/refmodel.py cost touhou.jsonl fruit.jsonl -o cost.png              # 
 图案库同样的块数能放两倍的点: 64 KB 的块放 6.5 万点 (`memory --pattern-bits 8 --patterns-kb 128`: 32 块 + 调色板 4 块)。
 代价是一拍画 8 点就要一拍查 8 次调色板: 调色板存 4 份 (每份真双口查 2 个), 只多 4 块。
 等有了正式素材, 用它再跑一次 `colors`, 确认 256 色够。
+
+## SD 素材：立绘与背景音乐
+
+将自己的 PNG 放到 `game/assets/portraits/`，WAV/OGG/MP3 放到 `game/assets/bgm/`。
+不要放第三方游戏素材。工具需要 uv 和 ffmpeg；文件名去扩展名后使用23字节以内的 ASCII，每类唯一。
+
+```sh
+uv run game/tools/pack.py                         # 输出 game/build/AMA.PAK 和编号清单 AMA.json
+# 没有素材也可试：仅在 build 中生成原创几何人像/合成旋律，不覆盖用户素材
+uv run game/tools/pack.py --demo --assets game/build/demo-assets
+make -C game check-sd                            # FAT32镜像/读取/协议/PCM填充测试
+AMA_PAK=game/build/AMA.PAK game/build/touhou       # PC 显示同一份量化立绘，音乐暂静音
+```
+
+将 `AMA.PAK` 复制到 FAT32 卡的根目录，新格式化空卡上先拷这一个文件通常能保持连续。
+驱动会检查整条 FAT 链，碎片文件会拒绝；失败时备份后重新格式化再复制。
+不支持 exFAT、子目录和热插拔；没有卡/包/素材时照常游戏。卡槽/模块接线见 [sd.md](../docs/sd.md)。
+板载槽的脚尚未进入现有GPIO矩阵，本实现用外接SPI模块，`sw/bsp/board_sd.h` 集中选脚。
+
+立绘每张单独量化到保留的128色，缩到64×96，以三精灵两倍显示128×192；一次一张，加载同id不重写。
+音乐是 signed PCM8 / 16 kHz / 单声道。音频旁可放 `名字.loop.json`，例如 `{"start":0,"end":32000}`
+(样本编号，4对齐)，不提供则播放一次；编号按每类文件名排序，查 `AMA.json`。
+东方式进关调用 `bgm_play(0)` / `gfx_portrait_load(0)`，前120帧画立绘，不改变玩法。
+
+游戏接口：`gfx_portrait_load(id)` → 每帧 `gfx_portrait(x,y,alpha)`，x/y为左上角，alpha=0~16；
+音乐 `bgm_play(id)` / `bgm_stop()` / 每帧 `bgm_frame()` (暂停菜单期间也调用)。
+板上启动时同步挂载SD；切换立绘会短暂阻塞，应放在换场景时。PCM硬件和PC声音分别待合任务A/B，
+合并点及格式详见 [sd.md](../docs/sd.md)。`AMA_PAK` 可覆盖PC包路径，默认查 `game/build/AMA.PAK` 或 `build/AMA.PAK`。
+
+游戏构建改为 `-Os` 以装入62 KiB app区。相同320弹幕CPU RTL测量，step/draw/精灵表提交平均拍数
+从 `-O2` 的141,543升到 `-Os` 的432,636；不含SD、HDMI轮询、手势网络或等显示换帧，
+不能代替整机实测。完整ROM大小与验证记录见 [sd.md](../docs/sd.md)。

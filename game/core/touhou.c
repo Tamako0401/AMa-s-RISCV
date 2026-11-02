@@ -1,4 +1,5 @@
 #include "touhou.h"
+#include "bgm.h"
 #include "assets.h"
 #include "fixed.h"
 #include "gfx.h"
@@ -9,14 +10,14 @@
 #define DEG(rad) ((uint32_t)((rad) * 10430.378)) /* 弧度 -> angle16 (编译时算好) */
 
 #define LIVES 3
-#define BOMBS 3            /* 每条命几个 bomb */
+#define BOMBS 3              /* 每条命几个 bomb */
 #define INVINCIBLE (2 * FPS) /* 被击中或放 bomb 后无敌几帧 */
-#define RESTART_HOLD FPS   /* 游戏结束后张开手几帧重开 */
-#define PLAYER_R 3         /* 自机判定点半径 (东方式: 判定点比画出来的飞机小得多) */
-#define MARGIN 16          /* 弹飞出游戏区多远删掉 */
+#define RESTART_HOLD FPS     /* 游戏结束后张开手几帧重开 */
+#define PLAYER_R 3           /* 自机判定点半径 (东方式: 判定点比画出来的飞机小得多) */
+#define MARGIN 16            /* 弹飞出游戏区多远删掉 */
 #define BOSS_Y 60
-#define BOMB_FRAMES 30     /* bomb 光环放多久 */
-#define WINDOW_X 0         /* 摄像头小窗放在左侧栏上部 */
+#define BOMB_FRAMES 30 /* bomb 光环放多久 */
+#define WINDOW_X 0     /* 摄像头小窗放在左侧栏上部 */
 #define WINDOW_Y 16
 
 enum { SMALL, ORB, RICE }; /* 弹的种类 */
@@ -31,6 +32,8 @@ void touhou_init(touhou_t *g, uint32_t seed)
     g->lives = LIVES;
     g->bombs = BOMBS;
     g->rng = seed ? seed : 1;
+    gfx_portrait_load(0);
+    bgm_play(0); /* 进关示范: 缺包/缺素材照常玩 */
 }
 
 void touhou_screen(void)
@@ -296,6 +299,9 @@ void touhou_draw(const touhou_t *g, const hand_t *hand)
 {
     gfx_begin();
     gfx_scroll(0, -(int32_t)(g->t / 2)); /* 背景慢慢往下流 */
+
+    if (g->t < 120)
+        gfx_portrait(PLAY_X + PLAY_W - 132, 130, 16);
 
     int32_t bx, by;
     boss_pos(g, &bx, &by);

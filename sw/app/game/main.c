@@ -7,6 +7,8 @@
  *   水果忍者式: 按键: 方向键移动刀尖, A 沿最近移动的方向砍一刀 (冲出一段, 够快才切得开); 指点: 鼠标 / 手直接划。
  * 串口每局结束打印成绩, 每 5 秒打印一次 CPU 每帧用了多少拍和显示最忙一行的拍数。 */
 #include "assets.h"
+#include "media.h"
+#include "bgm.h"
 #include "aux_uart.h"
 #include "board_hdmi.h"
 #include "bsp.h"
@@ -220,6 +222,8 @@ static void fruit_report(void)
 
 static void enter(int32_t which)
 {
+    bgm_stop();
+    gfx_portrait_load(-1);
     if (which == TOUHOU) {
         touhou_screen();
         touhou_init(&game.touhou, seed);
@@ -242,6 +246,7 @@ int main(void)
     int hdmi = board_hdmi_init();
     uart_puts(CONSOLE_UART, hdmi & 1 ? "game: HDMI out no answer\r\n" : "game: HDMI out ok\r\n");
     gfx_hw_init();
+    uart_puts(CONSOLE_UART, media_init() ? "game: SD PAK ok\r\n" : "game: no SD assets\r\n");
     hand_init(&hand, 0, 0);
     hand_source_init(&pad);
 
@@ -303,6 +308,7 @@ int main(void)
             if (over && !was_over)
                 fruit_report();
         }
+        bgm_frame();
         was_over = over;
         work = bsp_cycles() - start;
         if (work > work_max)

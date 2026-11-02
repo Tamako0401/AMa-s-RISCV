@@ -5,6 +5,7 @@
 #include "assets.h"
 #include "gfx_mem.h"
 #include "stats.h"
+#include "media_pc.h"
 
 stats_t stats;
 static FILE *dump;
@@ -13,9 +14,12 @@ static uint32_t frame_no;
 /* 对象的外框 (画面坐标, 左闭右开), 裁到画面和游戏区; 完全看不见返回 0 */
 static int extent(const gfx_sprite_t *s, int *x0, int *x1, int *y0, int *y1)
 {
-    if (s->image >= IMG_COUNT)
-        return 0;
-    int size = assets_images[s->image].size;
+    int size = portrait_size(s->image);
+    if (!size) {
+        if (s->image >= IMG_COUNT)
+            return 0;
+        size = assets_images[s->image].size;
+    }
     if (s->flags & GFX_AFFINE)
         size = size * s->scale / GFX_SCALE_1 * 3 / 2;
     int left = s->flags & GFX_CLIP ? gfx.clip0 : 0, right = s->flags & GFX_CLIP ? gfx.clip1 : GFX_W;
@@ -41,8 +45,8 @@ void stats_open_dump(const char *path)
     fprintf(dump, "{\"images\": [");
     for (int i = 0; i < IMG_COUNT; i++)
         fprintf(dump, "%s%d", i ? ", " : "", assets_images[i].size);
-    fprintf(dump, "], \"backdrop\": %d, \"clip\": [%d, %d], \"window\": [%d, %d, %d], \"map\": [", gfx.backdrop, gfx.clip0,
-            gfx.clip1, gfx.window_on, gfx.window_x, gfx.window_y);
+    fprintf(dump, "], \"backdrop\": %d, \"clip\": [%d, %d], \"window\": [%d, %d, %d], \"map\": [", gfx.backdrop,
+            gfx.clip0, gfx.clip1, gfx.window_on, gfx.window_x, gfx.window_y);
     for (int r = 0; r < GFX_MAP_H; r++)
         for (int c = 0; c < GFX_MAP_W; c++)
             fprintf(dump, "%s%d", r || c ? "," : "", gfx.map[r][c]);
@@ -51,12 +55,12 @@ void stats_open_dump(const char *path)
 
 static void write_frame(const char *why)
 {
-    fprintf(dump, "{\"frame\": %u, \"why\": \"%s\", \"scroll\": [%d, %d], \"fade\": [%d, %d], \"sprites\": [", frame_no, why,
-            gfx.scroll_x, gfx.scroll_y, gfx.fade_color, gfx.fade_level);
+    fprintf(dump, "{\"frame\": %u, \"why\": \"%s\", \"scroll\": [%d, %d], \"fade\": [%d, %d], \"sprites\": [", frame_no,
+            why, gfx.scroll_x, gfx.scroll_y, gfx.fade_color, gfx.fade_level);
     for (uint32_t i = 0; i < gfx.sprite_n; i++) {
         const gfx_sprite_t *s = &gfx.sprites[i];
-        fprintf(dump, "%s[%d, %d, %d, %d, %d, %d, %d]", i ? ", " : "", s->x, s->y, s->image, s->flags, s->alpha, s->angle,
-                s->scale);
+        fprintf(dump, "%s[%d, %d, %d, %d, %d, %d, %d]", i ? ", " : "", s->x, s->y, s->image, s->flags, s->alpha,
+                s->angle, s->scale);
     }
     /* 文字层: 每行一个字符串, 颜色每格一个十六进制数字 */
     fprintf(dump, "], \"text\": [");
