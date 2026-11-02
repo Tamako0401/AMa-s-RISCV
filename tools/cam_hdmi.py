@@ -11,10 +11,13 @@
   --out window: 开全屏窗口, 拖到接 FPGA 的那块屏上 (--screen 写那块屏的分辨率);
         fb: 直接写 /dev/fb0 (没有桌面的 Linux 小板子)。
   --cam: 摄像头编号, 或一个放 jpg 的目录 (按 15 帧/秒循环播放, 不接摄像头时测试用)。
+  --exposure N: 锁死曝光, N 单位 0.1 ms (30 帧/秒要 <= 333; 不给就是自动曝光, 暗处摄像头会自己降帧)。
   键盘、鼠标、手柄用 ama monitor --pad (tools/ama/pad.py), 和这个程序无关。
 """
 
 import argparse
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -39,18 +42,22 @@ def to_vga(frame):
 class Source:
     """摄像头, 或者一个 jpg 目录 (按 15 帧/秒循环播放)"""
 
-    def __init__(self, cam):
+    def __init__(self, cam, exposure=0):
         self.files = sorted(Path(cam).glob('*.jpg')) if not cam.isdigit() else None
         if self.files is not None:
             if not self.files:
                 raise SystemExit(f'{cam} 里没有 jpg')
             self.i, self.next = 0, time.monotonic()
             return
-        self.cap = cv2.VideoCapture(int(cam))
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        self.cap = cv2.VideoCapture(int(cam), cv2.CAP_V4L2 if sys.platform == 'linux' else cv2.CAP_ANY)
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # USB 摄像头 YUYV 一般只有 5 帧/秒
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, W)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, H)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # 只留最新一帧, 不攒延迟
+        self.cap.set(cv2.CAP_PROP_FPS, 30)  # 要在设分辨率之后: 改分辨率会把帧率打回默认
+        if exposure:  # 手动曝光 (单位 0.1 ms): 暗处自动曝光会拉长曝光、降帧率
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # V4L2: 1 = 手动, 3 = 自动
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, exposure)
+        # 不设 BUFFERSIZE=1: V4L2 只留一个缓冲时每取一帧就丢下一帧, 只剩 15 帧/秒; 后台线程一直读, 不会攒延迟
         if not self.cap.isOpened():
             raise SystemExit(f'打不开摄像头 {cam}')
 
@@ -79,29 +86,45 @@ def main():
     parser.add_argument('--cam', default='0')
     parser.add_argument('--screen', default='1280x720')
     parser.add_argument('--out', choices=['window', 'fb'], default='window')
+    parser.add_argument('--exposure', type=int, default=0)
     args = parser.parse_args()
 
-    source = Source(args.cam)
+    source = Source(args.cam, args.exposure)
     if args.out == 'fb':
         whole = open_fb()
     else:
         sw, sh = (int(v) for v in args.screen.split('x'))
-        whole = np.zeros((sh, sw, 4), np.uint8)
+        whole = np.zeros((sh, sw, 3), np.uint8)
         cv2.namedWindow('cam_hdmi', cv2.WINDOW_NORMAL)
         cv2.setWindowProperty('cam_hdmi', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     whole[:] = 0
     y0, x0 = (whole.shape[0] - H) // 2, (whole.shape[1] - W) // 2
     screen = whole[y0 : y0 + H, x0 : x0 + W, :3]
     print(f'屏幕 {whole.shape[1]}x{whole.shape[0]}, 画面放在 ({x0}, {y0})')
-    shown, t = 0, time.monotonic()
-    try:
-        while True:
+    # 后台线程一直读摄像头 (每帧要等约 33 ms), 主循环只显示最新的一帧: 读和显示不串着等, 才跟得上 30 帧/秒
+    latest = {'frame': None, 'n': 0}
+    running = True
+
+    def reader():
+        while running:
             frame = source.read()
             if frame is None:
                 print('摄像头没读到画面')
                 time.sleep(0.5)
                 continue
-            screen[:] = frame
+            latest['frame'], latest['n'] = frame, latest['n'] + 1
+
+    threading.Thread(target=reader, daemon=True).start()
+    last, shown, t = 0, 0, time.monotonic()
+    try:
+        while True:
+            if latest['n'] == last:
+                if args.out == 'window' and cv2.waitKey(2) == 27:
+                    break
+                time.sleep(0.002) if args.out == 'fb' else None
+                continue
+            last = latest['n']
+            screen[:] = latest['frame']
             shown += 1
             if args.out == 'window':
                 cv2.imshow('cam_hdmi', whole)
@@ -113,6 +136,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        running = False
         if args.out == 'fb':
             whole[:] = 0
 
