@@ -72,14 +72,16 @@ int ms7200_init(const i2c_pins_t *i2c)
 
 int ms7200_poll(const i2c_pins_t *i2c)
 {
-    /* 0x209C~0x209F 是输入时钟测量, 按例程依次读; 0x209E 低 2 位从 00 变成 10 表示时钟刚稳定 */
-    static uint8_t last;
+    /* 0x209C~0x209F 是输入时钟测量, 按例程依次读; 0x209E 低 2 位 = 10 表示时钟稳定。
+     * 例程只认 00 -> 10 这一个跳变, 但上电第一次读可能已经是 10, 或从 01/11 直接到 10, 补设置就永远不写、
+     * 不出图 (上板实测)。所以改成: 从 "不稳定或还没读过" 变成稳定就写。last 初值 0xFF = 还没读过。 */
+    static uint8_t last = 0xFF;
     uint8_t status[4];
     for (uint32_t i = 0; i < 4; i++)
         if (reg_read(i2c, 0x209C + i, &status[i]))
             return 0;
     uint8_t now = status[2] & 3;
-    int locked = (last & 3) == 0 && now == 2;
+    int locked = last != 2 && now == 2;
     last = now;
     if (locked)
         write_all(i2c, lock_seq, sizeof lock_seq / sizeof lock_seq[0]);

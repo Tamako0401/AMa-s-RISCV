@@ -248,6 +248,9 @@ int main(void)
     for (;;) {
         uint32_t start = bsp_cycles();
         pad_poll(&pad);
+        /* HDMI 输入时钟稳定后要补写一段设置才出图 (见 ms7200.h); 一次约 2 ms I2C, 每 4 帧查一次 */
+        if ((t & 3) == 0 && board_hdmi_poll())
+            uart_puts(CONSOLE_UART, "game: HDMI in locked\r\n");
         seed = seed * 1664525 + 1013904223 + pad.held; /* 开局的随机数和按键时机有关 */
         hand_source(&raw, t * 1000 / FPS); /* 有新结果就更新 raw; hand_update 每帧都要调 (平滑和防抖按帧算) */
         if (state == TOUHOU)
