@@ -1,4 +1,5 @@
 #include "menu.h"
+#include "sound.h"
 #include "gfx.h"
 
 /* 菜单占的文字格: 画面中间 (文字层 160x45 格, 东方式游戏区是第 40~119 列) */
@@ -66,6 +67,10 @@ int menu_frame(menu_t *m, const pad_t *pad, uint8_t *mode, const menu_info_t *in
 {
     int32_t items = m->in_game ? 3 : 2;
     uint32_t p = pad->pressed;
+    if (p & (PAD_UP | PAD_DOWN | PAD_LEFT | PAD_RIGHT))
+        sound_play(SFX_MENU_MOVE);
+    if (p & (PAD_A | PAD_CLICK | PAD_MENU))
+        sound_play(SFX_MENU_OK);
     if (p & PAD_MENU)
         return MENU_RESUME;
     if (p & PAD_UP)

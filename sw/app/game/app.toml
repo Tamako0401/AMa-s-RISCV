@@ -1,7 +1,7 @@
 # 游戏逻辑在 game/core/ (和电脑版同一份), 板上后端在 game/board/; 素材由 game/Makefile 生成 (要 uv)
 prepare = ["make", "-C", "game", "board"]
 sources = [
-  "game/core/touhou.c", "game/core/fruit.c", "game/core/hand.c", "game/core/fixed.c",
+  "game/core/sound.c", "game/board/sound_hw.c", "game/core/touhou.c", "game/core/fruit.c", "game/core/hand.c", "game/core/fixed.c",
   "game/board/gfx_hw.c", "game/board/pad.c", "game/board/link.c", "game/board/menu.c", "game/board/handnet.c", "game/board/hand_source.c", "game/board/mem.c", "game/build/display_assets.c",
 ]
 include = ["game/core", "game/board", "game/build"]

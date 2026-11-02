@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "app.h"
+#include "audio_sdl.h"
+#include "sound.h"
 #include "fixed.h"
 #include "gfx_mem.h"
 #include "hand_udp.h"
@@ -46,7 +48,7 @@ static void debug_hud(const app_game_t *game, const char *mode)
 int app_main(const app_game_t *game, int argc, char **argv)
 {
     const char *dump = NULL, *shot = NULL;
-    int port = 5005, level = 0, bot = 0;
+    int port = 5005, level = 0, bot = 0, mute = 0;
     uint32_t shot_frame = 0;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--dump") && i + 1 < argc)
@@ -55,13 +57,17 @@ int app_main(const app_game_t *game, int argc, char **argv)
             port = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--level") && i + 1 < argc)
             level = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--mute"))
+            mute = 1;
         else if (!strcmp(argv[i], "--bot"))
             bot = 1;
         else if (!strcmp(argv[i], "--shot") && i + 2 < argc) {
             shot_frame = (uint32_t)atoi(argv[++i]);
             shot = argv[++i];
         } else {
-            fprintf(stderr, "用法: %s [--dump 文件.jsonl] [--port 5005] [--level n] [--shot 帧号 文件.bmp] [--bot]\n", argv[0]);
+            fprintf(stderr,
+                    "用法: %s [--dump 文件.jsonl] [--port 5005] [--level n] [--shot 帧号 文件.bmp] [--bot] [--mute]\n",
+                    argv[0]);
             return 1;
         }
     }
@@ -70,14 +76,16 @@ int app_main(const app_game_t *game, int argc, char **argv)
         fprintf(stderr, "SDL: %s\n", SDL_GetError());
         return 1;
     }
-    SDL_Window *window = SDL_CreateWindow(game->name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, GFX_W * 2, GFX_H * 2,
-                                          SDL_WINDOW_RESIZABLE);
+    SDL_Window *window = SDL_CreateWindow(game->name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, GFX_W * 2,
+                                          GFX_H * 2, SDL_WINDOW_RESIZABLE);
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
     SDL_RenderSetLogicalSize(renderer, GFX_W * 2, GFX_H * 2); /* 窗口多大都按 1280x720 等比缩放 */
     render_init(renderer);
     if (hand_udp_open(port) != 0)
         fprintf(stderr, "UDP 端口 %d 打不开, 只能用鼠标\n", port);
 
+    audio_sdl_init(mute);
+    sound_reset();
     game->start(level);
     if (dump)
         stats_open_dump(dump);
@@ -99,11 +107,21 @@ int app_main(const app_game_t *game, int argc, char **argv)
             else if (e.type == SDL_KEYDOWN)
                 switch (e.key.keysym.sym) {
                 case SDLK_q:
-                case SDLK_ESCAPE: running = 0; break;
-                case SDLK_m: use_hand = !use_hand; break;
-                case SDLK_r: in.restart = 1; break;
-                case SDLK_l: game->level(1); break;
-                case SDLK_k: game->level(0); break;
+                case SDLK_ESCAPE:
+                    running = 0;
+                    break;
+                case SDLK_m:
+                    use_hand = !use_hand;
+                    break;
+                case SDLK_r:
+                    in.restart = 1;
+                    break;
+                case SDLK_l:
+                    game->level(1);
+                    break;
+                case SDLK_k:
+                    game->level(0);
+                    break;
                 case SDLK_f:
                     fullscreen = !fullscreen;
                     SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
@@ -130,6 +148,7 @@ int app_main(const app_game_t *game, int argc, char **argv)
         if (!bot)
             mode = use_hand ? "hand" : "mouse";
         game->frame(&hand, &in, use_hand, bot);
+        sound_frame();
         if (game->over() && !was_over)
             report(game, mode);
         was_over = game->over();
@@ -153,6 +172,7 @@ int app_main(const app_game_t *game, int argc, char **argv)
     if (!game->over())
         report(game, mode);
     stats_close();
+    audio_sdl_close();
     SDL_Quit();
     return 0;
 }

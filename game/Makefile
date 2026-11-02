@@ -3,7 +3,7 @@ CFLAGS = -std=c11 -O2 -g -Wall -Wextra -Icore -Ipc -Ibuild $(shell pkg-config --
 LDLIBS = $(shell pkg-config --libs sdl2)
 
 CORE = $(wildcard core/*.c)
-PC = pc/app.c pc/gfx_mem.c pc/hand_udp.c pc/render.c pc/stats.c # 两个游戏共用; pc/<游戏>_pc.c 各一个
+PC = pc/audio_sdl.c pc/app.c pc/gfx_mem.c pc/hand_udp.c pc/render.c pc/stats.c # 两个游戏共用; pc/<游戏>_pc.c 各一个
 DEPS = $(CORE) $(PC) build/assets.c $(wildcard core/*.h pc/*.h)
 
 all: build/touhou build/fruit
@@ -28,3 +28,17 @@ clean:
 	rm -rf build
 
 .PHONY: all board check-core clean
+
+build/audio_test: test/audio_test.c pc/audio_sdl.c pc/audio_sdl.h core/sound.h
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -o $@ test/audio_test.c pc/audio_sdl.c $(LDLIBS)
+
+build/sound_test: test/sound_test.c core/sound.c core/sound.h
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -o $@ test/sound_test.c core/sound.c
+
+check-audio: build/audio_test build/sound_test
+	./build/audio_test
+	./build/sound_test
+
+.PHONY: check-audio

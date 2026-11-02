@@ -7,6 +7,8 @@
  *   水果忍者式: 按键: 方向键移动刀尖, A 沿最近移动的方向砍一刀 (冲出一段, 够快才切得开); 指点: 鼠标 / 手直接划。
  * 串口每局结束打印成绩, 每 5 秒打印一次 CPU 每帧用了多少拍和显示最忙一行的拍数。 */
 #include "assets.h"
+#include "sound.h"
+#include "board_audio.h"
 #include "aux_uart.h"
 #include "board_hdmi.h"
 #include "bsp.h"
@@ -102,8 +104,10 @@ static void title_screen(void)
 static void title_frame(uint32_t t)
 {
     static const char *const names[] = {"  bullet hell (touhou)", "  fruit slicer"};
-    if (pad.pressed & (PAD_UP | PAD_DOWN))
+    if (pad.pressed & (PAD_UP | PAD_DOWN)) {
+        sound_play(SFX_MENU_MOVE);
         choice ^= 1;
+    }
     for (int32_t i = 0; i < 2; i++) {
         gfx_text(60, 18 + 3 * i, i == choice ? GFX_YELLOW : GFX_LIGHT_GRAY, names[i]);
         gfx_text(60, 18 + 3 * i, GFX_YELLOW, i == choice ? ">" : " ");
@@ -241,6 +245,8 @@ int main(void)
     aux_uart_init(115200); /* 第二个串口也收手柄的 'P' 帧 (mes2l100hp: WS63 星闪) */
     int hdmi = board_hdmi_init();
     uart_puts(CONSOLE_UART, hdmi & 1 ? "game: HDMI out no answer\r\n" : "game: HDMI out ok\r\n");
+    board_audio_init();
+    sound_reset();
     gfx_hw_init();
     hand_init(&hand, 0, 0);
     hand_source_init(&pad);
@@ -286,6 +292,7 @@ int main(void)
         } else if (state == TITLE) {
             title_frame(t);
             if (pad.pressed & (PAD_A | PAD_CLICK)) {
+                sound_play(SFX_MENU_OK);
                 state = choice ? FRUIT : TOUHOU;
                 enter(state);
             }
@@ -303,6 +310,7 @@ int main(void)
             if (over && !was_over)
                 fruit_report();
         }
+        sound_frame();
         was_over = over;
         work = bsp_cycles() - start;
         if (work > work_max)
