@@ -60,7 +60,11 @@ runs = [
 [[test]]
 tb = "soc_tb.sv"
 rtl = "rtl/soc.f"
-runs = [{ program = ["tests/cpu/start.S", "tests/soc/nn_check.c"], plusargs = ["+cycles=4000000"] }]
+# uart2_check: 第二个串口经 GPIO 矩阵接到 J8_3 上回环收发 (+loopback: 测试台把输出脚的电平送回输入)
+runs = [
+  { program = ["tests/cpu/start.S", "tests/soc/nn_check.c"], plusargs = ["+cycles=4000000"] },
+  { program = ["tests/cpu/start.S", "tests/soc/uart2_check.c", "sw/drivers/uart.c"], plusargs = ["+loopback"] },
+]
 
 # 流水线效率: 计时区间内 CPI 和每拍归因 (仿真里的 ILA), 结果见 [result] 行; 加 +trace=<文件> 导出波形 CSV
 [[test]]

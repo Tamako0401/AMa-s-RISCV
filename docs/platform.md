@@ -40,6 +40,7 @@ MMIO:
         0x40004000 SYSCTL (HW_ID/ROM_WE)
         0x40005000 vision input (color tracking, see vision.md)
         0x40006000 handnet accelerator (registers, see nn.md)
+        0x40007000 UART2 (same registers as UART; pins chosen by the GPIO matrix, unconnected at reset)
     CPU/SoC tests reserve RAM word 0x10000000 for completion
 
 Interrupt:

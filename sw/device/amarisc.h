@@ -71,7 +71,7 @@ typedef struct {
     __I uint32_t IN[4];
     uint32_t reserved[100];
     __IO uint32_t FUNC_OUT_SEL[128];
-    __IO uint32_t FUNC_IN_SEL[2];
+    __IO uint32_t FUNC_IN_SEL[4]; /* 3 号保留 */
 } IO_TypeDef;
 
 #define IO_MATRIX ((IO_TypeDef *)0x40003000UL)
@@ -134,12 +134,14 @@ typedef struct {
 /* ---------------- 基址 ---------------- */
 #define SPI1_BASE 0x40002000UL
 #define UART1_BASE 0x40001000UL
+#define UART2_BASE 0x40007000UL
 #define VIDEO_BASE 0x20000000UL
 #define VISION_BASE 0x40005000UL
 #define NN_BASE 0x40006000UL
 
 #define SPI1 ((SPI_TypeDef *)SPI1_BASE)
 #define UART1 ((UART_TypeDef *)UART1_BASE)
+#define UART2 ((UART_TypeDef *)UART2_BASE) /* 第二个串口, 收发脚上电不接, 见 bsp.h 的 AUX_UART */
 #define VIDEO ((VIDEO_TypeDef *)VIDEO_BASE)
 #define VISION ((VISION_TypeDef *)VISION_BASE)
 #define NN ((NN_TypeDef *)NN_BASE)

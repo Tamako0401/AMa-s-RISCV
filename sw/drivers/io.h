@@ -9,8 +9,11 @@
 #define SIG_UART_TX 1
 #define SIG_SPI_SCK 2
 #define SIG_SPI_MOSI 3
+#define SIG_UART2_TX 4
 #define SIG_UART_RX 0
 #define SIG_SPI_MISO 1
+#define SIG_UART2_RX 2
+#define IO_NONE 0xFF /* io_connect_in 的引脚: 不接, 输入信号给空闲电平 */
 
 static inline void io_dir(uint32_t pin, uint32_t dir)
 {

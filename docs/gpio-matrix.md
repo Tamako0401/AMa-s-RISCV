@@ -53,14 +53,17 @@ UART_RX, N5,   in
 |---|---|---|
 | 0 | 普通 GPIO | UART_RX |
 | 1 | UART_TX | SPI_MISO |
-| 2 | SPI_SCK | |
-| 3 | SPI_MOSI | |
+| 2 | SPI_SCK | UART2_RX |
+| 3 | SPI_MOSI | (保留) |
+| 4 | UART2_TX | |
 
 - 以后加外设就往表里加编号, 寄存器布局不变。
 - 片选 CS、屏幕 DC/RST/背光 用普通 GPIO 由软件翻转, 不进表。
 - 上电默认: 引脚表里 `UART_TX` 那个脚的 FUNC_OUT_SEL = UART_TX, 输入信号 UART_RX 的 FUNC_IN_SEL = `UART_RX` 那个脚。
   这两个编号由板级顶层作为参数传给 soc_top, 再传给矩阵。所以 bootloader 和串口打印不用配置就能用; 想换脚在 C 里改即可。
-- 没接任何引脚的输入信号给空闲电平: UART_RX = 1, SPI_MISO = 0。
+- 没接任何引脚的输入信号给空闲电平: UART_RX = 1, SPI_MISO = 0, UART2_RX = 1。
+- 第二个串口 UART2 (`0x4000_7000`, 寄存器同控制台串口) 上电不接任何引脚。本板接在哪写在 `sw/bsp/aux_uart.h`,
+  程序调 `aux_uart_init(115200)` 接好并打开; mes2l100hp 上接 GameShield 的 WS63 星闪模块 (WS_TX / WS_RX)。
 
 ## 寄存器 (基址 0x4000_3000, 都是 32 位)
 
@@ -76,7 +79,7 @@ UART_RX, N5,   in
 | 0x050 + 4·k | ENABLE_W1TC[k] | 只写 |
 | 0x060 + 4·k | IN[k] | 只读, 引脚当前电平 (同步后) |
 | 0x200 + 4·n | FUNC_OUT_SEL[n] | 引脚 n 输出什么: [7:0] 输出信号编号, 0 = 普通 GPIO |
-| 0x400 + 4·s | FUNC_IN_SEL[s] | 输入信号 s 从哪个引脚读: [7:0] 引脚编号, 0xFF = 不接 |
+| 0x400 + 4·s | FUNC_IN_SEL[s] | 输入信号 s 从哪个引脚读: [7:0] 引脚编号, 0xFF = 不接。s = 0~2, 3 保留 (写丢弃, 读 0) |
 
 - FUNC_OUT_SEL 选了外设信号以后, 该脚由外设驱动、自动成为输出, ENABLE/OUT 对它无效。
 - 一个引脚只有一个输出源; 一个引脚可以同时喂给多个输入信号。
