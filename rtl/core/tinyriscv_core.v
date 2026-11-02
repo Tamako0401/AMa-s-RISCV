@@ -25,7 +25,7 @@ module tinyriscv_core #(
     parameter [31:0] RESET_PC = 32'h00000000
 ) (
 
-    input wire clk,
+    input wire clk /* synthesis PAP_MARK_DEBUG="<0/c0/0>" */,
     input wire rst_n,
 
     output wire [31:0] dbus_addr_o,
@@ -430,10 +430,31 @@ module tinyriscv_core #(
 
     // 上板 ILA (PDS Fabric Debugger) 的探针: 综合会把下面这些信号改名或并掉, 打一拍寄存并加保留属性,
     // 让 Inserter 里能按 ila_ 前缀找到。全部晚一拍, 彼此对齐; 和 tests/soc/coremark_perf_tb.sv 的探针一一对应。
+    // PAP_MARK_DEBUG (Fabric Inserter 用户手册第 4 章): 工程里没有 .fic 时, 从 PDS 打开 Inserter 会按这些标记
+    // 自动连到 0 号调试核的 0 号 trigger port, 通道号写死; 采样时钟见 clk 端口上的 <0/c0/0>。
     /* verilator lint_off UNUSEDSIGNAL */
-    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_flush, ila_load_use, ila_hold, ila_mem_stall;
-    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_if_valid, ila_dreq, ila_drsp;
-    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg [15:0] ila_if_pc, ila_ex_pc;
+    reg ila_flush /* synthesis PAP_MARK_DEBUG="<0/t0/0>" */;
+    reg ila_load_use /* synthesis PAP_MARK_DEBUG="<0/t0/1>" */;
+    reg ila_hold /* synthesis PAP_MARK_DEBUG="<0/t0/2>" */;
+    reg ila_mem_stall /* synthesis PAP_MARK_DEBUG="<0/t0/3>" */;
+    reg ila_if_valid /* synthesis PAP_MARK_DEBUG="<0/t0/4>" */;
+    reg ila_dreq /* synthesis PAP_MARK_DEBUG="<0/t0/5>" */;
+    reg ila_drsp /* synthesis PAP_MARK_DEBUG="<0/t0/6>" */;
+    // PC 逐位声明: 打在多位 reg / wire 上的标记综合后会丢, 单比特的不会; 指令 4 字节对齐, 只取 [15:2]
+    reg ila_if_pc2 /* synthesis PAP_MARK_DEBUG="<0/t0/7>" */;  reg ila_if_pc3 /* synthesis PAP_MARK_DEBUG="<0/t0/8>" */;
+    reg ila_if_pc4 /* synthesis PAP_MARK_DEBUG="<0/t0/9>" */;  reg ila_if_pc5 /* synthesis PAP_MARK_DEBUG="<0/t0/10>" */;
+    reg ila_if_pc6 /* synthesis PAP_MARK_DEBUG="<0/t0/11>" */;  reg ila_if_pc7 /* synthesis PAP_MARK_DEBUG="<0/t0/12>" */;
+    reg ila_if_pc8 /* synthesis PAP_MARK_DEBUG="<0/t0/13>" */;  reg ila_if_pc9 /* synthesis PAP_MARK_DEBUG="<0/t0/14>" */;
+    reg ila_if_pc10 /* synthesis PAP_MARK_DEBUG="<0/t0/15>" */;  reg ila_if_pc11 /* synthesis PAP_MARK_DEBUG="<0/t0/16>" */;
+    reg ila_if_pc12 /* synthesis PAP_MARK_DEBUG="<0/t0/17>" */;  reg ila_if_pc13 /* synthesis PAP_MARK_DEBUG="<0/t0/18>" */;
+    reg ila_if_pc14 /* synthesis PAP_MARK_DEBUG="<0/t0/19>" */;  reg ila_if_pc15 /* synthesis PAP_MARK_DEBUG="<0/t0/20>" */;
+    reg ila_ex_pc2 /* synthesis PAP_MARK_DEBUG="<0/t0/21>" */;  reg ila_ex_pc3 /* synthesis PAP_MARK_DEBUG="<0/t0/22>" */;
+    reg ila_ex_pc4 /* synthesis PAP_MARK_DEBUG="<0/t0/23>" */;  reg ila_ex_pc5 /* synthesis PAP_MARK_DEBUG="<0/t0/24>" */;
+    reg ila_ex_pc6 /* synthesis PAP_MARK_DEBUG="<0/t0/25>" */;  reg ila_ex_pc7 /* synthesis PAP_MARK_DEBUG="<0/t0/26>" */;
+    reg ila_ex_pc8 /* synthesis PAP_MARK_DEBUG="<0/t0/27>" */;  reg ila_ex_pc9 /* synthesis PAP_MARK_DEBUG="<0/t0/28>" */;
+    reg ila_ex_pc10 /* synthesis PAP_MARK_DEBUG="<0/t0/29>" */;  reg ila_ex_pc11 /* synthesis PAP_MARK_DEBUG="<0/t0/30>" */;
+    reg ila_ex_pc12 /* synthesis PAP_MARK_DEBUG="<0/t0/31>" */;  reg ila_ex_pc13 /* synthesis PAP_MARK_DEBUG="<0/t0/32>" */;
+    reg ila_ex_pc14 /* synthesis PAP_MARK_DEBUG="<0/t0/33>" */;  reg ila_ex_pc15 /* synthesis PAP_MARK_DEBUG="<0/t0/34>" */;
     always @(posedge clk) begin
         ila_flush <= ctrl_flush_o;
         ila_load_use <= load_use_stall;
@@ -442,13 +463,29 @@ module tinyriscv_core #(
         ila_if_valid <= ifetch_inst_valid_o;
         ila_dreq <= dbus_req_valid_o & dbus_req_ready_i;
         ila_drsp <= dbus_rsp_valid_i;
-        ila_if_pc <= ifetch_pc_o[15:0];
-        ila_ex_pc <= ie_dec_pc_o[15:0];
+        {ila_if_pc15, ila_if_pc14, ila_if_pc13, ila_if_pc12, ila_if_pc11, ila_if_pc10, ila_if_pc9, ila_if_pc8, ila_if_pc7, ila_if_pc6, ila_if_pc5, ila_if_pc4, ila_if_pc3, ila_if_pc2} <= ifetch_pc_o[15:2];
+        {ila_ex_pc15, ila_ex_pc14, ila_ex_pc13, ila_ex_pc12, ila_ex_pc11, ila_ex_pc10, ila_ex_pc9, ila_ex_pc8, ila_ex_pc7, ila_ex_pc6, ila_ex_pc5, ila_ex_pc4, ila_ex_pc3, ila_ex_pc2} <= ie_dec_pc_o[15:2];
     end
-    // Fabric Inserter 不列出没有负载的网: 全部异或进一个保留的汇点寄存器, 让每根探针都有负载
-    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg ila_sink;
-    always @(posedge clk)
-        ila_sink <= ^{ila_flush, ila_load_use, ila_hold, ila_mem_stall, ila_if_valid, ila_dreq, ila_drsp, ila_if_pc, ila_ex_pc};
+    // 给探针一个负载 (异或进保留的寄存器), 免得没有负载的网被 Inserter 隐藏或被优化掉
+    ila_probe_sink #(
+        .W(35)
+    ) u_ila_sink (
+        .clk(clk),
+        .probe_i({ila_flush, ila_load_use, ila_hold, ila_mem_stall, ila_if_valid, ila_dreq, ila_drsp,
+                    ila_if_pc15, ila_if_pc14, ila_if_pc13, ila_if_pc12, ila_if_pc11, ila_if_pc10, ila_if_pc9, ila_if_pc8, ila_if_pc7, ila_if_pc6, ila_if_pc5, ila_if_pc4, ila_if_pc3, ila_if_pc2,
+                    ila_ex_pc15, ila_ex_pc14, ila_ex_pc13, ila_ex_pc12, ila_ex_pc11, ila_ex_pc10, ila_ex_pc9, ila_ex_pc8, ila_ex_pc7, ila_ex_pc6, ila_ex_pc5, ila_ex_pc4, ila_ex_pc3, ila_ex_pc2})
+    );
     /* verilator lint_on UNUSEDSIGNAL */
 
+endmodule
+
+// ILA 探针的负载: 只为让 PDS Fabric Inserter 能看到并选中 ila_* 网, 本身没有功能
+module ila_probe_sink #(
+    parameter W = 1
+) (
+    input wire clk,
+    input wire [W-1:0] probe_i
+);
+    (* syn_keep = 1, syn_preserve = 1, syn_noprune = 1 *) reg sink;
+    always @(posedge clk) sink <= ^probe_i;
 endmodule
