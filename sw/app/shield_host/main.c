@@ -1,4 +1,4 @@
-/* shield_demo: GameShield 的声音和第二个串口 (mes2l100hp)。
+/* shield_host: GameShield 的声音和第二个串口 (mes2l100hp)。
  *   按键: 四个键各响一个音 (C5 E5 G5 C6, 方波 120 ms, 自己停), 串口打印 "key n"。
  *   第二个串口 (星闪 WS63): 收到什么回什么, 同时转到控制台串口, 每个字节响一下短的 "嘀";
  *   控制台串口 (ama monitor) 打的字发到第二个串口, 用来从电脑经 WS63 发东西。
@@ -23,8 +23,8 @@ int main(void)
     uart_init(CONSOLE_UART, SYSCLK_HZ, 115200);
     aux_uart_init(115200);
     board_audio_init();
-    uart_puts(CONSOLE_UART, "shield_demo: keys beep, UART2 echo\r\n");
-    uart_puts(AUX_UART, "shield_demo\r\n");
+    uart_puts(CONSOLE_UART, "shield_host: keys beep, UART2 echo\r\n");
+    uart_puts(AUX_UART, "shield_host\r\n");
     audio_beep(AUDIO_SQUARE0, AUDIO_HZ(880), 80, AUDIO_MS(60)); /* 开机响一下 */
 
     for (uint32_t i = 0; i < KEY_N; i++)
