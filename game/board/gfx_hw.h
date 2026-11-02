@@ -9,7 +9,7 @@
 
 #define GFX_HW_SPRITES 512 /* 硬件精灵表的容量, 多的不画 */
 
-/* 开机一次: 关显示, 写调色板、图案表、图案库、字库 (refmodel.py firmware 生成的 display_assets.c), 清背景和文字 */
+/* 开机一次: 关显示, 写调色板、图案表、图案库、字库 (refmodel.py firmware 生成的 display_assets.c, 压缩的开机解压), 清背景和文字 */
 void gfx_hw_init(void);
 /* 一帧画完: 等上一帧换上去, 写精灵表和寄存器, 提交 (下一个场消隐生效, 所以自然是 60 帧/秒) */
 void gfx_hw_present(void);

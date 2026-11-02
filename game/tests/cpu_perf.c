@@ -4,7 +4,7 @@
 #include "gfx_hw.h"
 #include "bgm.h"
 static touhou_t game;
-const uint32_t display_assets[] = {0xffffffff};
+const uint8_t display_pack[] = {3, 0xff, 0xff, 0xff, 0xff}; /* 只有结尾标记 */
 const uint8_t display_font[2048] = {0};
 int gfx_portrait_load(int32_t id)
 {

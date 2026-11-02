@@ -675,6 +675,58 @@ def soc_script(writes):
     return words + [0xFFFFFFFF]
 
 
+def lz_pack(data):
+    """开机素材的压缩 (板上 gfx_hw.c 的 unpack 解): 字节流, 每段一个头字节
+    t < 0x80: 后面 t+1 个原样字节; t >= 0x80: 从 d 字节之前复制 (t & 0x7F) + 3 个 (d 两字节小端, 1..4095, 可以和自己重叠)。
+    图案里大片透明 0 和重复的形状, 27 KB 压到 5 KB 左右。贪心最长匹配, 够用。"""
+    out, lit, i, heads = bytearray(), bytearray(), 0, {}
+
+    def flush():
+        for k in range(0, len(lit), 128):
+            chunk = lit[k : k + 128]
+            out.append(len(chunk) - 1)
+            out.extend(chunk)
+        lit.clear()
+
+    while i < len(data):
+        best, dist = 0, 0
+        for j in reversed(heads.get(bytes(data[i : i + 3]), [])[-64:]):
+            if i - j > 4095:
+                break
+            n = 0
+            while n < 130 and i + n < len(data) and data[j + n] == data[i + n]:
+                n += 1
+            if n > best:
+                best, dist = n, i - j
+        if best >= 3:
+            flush()
+            out += bytes([0x80 | (best - 3), dist & 0xFF, dist >> 8])
+            step = best
+        else:
+            lit.append(data[i])
+            step = 1
+        for k in range(i, i + step):
+            heads.setdefault(bytes(data[k : k + 3]), []).append(k)
+        i += step
+    flush()
+    return bytes(out)
+
+
+def lz_unpack(pack):
+    out, i = bytearray(), 0
+    while i < len(pack):
+        t = pack[i]
+        if t < 0x80:
+            out += pack[i + 1 : i + 2 + t]
+            i += 2 + t
+        else:
+            d = pack[i + 1] | pack[i + 2] << 8
+            for _ in range((t & 0x7F) + 3):
+                out.append(out[-d])
+            i += 3
+    return bytes(out)
+
+
 def cmd_firmware(args):
     """开机写一次的部分 (同 bus_writes 的前半, 不跳过 0: 板上显示的 RAM 里可能是上一个程序留下的)。
     字库按字节存 (总线上一行占一个字, 直接存要 8 KB), 由板上程序展开。"""
@@ -692,6 +744,9 @@ def cmd_firmware(args):
             j += 1
         script += [writes[i][0], j - i, *(d for _, d in writes[i:j])]
         i = j
+    raw = b''.join(w.to_bytes(4, 'little') for w in script + [0xFFFFFFFF])
+    pack = lz_pack(raw)
+    assert lz_unpack(pack) == raw
     font = [int(art.font[code][r]) for code in range(128) for r in range(16)]
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -699,12 +754,12 @@ def cmd_firmware(args):
         '/* refmodel.py firmware 生成, 不要手改。板上开机写进显示 (见 docs/display.md "每帧怎么用" 第 1 步)。\n'
         f' * {len(table)} 张图案, 图案库 {len(words) * 8} 字节。 */\n'
         '#include <stdint.h>\n\n'
-        '/* (偏移, 个数, 数据...) 段, 0xFFFFFFFF 结尾; 偏移相对显示基址 */\n'
-        'const uint32_t display_assets[] = {\n' + assets.c_array(script + [0xFFFFFFFF], 8) + '\n};\n\n'
+        '/* (偏移, 个数, 数据...) 段, 0xFFFFFFFF 结尾 (偏移相对显示基址), 按小端字节流用 lz_pack 压缩 */\n'
+        f'const uint8_t display_pack[{len(pack)}] = {{\n' + assets.c_array(list(pack)) + '\n};\n\n'
         '/* 128 个字 x 16 行, 一行一字节 (最高位在左) */\n'
         'const uint8_t display_font[128 * 16] = {\n' + assets.c_array(font) + '\n};\n'
     )
-    print(f'{out}: {len(table)} 张图案, 写 {len(writes)} 次, {4 * len(script) + len(font)} 字节')
+    print(f'{out}: {len(table)} 张图案, 写 {len(writes)} 次, 素材 {len(raw)} 字节压成 {len(pack)}, 字库 {len(font)}')
 
 
 def write_hex(path, values, digits):

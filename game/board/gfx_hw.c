@@ -12,7 +12,7 @@
 #define IMAGE_MAX 1024
 enum { CTRL, BACKDROP, CLIP, WINDOW, SCROLL, FADE, SPRITE_N, COMMIT, STATUS, FRAME, LINE_MAX, OVERRUN, DROPPED };
 
-extern const uint32_t display_assets[]; /* refmodel.py firmware: (偏移, 个数, 数据...) 段, 0xFFFFFFFF 结尾 */
+extern const uint8_t display_pack[]; /* refmodel.py firmware: (偏移, 个数, 数据...) 段, 0xFFFFFFFF 结尾; lz_pack 压缩 */
 extern const uint8_t display_font[128 * 16];
 
 static gfx_sprite_t sprites[GFX_HW_SPRITES];
@@ -25,14 +25,59 @@ static void reg(uint32_t r, uint32_t v)
     DISPLAY[REG + r] = v;
 }
 
+/* 解出来的字照段格式写进显示: 偏移 -> 个数 -> 数据; 读到结尾标记返回 1 */
+static int put_word(uint32_t w)
+{
+    static volatile uint32_t *p;
+    static uint32_t n, state;
+    if (state == 0) {
+        if (w == 0xFFFFFFFF)
+            return 1;
+        p = DISPLAY + w / 4;
+        state = 1;
+    } else if (state == 1) {
+        n = w;
+        state = n ? 2 : 0;
+    } else {
+        *p++ = w;
+        if (--n == 0)
+            state = 0;
+    }
+    return 0;
+}
+
+/* 解 refmodel.py 的 lz_pack: 头字节 < 0x80 = 跟 t+1 个原样字节, 否则从 d 字节前复制 (t & 0x7F) + 3 个。
+ * 显示的内存读不回来, 所以最近 4 KB 输出留在栈上的环里 (只开机用一次) */
+static void unpack(const uint8_t *s)
+{
+    uint8_t ring[4096];
+    uint32_t o = 0, w = 0;
+    for (;;) {
+        uint32_t t = *s++, n, d = 0;
+        if (t < 0x80) {
+            n = t + 1;
+        } else {
+            n = (t & 0x7F) + 3;
+            d = s[0] | (uint32_t)s[1] << 8;
+            s += 2;
+        }
+        while (n--) {
+            uint8_t b = d ? ring[(o - d) & 4095] : *s++;
+            ring[o & 4095] = b;
+            w |= (uint32_t)b << (8 * (o & 3));
+            if ((++o & 3) == 0) {
+                if (put_word(w))
+                    return;
+                w = 0;
+            }
+        }
+    }
+}
+
 void gfx_hw_init(void)
 {
     reg(CTRL, 0);
-    for (const uint32_t *s = display_assets; *s != 0xFFFFFFFF;) {
-        volatile uint32_t *p = DISPLAY + *s++ / 4;
-        for (uint32_t n = *s++; n; n--)
-            *p++ = *s++;
-    }
+    unpack(display_pack);
     /* 素材之后的图案表项清 0 (= 没有这张图): 显示的 RAM 里可能是上一个程序留下的 (显示的内存读回总是 0, 不能先读) */
     for (uint32_t i = IMG_COUNT; i < IMAGE_MAX; i++)
         DISPLAY[IMG + i] = 0;
