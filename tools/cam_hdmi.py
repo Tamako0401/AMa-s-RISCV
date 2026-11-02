@@ -115,10 +115,21 @@ class NoFocusWindow:
         cv2.setWindowProperty(title, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     def shown(self):
-        """第一次 imshow 之后调一次: 把焦点还给原来的窗口"""
-        if os.environ.get('HYPRLAND_INSTANCE_SIGNATURE') and self.restore:
-            act = f'hl.dispatch(hl.dsp.focus({{ window = "address:{self.restore}" }}))'
-            subprocess.run(['hyprctl', 'eval', act], capture_output=True, check=False)
+        """第一次 imshow 之后调一次: 全屏 (不许聚焦的窗口, Hyprland 的全屏规则不生效, 按地址补), 再把焦点还给原来的窗口"""
+        if os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
+            for _ in range(20):  # 窗口刚创建时合成器可能还没列出来, 最多等 1 秒
+                out = subprocess.run(['hyprctl', 'clients', '-j'], capture_output=True, text=True, check=False).stdout
+                mine = [c for c in json.loads(out or '[]') if c.get('title') == self.title]
+                if mine:
+                    break
+                time.sleep(0.05)
+            for c in mine:
+                if not c.get('fullscreen'):
+                    act = f'hl.dispatch(hl.dsp.window.fullscreen({{ mode = "fullscreen", action = "set", window = "address:{c["address"]}" }}))'
+                    subprocess.run(['hyprctl', 'eval', act], capture_output=True, check=False)
+            if self.restore:
+                act = f'hl.dispatch(hl.dsp.focus({{ window = "address:{self.restore}" }}))'
+                subprocess.run(['hyprctl', 'eval', act], capture_output=True, check=False)
         elif sys.platform == 'win32':
             import ctypes
 
