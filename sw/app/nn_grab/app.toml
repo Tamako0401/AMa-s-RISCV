@@ -1,0 +1,2 @@
+# 和 game 同一份位流 (新显示), 不用重新下载位流就能跑
+params = { DISPLAY_NEW = 1 }
