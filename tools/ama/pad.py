@@ -1,10 +1,13 @@
 """ama monitor --pad: 开一个小窗口当手柄, 60 帧/秒把真正的按键状态 (按住 / 松开) 和鼠标经串口发给板子,
 同时在终端显示串口输出。帧的格式见 game/board/link.h ('P' 帧) 和 pad.h; 键位同串口终端 (wasd / 方向键, Shift 慢速, j / 空格 = A ...)。
+插着的手柄 (Xbox 布局, 见 xpad.py) 和键盘合在一起发。
 鼠标在窗口里时一直发它的位置 (就是画面位置, 640x360) 和左右键; 板上用不用鼠标看暂停菜单里的输入方式 (game/board/menu.h)。"""
 
 import sys
 import threading
 import tkinter as tk
+
+from .xpad import Gamepad
 
 W, H = 640, 360
 UP, DOWN, LEFT, RIGHT, A, B, SLOW = 1, 2, 4, 8, 16, 32, 64
@@ -92,16 +95,20 @@ def run(ser):
     canvas.bind('<ButtonPress-3>', lambda e: state.update(right=True))
     canvas.bind('<ButtonRelease-3>', lambda e: state.update(right=False))
 
+    gamepad = Gamepad()
+
     def tick():
         mouse = state['inside']
+        pad_keys, pad_btn = gamepad.poll()
         btn = (
             state['btn']
+            | pad_btn
             | (4 if mouse else 0)
             | (8 if mouse and state['click'] else 0)
             | (16 if mouse and state['right'] else 0)
         )
         x, y = state['x'], state['y']
-        ser.write(frame('P', [state['keys'], btn, x >> 7, x & 127, y >> 7, y & 127]))
+        ser.write(frame('P', [state['keys'] | pad_keys, btn, x >> 7, x & 127, y >> 7, y & 127]))
         root.after(16, tick)
 
     def reader():
