@@ -37,5 +37,7 @@ void menu_close(void);
 
 /* 输入方式的名字 ("keys" / "point") */
 const char *menu_input_name(uint8_t mode);
+/* 只读来源状态行: 活跃亮色, 不活跃灰色; 标题也用同一行。 */
+void menu_pad_status(int32_t col, int32_t row, const pad_t *pad);
 
 #endif

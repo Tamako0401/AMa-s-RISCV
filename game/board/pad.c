@@ -48,12 +48,14 @@ static void tap(pad_t *pad, uint32_t keys)
 static void frame(pad_t *pad, pad_port_t *port, const link_frame_t *f)
 {
     if (f->type != 'P') {
+        pad->activity[port - pad->port] = PAD_STALE;
         if (pad->on_frame)
             pad->on_frame(f, pad->ctx);
         return;
     }
     if (f->len != 6)
         return;
+    pad->activity[port - pad->port] = PAD_STALE;
     const uint8_t *p = f->data;
     port->keys = p[0] | (p[1] & 1u) << 7 | (p[1] >> 1 & 1u) << 8 | (p[1] >> 3 & 1u) << 9 | (p[1] >> 4 & 1u) << 10;
     port->mouse = p[1] >> 2 & 1;
@@ -72,6 +74,8 @@ static void frame(pad_t *pad, pad_port_t *port, const link_frame_t *f)
 /* 终端打的一个字 */
 static void text(pad_t *pad, pad_port_t *port, uint8_t c)
 {
+    if (key_of((char)c) || c == 0x1B || (port->esc == 2 && c >= 'A' && c <= 'D'))
+        pad->activity[port - pad->port] = PAD_STALE;
     /* 方向键: ESC [ A/B/C/D */
     if (port->esc == 2) {
         port->esc = 0;
@@ -90,6 +94,10 @@ static void text(pad_t *pad, pad_port_t *port, uint8_t c)
 
 void pad_begin(pad_t *pad)
 {
+    pad->local_keys = 0;
+    for (uint32_t i = 0; i < sizeof pad->activity; i++)
+        if (pad->activity[i])
+            pad->activity[i]--;
     for (uint32_t i = 0; i < sizeof pad->ttl; i++)
         if (pad->ttl[i])
             pad->ttl[i]--;
@@ -112,6 +120,13 @@ void pad_byte(pad_t *pad, uint32_t n, uint8_t c)
         frame(pad, port, &port->link.frame);
 }
 
+void pad_local(pad_t *pad, uint32_t keys)
+{
+    pad->local_keys = keys;
+    if (keys)
+        pad->activity[2] = PAD_STALE;
+}
+
 void pad_end(pad_t *pad)
 {
     uint32_t keys = 0;
@@ -130,7 +145,11 @@ void pad_end(pad_t *pad)
     }
     pad->pad_keys = keys;
     pad->mouse = mouse;
-    uint32_t held = pad->pad_keys;
+    pad->active = 0;
+    for (uint32_t i = 0; i < sizeof pad->activity; i++)
+        if (pad->activity[i])
+            pad->active |= 1u << i;
+    uint32_t held = pad->pad_keys | pad->local_keys;
     for (uint32_t i = 0; i < sizeof pad->ttl; i++)
         if (pad->ttl[i])
             held |= 1u << i;
@@ -141,15 +160,30 @@ void pad_end(pad_t *pad)
     pad->ttl[7] = pad->ttl[8] = 0;
 }
 
-/* 电脑上的测试只编上面的部分: 没有串口 */
+/* 电脑上的测试只编上面的部分: 不读串口 / GPIO */
 #ifndef PAD_NO_UART
 #include "aux_uart.h"
 #include "bsp.h"
+#include "key.h"
+#include "local_keys.h"
+
+#define LOCAL_KEY(pin_, bit_) {.pin = pin_},
+static key_t local_keys[] = {PAD_LOCAL_KEYS(LOCAL_KEY)};
+#undef LOCAL_KEY
+#define LOCAL_KEY(pin_, bit_) bit_,
+static const uint32_t local_bits[] = {PAD_LOCAL_KEYS(LOCAL_KEY)};
+#undef LOCAL_KEY
 
 void pad_poll(pad_t *pad)
 {
     static UART_TypeDef *const uarts[PAD_PORTS] = {CONSOLE_UART, AUX_UART};
     pad_begin(pad);
+    key_ticks(local_keys, sizeof local_keys / sizeof local_keys[0]);
+    uint32_t keys = 0;
+    for (uint32_t i = 0; i != sizeof local_keys / sizeof local_keys[0]; i++)
+        if (key_status(&local_keys[i]))
+            keys |= local_bits[i];
+    pad_local(pad, keys);
     for (uint32_t i = 0; i < PAD_PORTS; i++) {
         char c;
         while (uart_getc(uarts[i], &c))
