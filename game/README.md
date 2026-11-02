@@ -228,14 +228,15 @@ CTRL bit0 开启, [7:4] DIV (0 当 1, 复位 3); 开启后的第一帧取样, �
 每次应取样却为空就加一次 (65535 饱和)。LEVEL 低 16 位是排队样本数, 高 16 位是欠载数。
 PCM 项为样本 × VOL, 和四路合成声道相加后饱和到 [-32768,32767]。
 `audio_pcm_write(s,n)` 按四个样本成组写入并返回实际数量, 尾部不足四个不写。
-这些是任务 B 的模型行为; PCM 硬件由任务 A 合入后还需用同一序列核对。
+软件混音沿用这个PCM模型和现有硬件接口。
 
 `core/sound.c` 是两边共用的音效表和播放器, 只用整数和静态数组:
 
 - `sound_play(SFX_...)` 申请声道, `sound_frame()` 每个 60 Hz 游戏帧调用一次, 开始或重开时 `sound_reset()`。
 - 方波在 0~2 里先找空闲声道, 满时只有更高优先级能抢占最低优先级; 相同优先级满时丢弃。
-  噪声固定用声道 3, 按同样优先级规则抢占。PCM 专留背景音乐, 这层不写 PCM 寄存器。
-- 表里每个音效一行, `type` 为 0 方波 / 1 噪声, 然后是优先级和最多两步参数。
+  噪声固定用声道 3, 按同样优先级规则抢占。找到同名外部音效时改用 PCM 软件混音。
+- 表里每个音效一行，依次是 `wav` 名字、`volume` (0~128, 128为原音量)、
+  `type` (0方波/1噪声)、优先级和最多两步合成参数。
   每步 `{起始Hz, 结束Hz, 起始音量, 结束音量, 帧数, duty, vibratoHz}`;
   频率、音量按帧线性插值, 包含两个端点, 颤音每两帧变号。噪声的 duty 是短周期开关。
   帧数为零表示没有这一步; 有效步的帧数必须大于零, 频率加减颤音应在 0~23999 Hz 内。
@@ -250,22 +251,17 @@ PCM 项为样本 × VOL, 和四路合成声道相加后饱和到 [-32768,32767]�
 PCM 字节顺序/保持/满队列/欠载饱和/混音限幅; 另外检查音效包络、两步切换、优先级和全表自停。
 `make -C game check-core` 继续检查共用层不依赖电脑库。
 
-本次 mes2l100hp 同一工具链、同一素材的 `-O2` 构建: `.text` 60496 → 62532 (+2036),
-`.data` 20 → 20, `.bss` 26984 → 27000 (+16) 字节。
-ROM 占用 `.text + .data = 62552 / 63488`, 剩余 936 字节, 未改为 `-Os`。
-未上板测每帧新增周期或实际试听。
+## SD 素材：立绘、背景音乐与音效
 
-## SD 素材：立绘与背景音乐
-
-将自己的 PNG 放到 `game/assets/portraits/`，WAV/OGG/MP3 放到 `game/assets/bgm/`。
+将自己的 PNG 放到 `game/assets/portraits/`，WAV/OGG/MP3 音乐放到 `game/assets/bgm/`，音效放到 `game/assets/sfx/`。
 不要放第三方游戏素材。工具需要 uv 和 ffmpeg；文件名去扩展名后使用23字节以内的 ASCII，每类唯一。
 
 ```sh
 uv run game/tools/pack.py                         # 输出 game/build/AMA.PAK 和编号清单 AMA.json
-# 没有素材也可试：仅在 build 中生成原创几何人像/合成旋律，不覆盖用户素材
+# 没有素材也可试：仅在 build 中生成原创几何人像/合成旋律/射击音效，不覆盖用户素材
 uv run game/tools/pack.py --demo --assets game/build/demo-assets
 make -C game check-sd                            # FAT32镜像/读取/协议/PCM填充测试
-AMA_PAK=game/build/AMA.PAK game/build/touhou       # PC 显示同一份量化立绘，音乐暂静音
+AMA_PAK=game/build/AMA.PAK game/build/touhou       # PC 播放同一份音乐/音效和量化立绘
 ```
 
 将 `AMA.PAK` 复制到 FAT32 卡的根目录，新格式化空卡上先拷这一个文件通常能保持连续。
@@ -280,9 +276,37 @@ AMA_PAK=game/build/AMA.PAK game/build/touhou       # PC 显示同一份量化立
 
 游戏接口：`gfx_portrait_load(id)` → 每帧 `gfx_portrait(x,y,alpha)`，x/y为左上角，alpha=0~16；
 音乐 `bgm_play(id)` / `bgm_stop()` / 每帧 `bgm_frame()` (暂停菜单期间也调用)。
-板上启动时同步挂载SD；切换立绘会短暂阻塞，应放在换场景时。PCM硬件和PC声音分别待合任务A/B，
-合并点及格式详见 [sd.md](../docs/sd.md)。`AMA_PAK` 可覆盖PC包路径，默认查 `game/build/AMA.PAK` 或 `build/AMA.PAK`。
+板上启动时同步挂载SD并一次性缓存音效，电脑 `media_pc_init()` 从同一 PAK 缓存。
+`AMA_PAK` 可覆盖PC包路径，默认查 `game/build/AMA.PAK` 或 `build/AMA.PAK`；修改素材后重新打包并重启。
+切换立绘会短暂阻塞，应放在换场景时。卡槽和包格式见 [sd.md](../docs/sd.md)。
 
-游戏构建改为 `-Os` 以装入62 KiB app区。相同320弹幕CPU RTL测量，step/draw/精灵表提交平均拍数
-从 `-O2` 的141,543升到 `-Os` 的432,636；不含SD、HDMI轮询、手势网络或等显示换帧，
-不能代替整机实测。完整ROM大小与验证记录见 [sd.md](../docs/sd.md)。
+音效按去扩展名的文件名匹配 `core/sound.c` 的 `wav` 字段。例如放入 `sfx/shot.wav` 后，
+`SFX_SHOT` 使用该文件；没有加载成功就继续原合成音效。默认名字为：
+`shot / graze / enemy_hit / enemy_explode / player_hit / bomb / item / start / end / slash / cut /
+fruit_bomb / miss / menu_move / menu_ok`。`volume` 可设0~128，不影响回退合成参数。
+工具转换成 signed PCM8 / 16 kHz / 单声道，每项截到前1秒，不循环。
+音效池固定12 KiB，按PAK目录顺序加载；放不下、格式无效或读取失败会跳过并输出名字到串口/PC stderr，
+之后继续加载后续文件。1秒音效本身有16000字节，会超出池；建议使用短音效，总长约0.768秒以内。
+
+`core/mix.c` 两端共用，每帧通过 `bgm_frame()` 把音乐和最多4个RAM音效相加，饱和到[-128,127]，
+送入唯一PCM FIFO；合成方波/噪声仍由硬件/SDL模型并行输出。
+同名重复触发从头播放一个声部；满员时只有更高优先级能抢占最低优先级，相同/更低优先级丢弃。
+FIFO保持约800样本，补水向下4对齐，因此稳定时约797~800样本；音效排队延迟上限约50 ms加一帧调度。
+`bgm_stop`/切曲只替换音乐源，已排队的约50 ms混音尾巴继续播放，短曲末尾最多补不足800样本静音后关PCM。
+没有音乐也能播音效；音乐读失败只停音乐，音效从RAM继续，触发不读卡。
+SD读取仍是同步的，卡故障超时或立绘上传可能跨帧，仍可能造成硬件欠载。
+
+验证：`make -C game`、`check-core`、`check-audio`、`check-sd` 和 `sw/app/game/test/input_test.c` 宿主测试。
+混音测试覆盖正负饱和、水位、重播、优先级抢占、音量、尾部、音效池边界、缺失时回退合成和读卡失败。
+占位素材由 `pack.py --demo` 程序生成，不包含第三方游戏素材。
+
+本次 mes2l100hp 同一工具链 `-O2`：`.text` 46476 → 48520，`.data` 56 → 56，
+`.bss` 27568 → 41696 字节 (最终大小以构建产物为准)。ROM为 `.text+.data = 48576 / 63488` 字节，增加2044字节，余14912字节；
+RAM静态占用41752字节，余23784字节，预留开机解压4 KiB栈后仍余19688字节。
+不改为 `-Os`；旧测量中它会让游戏主循环慢约3倍。
+
+CPU预算估计：当前RV32IM `-O2` 反汇编每个活跃音效声部每样本约17条指令，乘法两拍，
+每样本另有约12条循环/饱和指令和约3条清零指令。
+4声部、每帧267样本约2.2万条指令；按访存/分支停顿保守估计3~8万拍/帧
+(50 MHz下约0.6~1.6 ms，约占一帧4~10%)，首次补800样本约为3倍。
+这是静态估算，不包含SD/SPI等待，未上板测量；实际看串口 `cpu max` 和PCM欠载计数。

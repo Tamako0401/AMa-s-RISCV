@@ -96,6 +96,8 @@ cursor += written;
 
 `audio_pcm_space()` 返回还能放几个样本; `audio_pcm_write` 自动按空间少写, 向下取 4 的倍数,
 返回实际写入数 (n<=0 返回 0)。驱动按单一生产者设计, 不要同时从中断和主循环喂。
+游戏的 `core/mix.c` 每帧把背景音乐和最多4个RAM音效饱和混成PCM8, 通过同一PCM声道输出;
+FIFO目标800样本 (约50 ms), 不填满。详见 [game/README.md](../game/README.md)。
 60 Hz 每帧约喂 267 个样本, 可交替用 264/268 个等凑齐; 2048 样本可缓冲 128 ms。
 
 ## HDMI 和功放同时出声

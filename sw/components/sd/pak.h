@@ -3,6 +3,7 @@
 #include <stdint.h>
 #define PAK_PORTRAIT 1
 #define PAK_BGM 2
+#define PAK_SFX 3
 #define PAK_PORTRAIT_IMAGE 1000
 #define PAK_PORTRAIT_BASE 57344
 #define PAK_PORTRAIT_BYTES 6656 /* 512 字节调色板区 + 64x64 + 两个32x32 */

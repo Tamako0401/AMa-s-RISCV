@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -73,6 +74,10 @@ class PakTests(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory(prefix='ama-pak-')
         cls.dir = Path(cls.tmp.name)
         pack.demo(cls.dir / 'assets')
+        # 1.5秒程序合成输入: 打包截到1秒, 超过12 KiB池须跳过, 后面的shot仍加载。
+        with wave.open(str(cls.dir / 'assets/sfx/a_long.wav'), 'wb') as f:
+            f.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
+            f.writeframes(struct.pack('<24000h', *([1234] * 24000)))
         pack.pack(cls.dir / 'assets', cls.dir / 'AMA.PAK')
         cls.payload = (cls.dir / 'AMA.PAK').read_bytes()
         cls.fixture = fat_image(cls.dir / 'sd.img', cls.payload)
@@ -131,7 +136,11 @@ class PakTests(unittest.TestCase):
         for name, sources, args in (
             ('sd_protocol', ['game/tests/sd_protocol.c', 'sw/components/sd/sd.c'], []),
             ('pcm_api', ['game/tests/pcm_api.c'], []),
-            ('media', ['game/tests/media.c', 'sw/components/sd/pak.c'], [str(self.dir / 'AMA.PAK')]),
+            (
+                'media',
+                ['game/tests/media.c', 'sw/components/sd/pak.c', 'game/core/mix.c', 'game/media_audio.c'],
+                [str(self.dir / 'AMA.PAK')],
+            ),
         ):
             executable = self.dir / name
             subprocess.run(
@@ -164,6 +173,20 @@ class PakTests(unittest.TestCase):
             self.assertEqual(bytes(result), self.payload[e.offset : e.offset + e.length])
         self.assertEqual(self.find(1, 99)[0], 0)
         self.assertEqual(self.find(99)[0], 0)
+
+    def test_sfx_format_and_length(self):
+        self.assertEqual(self.open(self.payload), 1)
+        ok, e = self.find(3, 0)
+        self.assertTrue(ok)
+        self.assertEqual(e.length, 16000)
+        self.assertEqual((e.loop_start, e.loop_end), (0, 0))
+        ok, e = self.find(3, 1)
+        self.assertTrue(ok)
+        self.assertEqual(e.length, 1600)
+        data = bytearray(self.payload)
+        struct.pack_into('<I', data, 512 + 2 * 64 + 36, 16004)
+        self.assertEqual(self.open(data), 1)
+        self.assertEqual(self.find(3, 0)[0], 0)
 
     def test_file_backed_block_device(self):
         with (self.dir / 'sd.img').open('rb') as file:

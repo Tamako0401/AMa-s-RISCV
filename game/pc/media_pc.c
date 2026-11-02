@@ -5,6 +5,9 @@
 #include "pak.h"
 #include "media_pc.h"
 #include "assets.h"
+#include "../media_audio.h"
+#include "audio_sdl.h"
+#include "mix.h"
 static pak_t pak;
 static FILE *file;
 static int tried, loaded = -1;
@@ -77,15 +80,24 @@ int gfx_portrait_load(int32_t id)
     portrait_revision++;
     return 1;
 }
-/* 任务 B 合并点: 换成 PAK_BGM 的 pak_find/pak_read -> PCM 模型。
- * 当前 PC 只预览立绘, 音乐静音; 不创建另一个 SDL 设备。 */
-void bgm_play(uint32_t id)
+static void skip_sfx(const char *name)
 {
-    (void)id;
+    fprintf(stderr, "skip sfx (pool/full/read/invalid): %s\n", name);
 }
-void bgm_stop(void)
+void media_pc_init(void)
 {
+    media_audio_init(open_pak() ? &pak : NULL, skip_sfx);
 }
-void bgm_frame(void)
+void mix_hw_enable(int on)
 {
+    audio_pcm_enable(on, 3);
+    audio_pcm_volume(96);
+}
+int mix_hw_space(void)
+{
+    return audio_pcm_space();
+}
+void mix_hw_write(const int8_t *data, int n)
+{
+    (void)audio_pcm_write(data, n);
 }

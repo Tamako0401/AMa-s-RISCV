@@ -13,6 +13,8 @@
 #include "app.h"
 #include "audio_sdl.h"
 #include "sound.h"
+#include "bgm.h"
+#include "media_pc.h"
 #include "fixed.h"
 #include "gfx_mem.h"
 #include "hand_udp.h"
@@ -85,6 +87,7 @@ int app_main(const app_game_t *game, int argc, char **argv)
         fprintf(stderr, "UDP 端口 %d 打不开, 只能用鼠标\n", port);
 
     audio_sdl_init(mute);
+    media_pc_init();
     sound_reset();
     game->start(level);
     if (dump)
@@ -149,6 +152,7 @@ int app_main(const app_game_t *game, int argc, char **argv)
             mode = use_hand ? "hand" : "mouse";
         game->frame(&hand, &in, use_hand, bot);
         sound_frame();
+        bgm_frame();
         if (game->over() && !was_over)
             report(game, mode);
         was_over = game->over();

@@ -21,7 +21,7 @@ from refmodel import palettize
 
 ROOT = Path(__file__).resolve().parent.parent
 MAGIC = b'AMAPAK1\0'
-PORTRAIT, BGM = 1, 2
+PORTRAIT, BGM, SFX = 1, 2, 3
 
 
 def align(n):
@@ -46,10 +46,12 @@ def portrait(path):
     return palette + index[:64].tobytes() + index[64:, :32].tobytes() + index[64:, 32:].tobytes()
 
 
-def pcm(path):
+def pcm(path, limit=None):
     try:
         result = subprocess.run(
-            ['ffmpeg', '-v', 'error', '-i', str(path), '-f', 's8', '-ar', '16000', '-ac', '1', '-'],
+            ['ffmpeg', '-v', 'error', '-i', str(path)]
+            + (['-t', str(limit)] if limit else [])
+            + ['-f', 's8', '-ar', '16000', '-ac', '1', '-'],
             check=True,
             capture_output=True,
         ).stdout
@@ -87,11 +89,24 @@ def demo(root):
             f.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
             f.writeframes(struct.pack(f'<{len(values)}h', *values))
 
+    sfx = root / 'sfx'
+    sfx.mkdir(parents=True, exist_ok=True)
+    out = sfx / 'shot.wav'
+    if not out.exists():
+        values = [int(5000 * (1 - n / 1600) * math.sin(2 * math.pi * 850 * n / 16000)) for n in range(1600)]
+        with wave.open(str(out), 'wb') as f:
+            f.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
+            f.writeframes(struct.pack(f'<{len(values)}h', *values))
+
 
 def pack(root, output):
     items = []
     manifest = []
-    for kind, folder, suffixes in ((PORTRAIT, 'portraits', {'.png'}), (BGM, 'bgm', {'.wav', '.ogg', '.mp3'})):
+    for kind, folder, suffixes in (
+        (PORTRAIT, 'portraits', {'.png'}),
+        (BGM, 'bgm', {'.wav', '.ogg', '.mp3'}),
+        (SFX, 'sfx', {'.wav', '.ogg', '.mp3'}),
+    ):
         paths = sorted(p for p in (root / folder).glob('*') if p.suffix.lower() in suffixes)
         seen = set()
         for id_, path in enumerate(paths):
@@ -99,7 +114,7 @@ def pack(root, output):
             if not name or len(name) > 23 or name in seen:
                 raise ValueError(f'名字须为唯一 ASCII, 最多23字节: {path}')
             seen.add(name)
-            data = portrait(path) if kind == PORTRAIT else pcm(path)
+            data = portrait(path) if kind == PORTRAIT else pcm(path, 1 if kind == SFX else None)
             loop_start = loop_end = 0
             sidecar = path.with_suffix('.loop.json')
             if kind == BGM and sidecar.exists():

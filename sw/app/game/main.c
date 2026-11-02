@@ -24,6 +24,13 @@
 #include "touhou.h"
 #include "uart.h"
 
+void media_sfx_skip(const char *name)
+{
+    uart_puts(CONSOLE_UART, "game: skip sfx (pool/full/read/invalid): ");
+    uart_puts(CONSOLE_UART, name);
+    uart_puts(CONSOLE_UART, "\r\n");
+}
+
 #define FPS 60
 #define TOUHOU_SPEED 768 /* Q8 像素 / 帧: 3 点 (180 点 / 秒) */
 #define TOUHOU_SLOW 320

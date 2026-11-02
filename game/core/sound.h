@@ -1,4 +1,4 @@
-/* 音效只占方波 0~2 / 噪声 3; PCM 永远留给音乐。 */
+/* 优先用 RAM 中同名 PCM 音效, 缺失时用方波 0~2 / 噪声 3。 */
 #ifndef GAME_SOUND_H
 #define GAME_SOUND_H
 #include <stdint.h>

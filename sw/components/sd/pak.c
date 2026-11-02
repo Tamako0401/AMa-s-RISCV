@@ -74,6 +74,8 @@ int pak_find(pak_t *p, uint32_t type, uint32_t id, pak_entry_t *e)
             return 0;
         if (type == PAK_PORTRAIT)
             return e->length == PAK_PORTRAIT_BYTES;
+        if (type == PAK_SFX)
+            return e->length && e->length <= 16000 && !(e->length & 3) && !e->loop_start && !e->loop_end;
         return type == PAK_BGM && e->length && !(e->length & 3) && !(e->loop_start & 3) && !(e->loop_end & 3) &&
                (!e->loop_end || (e->loop_start < e->loop_end && e->loop_end <= e->length));
     }

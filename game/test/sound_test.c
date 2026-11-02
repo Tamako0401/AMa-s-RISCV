@@ -1,4 +1,6 @@
 #include "sound.h"
+#include "mix.h"
+#include <string.h>
 #include <assert.h>
 #include <stdio.h>
 static unsigned volume[4], frequency[4], calls[4];
@@ -19,6 +21,19 @@ void sound_hw_noise(unsigned f, unsigned v, unsigned s)
 void sound_hw_off(unsigned ch)
 {
     volume[ch] = 0;
+}
+int mix_hw_space(void)
+{
+    return 2048;
+}
+void mix_hw_write(const int8_t *data, int n)
+{
+    (void)data;
+    (void)n;
+}
+void mix_hw_enable(int on)
+{
+    (void)on;
 }
 int main(void)
 {
@@ -70,5 +85,16 @@ int main(void)
         for (int ch = 0; ch < 4; ch++)
             assert(volume[ch] == 0);
     }
+    mix_init();
+    memset(mix_reserve(128), 10, 128);
+    assert(mix_commit("shot", 128));
+    sound_reset();
+    unsigned old = calls[0] + calls[1] + calls[2];
+    sound_play(SFX_SHOT);
+    sound_frame();
+    assert(calls[0] + calls[1] + calls[2] == old); /* 有 WAV 不触发合成 */
+    sound_play(SFX_GRAZE);
+    sound_frame();
+    assert(volume[0] == 28); /* 缺 WAV 照旧合成 */
     puts("sound: 包络、两步音效、优先级抢占、全表自停通过");
 }
