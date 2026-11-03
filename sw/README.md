@@ -26,6 +26,7 @@ boot/             bootloader: 串口下载 app (协议见 docs/bootloader.md), �
 | [coremark](app/coremark/README.md) | CoreMark 跑分 |
 | video_demo | HDMI 出图: 背景 + 弹跳的球 (精灵), 右上角小窗显示 HDMI 输入 |
 | shield_host | GameShield HOST 版 (mes2l100hp): 按键响声 (功放 MAX98357A), 第二个串口 (星闪 WS63) 回显并和控制台串口互转 |
+| pcm_test | PCM 声道上板自测 (和 game 同一个位流): 内存合成正弦按游戏节奏喂, 功放 + HDMI 出声, 串口报采样率/水位/欠载, 见 [audio.md](../docs/audio.md) |
 | shield_pad | GameShield PAD 版 (mes50hp): 9 个键 + 摇杆, 每秒 60 个 'P' 帧经星闪 WS63 发给 100HP 上的 game (当无线手柄) |
 | game | 两个游戏 (东方式、水果忍者式) 的板上版, 新显示出图, 键盘经串口玩; 只在 mes2l100hp, 见 [game/README.md](../game/README.md) |
 

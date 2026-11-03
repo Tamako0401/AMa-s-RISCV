@@ -109,7 +109,12 @@ int main(void)
     mix_frame();
     assert(reads == before); /* 故障后音效不再读卡 */
     mix_stop_sfx();
-    level = 0;
+    for (int i = 0; i < MIX_QUIET_FRAMES; i++) { /* 停了先补静音, 不让队列放空 */
+        level = 0;
+        mix_frame();
+        assert(enabled && level == MIX_TARGET);
+        check(0);
+    }
     mix_frame();
     assert(!enabled);
     mix_init();

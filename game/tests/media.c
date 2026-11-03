@@ -103,7 +103,7 @@ int main(int argc, char **argv)
         drain(267);
         bgm_frame();
     }
-    assert(!enabled && out_n >= (int)e.length && out_n < (int)e.length + MIX_TARGET);
+    assert(!enabled && out_n >= (int)e.length && out_n < (int)e.length + MIX_TARGET + MIX_QUIET_FRAMES * 267);
     assert(!memcmp(output, bytes + e.offset, e.length));
     for (int i = (int)e.length; i < out_n; i++)
         assert(!output[i]);

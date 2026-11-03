@@ -3,6 +3,8 @@
 #include <stdint.h>
 #define MIX_POOL_BYTES (12 * 1024)
 #define MIX_TARGET 800 /* 16 kHz 的50 ms, 约3个游戏帧 */
+/* 声音停后再补几帧静音才关 PCM: 队列里最后的声音 (至多3帧) 放完, 关时只清掉静音, 不等队列放空 (放空就欠载) */
+#define MIX_QUIET_FRAMES 5
 typedef int (*mix_read_fn)(uint32_t offset, void *data, uint32_t n);
 void mix_init(void);
 /* 开机预留, 读成功后才提交; 失败不消耗池空间。name 最多23字节。 */

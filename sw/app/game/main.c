@@ -265,7 +265,7 @@ int main(void)
     hand_source_init(&pad);
 
     int32_t state = TITLE, was_over = 0, paused = 0;
-    uint32_t t = 0, work = 0, work_max = 0, report_at = 5 * FPS;
+    uint32_t t = 0, work = 0, work_max = 0, report_at = 5 * FPS, pcm_under = audio_pcm_underruns();
     enter(TITLE);
     for (;;) {
         uint32_t start = bsp_cycles();
@@ -343,6 +343,10 @@ int main(void)
             put_num(gfx_hw_line_max());
             uart_puts(CONSOLE_UART, ", overrun ");
             put_num(gfx_hw_overrun());
+            uint32_t under = audio_pcm_underruns(); /* 应一直 +0; 一次断粮一帧约 +267 */
+            uart_puts(CONSOLE_UART, ", pcm underrun +");
+            put_num(under - pcm_under);
+            pcm_under = under;
             uart_puts(CONSOLE_UART, "\r\n");
             work_max = 0;
         }

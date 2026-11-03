@@ -14,7 +14,7 @@ int main(void)
     audio_pcm_volume(96);
     assert(regs[0x5c / 4] == 96);
     regs[0x58 / 4] = 2044 | (123u << 16);
-    assert(audio_pcm_space() == 4);
+    assert(audio_pcm_space() == 4 && audio_pcm_underruns() == 123);
     const int8_t samples[] = {-128, -1, 0, 127, 1, 2, 3, 4};
     assert(audio_pcm_write(samples, 8) == 4 && regs[0x54 / 4] == 0x7f00ff80);
     assert(audio_pcm_write(samples, 3) == 0);
@@ -23,6 +23,6 @@ int main(void)
     audio_pcm_enable(0, 3);
     assert(regs[0x50 / 4] == 0x30);
     munmap((void *)regs, 4096);
-    puts("PCM API: offsets, FIFO space, signed samples, alignment passed");
+    puts("PCM API: offsets, FIFO space, signed samples, alignment, underruns passed");
     return 0;
 }

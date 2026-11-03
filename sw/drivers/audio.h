@@ -94,6 +94,12 @@ static inline int audio_pcm_write(const int8_t *s, int n)
     return n;
 }
 
+/* 欠载累计次数 (该取样时 FIFO 空, 硬件复位才清, 65535 饱和): 打印差值看有没有断粮 */
+static inline uint32_t audio_pcm_underruns(void)
+{
+    return AUDIO->PCM_LEVEL >> 16;
+}
+
 static inline void audio_pcm_volume(uint32_t v)
 {
     AUDIO->PCM_VOL = v;

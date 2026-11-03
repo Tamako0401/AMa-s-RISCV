@@ -11,7 +11,7 @@ static struct {
 } voices[4];
 static mix_read_fn music_read;
 static uint32_t music_offset, music_pos, music_length, loop_start, loop_end;
-static int enabled;
+static int enabled, quiet;
 static int same(const char *a, const char *b)
 {
     for (unsigned i = 0; i < 24; i++) {
@@ -109,11 +109,13 @@ void mix_frame(void)
     int active = music_read != 0;
     for (unsigned v = 0; v < 4; v++)
         active |= voices[v].pos < voices[v].end;
-    if (!active) {
-        if (enabled && mix_hw_space() == 2048) {
-            mix_hw_enable(0);
-            enabled = 0;
-        }
+    if (active)
+        quiet = MIX_QUIET_FRAMES;
+    else if (!enabled)
+        return;
+    else if (!quiet--) {
+        mix_hw_enable(0);
+        enabled = 0;
         return;
     }
     if (!enabled) {

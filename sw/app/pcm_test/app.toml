@@ -1,0 +1,3 @@
+# 和 game 用同一个位流 (新显示), 上板时不用换位流; HDMI 出声要有视频时钟, 画面是纯色底
+cflags = ["-march=rv32im_zicsr"]
+params = { DISPLAY_NEW = 1 }
