@@ -52,6 +52,7 @@ Linux/macOS 直接 `./ama`, Windows 上 `uv run --script ama`。`./ama --help` �
 - [handnet 加速器 (RTL、寄存器、C 库、量化)](docs/nn.md)
 - [徒手手势模型 (数据、标注、训练)](docs/hand-model.md)
 - [参考项目: 手势控制游戏、FPGA 手势识别、sprite 引擎](docs/references.md)
+- [上手指南: 接线、开机、怎么玩、怎么改游戏](docs/guide.md)
 - [飞书项目知识库](https://njupt-sast.feishu.cn/wiki/TUxXwMAh3iIraCkTDjxcWd0Tnmh)
 
 ## 来源与复用
