@@ -260,6 +260,8 @@ PCM 字节顺序/保持/满队列/欠载饱和/混音限幅; 另外检查音效�
 uv run game/tools/pack.py                         # 输出 game/build/AMA.PAK 和编号清单 AMA.json
 # 没有素材也可试：仅在 build 中生成原创几何人像/合成旋律/射击音效，不覆盖用户素材
 uv run game/tools/pack.py --demo --assets game/build/demo-assets
+# 程序合成的一套音效 (8 个短音效) + 12.8 秒循环 BGM, 见 game/tools/gen_sound.py 开头
+uv run game/tools/gen_sound.py && uv run game/tools/pack.py --assets game/build/gen-assets
 make -C game check-sd                            # FAT32镜像/读取/协议/PCM填充测试
 AMA_PAK=game/build/AMA.PAK game/build/touhou       # PC 播放同一份音乐/音效和量化立绘
 ```
