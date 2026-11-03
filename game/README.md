@@ -254,7 +254,7 @@ PCM 字节顺序/保持/满队列/欠载饱和/混音限幅; 另外检查音效�
 ## SD 素材：立绘、背景音乐与音效
 
 将自己的 PNG 放到 `game/assets/portraits/`，WAV/OGG/MP3 音乐放到 `game/assets/bgm/`，音效放到 `game/assets/sfx/`。
-不要放第三方游戏素材。工具需要 uv 和 ffmpeg；文件名去扩展名后使用23字节以内的 ASCII，每类唯一。
+工具需要 uv 和 ffmpeg；文件名去扩展名后使用23字节以内的 ASCII，每类唯一。
 
 ```sh
 uv run game/tools/pack.py                         # 输出 game/build/AMA.PAK 和编号清单 AMA.json
@@ -299,7 +299,6 @@ SD读取仍是同步的，卡故障超时或立绘上传可能跨帧，仍可能
 
 验证：`make -C game`、`check-core`、`check-audio`、`check-sd` 和 `sw/app/game/test/input_test.c` 宿主测试。
 混音测试覆盖正负饱和、水位、重播、优先级抢占、音量、尾部、音效池边界、缺失时回退合成和读卡失败。
-占位素材由 `pack.py --demo` 程序生成，不包含第三方游戏素材。
 
 本次 mes2l100hp 同一工具链 `-O2`：`.text` 46476 → 48520，`.data` 56 → 56，
 `.bss` 27568 → 41696 字节 (最终大小以构建产物为准)。ROM为 `.text+.data = 48576 / 63488` 字节，增加2044字节，余14912字节；
