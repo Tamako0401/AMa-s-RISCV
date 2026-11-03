@@ -1,2 +1,4 @@
 # 只有 mes50hp (GameShield PAD 版接在 J8); pad.h 只用它的按键位定义
 include = ["game/board"]
+# 手柄用不到 handnet; 带上它 PGL50H 块 RAM 不够 (权重 ROM + 程序 RAM 溢出成 LUT RAM, map 报 LUT 不足)
+params = { NN = 0 }
