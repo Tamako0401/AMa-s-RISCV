@@ -114,9 +114,10 @@
 ./ama fpga build -b mes50hp --app shield_pad && ./ama fpga program -b mes50hp --app shield_pad   # 50K 手柄
 ```
 
-- 现在 100HP 的游戏位流时序有一条 -0.011 ns 的保持时间 (慢角, CPU 的 PC 到分支预测表), `fpga build` 会报不满足但位流照样生成,
-  上板运行正常; 正式提交前要处理掉。
-- 50K 的手柄程序关掉了手势加速器 (`sw/app/shield_pad/app.toml` 的 `NN = 0`), 否则块 RAM 不够。
+- 100HP 游戏位流时序全部满足 (`All Constraints Met`)。`fpga build` 的布局布线带 `-fix_hold_violation -optimize_multi_corner_timing`:
+  PDS 默认只按 fast corner 修保持时间, 以前 slow corner 剩一条 -0.011 ns (CPU 的 PC 到分支预测表)。
+- 50K 的手柄程序关掉了手势加速器 (`sw/app/shield_pad/app.toml` 的 `NN = 0`), 否则块 RAM 不够;
+  也关掉了串口 break 复位 (`UART_BREAK_RESET = 0`), 否则只插电源时控制台 RX 悬空, 设计一直被压在复位里。
 
 ## 7. 硬件细节去哪看
 

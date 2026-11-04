@@ -155,7 +155,8 @@ def pds_generate(board, data, out, sources, top, hardware_id):
         f'compile -top_module {name} -include_path {{{include}}}',
         'synthesize -ads -selected_syn_tool_opt 2',
         'dev_map',
-        'pnr',
+        # 保持时间修复默认只修 fast corner; 加 multi-corner 才连 slow corner 一起修 (11-03 游戏位流 slow corner WHS -0.011 ns)
+        'pnr -fix_hold_violation -optimize_multi_corner_timing',
         'report_timing',
         'gen_bit_stream',
     ]
